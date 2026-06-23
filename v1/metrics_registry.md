@@ -1,4 +1,4 @@
-# PokéWorld — Metrics Registry
+# PokéWorld - Metrics Registry
 
 This file records the training runs, hyperparameters, and final validation metrics for all models in the PokéWorld world model pipeline.
 
