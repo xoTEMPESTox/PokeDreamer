@@ -3,6 +3,7 @@
 # ROM (never commit)
 *.gb
 *.gbc
+*.ram
 
 # Logs and trajectories
 logs/
