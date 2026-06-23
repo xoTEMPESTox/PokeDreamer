@@ -1,124 +1,136 @@
-# Pokémon Red Hierarchical Agent — 3-Week Build Plan
-**Architecture: Frozen PPO (System 1) + VLM Planner (System 2) + Stuck Predictor, with goal-conditioned BC as fallback**
+# PokéWorld — 3-Week Build Plan
+**Core contribution: a learned RAM-state dynamics model (world model) for Pokémon Red, used for lookahead planning over imagined futures — not a VLM-wrapper-around-screenshots project.**
+
+Repo name: `pokeworld` (or `redworld`)
+Subtitle: *A Learned Dynamics Model of Pokémon Red for Lookahead Planning*
 
 ---
 
-## 0. Decision Tree (read this first)
+## 0. The Reframe (why this plan differs from v1)
 
+Old framing (rejected by senior):
 ```
-Day 1-3: Test whether frozen PPO is steerable via macro-goal + controller
-         |
-         ├── YES, "go toward (x,y)" reliably moves the agent closer
-         |     → Stay on Option A (zero PPO training). Proceed to Week 1 plan.
-         |
-         └── NO, PPO ignores macro-goals / wanders regardless of target
-               → Fall back to Option B (goal-conditioned behavior cloning).
-                 Budget 1-4 hrs of BC training on a 4090. Proceed to Week 1B.
+Screenshot → VLM → Action      (perception + reaction, no prediction = not a world model)
 ```
 
-Do not decide this in your head — decide it empirically by Day 3 with a logged test (see 1.3). Everything downstream depends on this branch.
+New framing:
+```
+State_t + Action_t → Dynamics Model → State_t+1   (this is the actual world model)
+Planner imagines several action sequences, asks the world model what happens, picks the best imagined future, hands the winning macro-action to PPO to execute.
+```
+
+The world model is now the **star** of the project. The planner can be simple/even rule-based at first. PPO is just the executor. This is the architecture your senior would recognize as a real model-based system (Dreamer/PlaNet/MuZero lineage), just symbolic instead of pixel-latent.
+
+**Test for whether you're done:** can you point at a component and say "this learned `(s_t, a_t) → s_t+1` from data, and the planner used its rollouts — not the real emulator — to decide"? If yes at every decision point, you have a world model project. If the planner ever needs to actually step the emulator to "see what happens," you've slipped back into reactive planning.
 
 ---
 
-## WEEK 1 — System 1 Wiring + Steerability Test
+## 1. State & Action Representation (Day 1)
 
-### Day 1: Environment + Checkpoint Setup
-- [ ] Clone PWhiddy's PokemonRedExperiments (primary candidate — most documented, reaches Pewter/Cerulean reliably)
-- [ ] Get the env running headless, confirm you can step the frozen policy and read RAM state (player x/y, map id, badges, party HP)
-- [ ] Build a `GameState` extractor: `{map_id, x, y, facing, in_battle, dialog_open, party_hp, badges}` from PyBoy RAM hooks
-- [ ] Confirm screen capture (for VLM) and RAM state are synchronized in the same step
+Use RAM-derived symbolic state, not pixels — this is the single biggest scope-control decision in the whole plan.
 
-**Deliverable:** a script that runs the frozen PPO for N steps and prints (x,y,map) trajectory to a log file.
+### State Schema
+```
+state = {
+    map_id:        int
+    x, y:          int
+    direction:     {up,down,left,right}
+    in_battle:     bool
+    battle_turn:   int (0 if not in battle)
+    party_hp:      vector or scalar (sum/avg)
+    badges:        bitmask
+    event_flags:   relevant subset (e.g. has_parcel, talked_to_oak)
+    dialog_open:   bool
+}
+```
 
-### Day 2: Goal Translator + Controller Loop
-- [ ] Define goal schema: `{"type": "goto", "map_id": ..., "xy": [x,y]}` and `{"type": "enter_building"}`, `{"type": "talk_to_npc"}`
-- [ ] Write the **external controller** (this replaces any PPO retraining):
-  ```
-  loop:
-      obs = get_observation()
-      action = frozen_ppo(obs)
-      step(action)
-      dist = distance(current_xy, target_xy)
-      if dist < threshold: goal_complete()
-      if no_improvement_for(K steps): mark_stuck()
-  ```
-- [ ] No goal is ever fed into the PPO's input — it only sees the raw screen exactly as during its own training.
+### Action Space
+```
+action ∈ {up, down, left, right, A, B, start}
+```
 
-**Deliverable:** controller that can take a hardcoded `(map_id, x, y)` and run the PPO until arrival or timeout.
+- [ ] Write a RAM-hook extractor against PyBoy that pulls this struct every step.
+- [ ] Confirm it's stable across map transitions and battle entry/exit.
 
-### Day 3: Steerability Test (the critical checkpoint)
-- [ ] Run 20-30 trials: random current position → random nearby target within same map
-- [ ] Log: success rate, average steps, stuck-rate (no progress for >K steps)
-- [ ] **Decision point:** if success rate is reasonably high (PPO naturally biases toward unexplored/forward movement and the controller can just let it run and re-check distance), continue with Option A. If the PPO actively wanders away from target with no correlation, branch to Option B (BC fallback below).
-
-**This is the single highest-risk step in the whole project — do it first, not last.**
-
-### Day 4-5: Stuck/Progress Predictor (Part 3, Option C)
-- [ ] Collect 50k-150k (state, action, next_state) transitions from frozen PPO rollouts (you already have these logs from Day 3)
-- [ ] Label: `stuck=1` if position hasn't changed (or revisited a tile) for the last N steps, else `0`
-- [ ] Train a small classifier (MLP on RAM-derived features, or a tiny CNN on downsampled screen) — this is genuinely a few hours, not days
-- [ ] Wire it into the controller: if `stuck_probability > threshold`, trigger replan signal
-
-**Deliverable:** working stuck-classifier integrated into the controller loop, with a logged precision/recall on held-out rollouts.
-
-### [Branch] Week 1B — If Steerability Test Fails: Goal-Conditioned BC
-- [ ] Auto-label existing PPO trajectories with goals (no humans needed):
-  - Segments with consistent direction → `goal = move_{N/S/E/W}`
-  - Segments ending at a building door → `goal = enter_building`
-  - Segments where battle starts → `goal = engage_battle`
-- [ ] Build dataset: `(screen, goal_onehot) → action_taken_by_PPO`
-- [ ] Train via behavior cloning (cross-entropy vs. PPO's own actions) — 100k-500k transitions, 1-4 hrs on a 4090
-- [ ] Replace the frozen PPO call with this new goal-conditioned cloned policy in the same controller loop from Day 2
-- [ ] Re-run the Day 3 steerability test against this new policy
-
-This adds ~1 day of work, not weeks, and keeps you on schedule.
+**Deliverable:** a script that dumps `(state_t, action_t, state_t+1)` rows to disk while the frozen PPO plays.
 
 ---
 
-## WEEK 2 — System 2: Vision-Language Planner
+## 2. Data Collection (Day 2-3)
 
-### Day 6-7: State Summarizer for the LLM
-- [ ] Convert `GameState` + a downsampled/cropped screen (or ASCII/tile-map representation) into a short structured prompt context, e.g.:
-  ```
-  Location: Route 2, near Viridian Forest entrance
-  Party: Charmander HP 18/20
-  Badges: 0
-  Nearby: building visible north, tall grass to the east
-  Recent goals: [reached Pallet Town exit] [entered Oak's Lab] [completed]
-  ```
-- [ ] Decide: full screenshot to a multimodal model (e.g. via the Anthropic/OpenAI vision API) vs. RAM-derived structured text only. Structured text is cheaper and more reliable for v1; add screenshots as enrichment if time allows.
+- [ ] Run the frozen PPO (PWhiddy checkpoint) for enough episodes to collect **500k-1M transitions** covering: open-world walking, building entry/exit, battle entry/exit, menu/dialogue states.
+- [ ] Make sure data isn't *only* successful runs — include stuck loops, wall-bumps, battle losses too. The dynamics model needs to learn what happens on failed actions, not just the happy path.
+- [ ] Stratify/check coverage: are buildings, battles, and dialogue transitions represented in reasonable numbers, or do they need targeted collection (e.g. scripted episodes that walk straight at a door)?
 
-### Day 8-9: Planner → Goal Schema
-- [ ] System prompt for the LLM: it sees current state + objective ("get the first badge") and must emit ONE next goal in your fixed JSON schema (`goto`, `enter_building`, `talk_to_npc`, `engage_battle`, `use_item`)
-- [ ] Planner is called only at decision points (goal completion, stuck signal, or every K steps) — not every frame. This keeps API costs/latency sane.
-- [ ] Implement the replan trigger: `stuck_predictor fires → call planner with "current approach failed" context`
-
-**Deliverable:** end-to-end loop: Planner emits goal → Controller drives frozen PPO/BC policy toward it → Stuck predictor monitors → replan on failure → repeat.
-
-### Day 10: Dialogue/Menu Handling
-- [ ] Identify how much of "talk to NPC" / "navigate menu" is already handled by the base policy when dialog_open=True (PWhiddy's agent already presses A/B to advance text in some cases — verify this directly rather than assuming)
-- [ ] If insufficient, add a trivial scripted handler (not RL): when `dialog_open`, just press A on a timer until it closes. This is legitimate engineering, not a gap — note it honestly in your writeup as a scripted micro-skill rather than claiming it's learned.
+**Deliverable:** a labeled dataset file (e.g. parquet/npz) of transitions, plus a short coverage report (counts per transition type).
 
 ---
 
-## WEEK 3 — Evaluation, Robustness, Polish, Writeup
+## 3. The Dynamics Model — Core Deliverable (Day 4-7)
 
-### Day 11-12: Evaluation Harness
-Define and log these metrics across N full runs (e.g. 10-20 runs from house start to first gym):
-- **Instruction success rate**: % of planner-issued goals that the controller actually completes
-- **Replan rate**: how often stuck-predictor correctly triggers a replan vs. false positives
-- **Progress metrics**: towns reached, badges earned, steps-to-badge-1
-- **Stuck-predictor precision/recall** on held-out trajectories
-- **Latency**: planner calls per run, average wall-clock per goal
+### 3.1 One-step model (baseline, Day 4-5)
+```
+MLP(state_t, action_t) → state_t+1
+```
+- [ ] Encode categorical fields (map_id, direction, action) as embeddings/one-hot, numeric fields (x,y,hp) as normalized scalars.
+- [ ] Separate prediction heads per field (position regression, map_id classification, in_battle classification, etc.) rather than one flat output.
+- [ ] Train with a simple supervised loss (cross-entropy for categorical heads, MSE for numeric heads).
 
-### Day 13: Stretch Goal — Skill Router (only if ahead of schedule)
-- [ ] If Week 1-2 finished early, add a thin "skill selector" layer: Planner doesn't just emit a goto-goal, it picks among {Navigate, Battle-handoff, Dialogue-handoff} skill modules, even if Navigate is the only RL-backed one and the others are scripted/heuristic for now
-- [ ] This is purely a demo-quality upgrade (Part 5, Option 4 lite) — do not let it threaten the Week 1-2 deliverables.
+**Eval immediately:** per-field accuracy on held-out transitions (position MAE, map-transition accuracy, battle-flag accuracy).
 
-### Day 14-15: Demo + Writeup
-- [ ] Record a video: planner's text goals overlaid on screen as the agent executes them, with stuck/replan events highlighted
-- [ ] Write up honestly: what's learned (stuck predictor, optionally BC policy) vs. reused (frozen PPO) vs. scripted (dialogue advance)
-- [ ] Report the metrics from Day 11-12 — recruiters will trust measured numbers over claims
+### 3.2 Multi-step rollout model (Day 6-7)
+- [ ] Use the one-step model autoregressively: feed its own predicted `state_t+1` back in as input for `state_t+2`, etc., out to k=10-50 steps.
+- [ ] Measure rollout drift: how far predicted (x,y) diverges from ground truth as k grows. Report this compounding error honestly.
+- [ ] Optional: train directly on k-step targets (`state_t → state_t+k`) for a few fixed k to reduce compounding drift.
+
+**Deliverable:** a `rollout(state, action_sequence, k)` function that returns imagined future states without touching the emulator, plus a drift-vs-k plot.
+
+---
+
+## 4. Planner: Imagination-Based Action Selection (Day 8-11)
+
+```
+for each candidate action-sequence (or single macro-action) in {go_north, go_east, go_west, go_south, enter_building, ...}:
+    imagined_state = world_model.rollout(current_state, sequence, k)
+    score = evaluate(imagined_state, objective)
+
+choose argmax(score) sequence
+hand winning sequence to PPO executor (or to a simple scripted move-toward-target controller)
+```
+
+- [ ] Day 8: define `evaluate(state, objective)` — start simple: distance-to-target-map, badge count, HP threshold, "reached unexplored map_id."
+- [ ] Day 9-10: implement candidate generation (a small fixed set of macro-actions, e.g. "walk N in direction D," "approach nearest building," "approach nearest battle trigger") and the imagine-then-score loop.
+- [ ] Day 11: wire the winning macro-action to an executor. Either:
+  - (a) Frozen PPO with the simple controller-loop from v1 of the plan.
+  - (b) A trivial scripted move-toward-(x,y) controller using A* / BFS over known map tiles.
+
+---
+
+## 5. Evaluation (Day 12-13)
+
+- **Dynamics model accuracy**: per-field one-step accuracy/MAE; k-step rollout drift curve.
+- **Planning ablation (the key experiment):** run the agent with planning (imagine-then-choose) vs. a no-imagination baseline (e.g. greedy/random action choice, or planner picks without consulting the world model). Compare task success rate, steps-to-goal, stuck-rate.
+- **Counterfactual demo**: show concrete cases where the world model successfully predicted dead ends or bad paths and steered the planner away.
+- **Task progress**: badges earned, towns reached.
+
+---
+
+## 6. Stretch Goals (Day 14)
+
+- [ ] Latent version: replace symbolic RAM state with a learned encoder over a downsampled screen (`screen → z`), then train `z_t + a_t → z_t+1` (Dreamer-lite).
+- [ ] Longer/deeper search: beam search or short MCTS over the imagined rollouts instead of single-shot greedy macro-action selection.
+- [ ] VLM as a *front-end* only: use a vision-language model purely to translate a natural-language objective ("get me a badge") into the `evaluate()` scoring function's target.
+
+---
+
+## 7. Writeup + Demo (Day 15)
+
+- [ ] Repo: `pokeworld`. README leads with the dynamics-model architecture diagram and the planning-ablation result.
+- [ ] Be explicit and correct about what each piece is:
+  - **World model**: learned `(s_t, a_t) → s_t+1` dynamics model trained on PPO rollout data.
+  - **Planner**: imagination-based action scorer (hand-written objective function over imagined rollouts).
+  - **Executor**: frozen PPO checkpoint (or scripted controller).
+- [ ] Headline claim for resume: *"Trained a dynamics model of Pokémon Red from gameplay trajectories and used it to perform lookahead planning over imagined futures, with an ablation showing planning improves task success rate over reactive baselines."*
 
 ---
 
@@ -126,19 +138,21 @@ Define and log these metrics across N full runs (e.g. 10-20 runs from house star
 
 | Risk | Mitigation |
 |---|---|
-| Frozen PPO ignores macro-goals entirely | Day 3 test catches this early; BC fallback costs ~1 extra day |
-| LLM planner calls too slow/expensive for real-time play | Only call planner at decision points, not every frame; cache/batch where possible |
-| PPO checkpoint quality varies by source (PWhiddy vs PokeRL vs neroRL) | Pick PWhiddy first (most reliable navigation + documented); keep PokeRL as backup if checkpoint loading breaks |
-| Scope creep into full skill-policy architecture (Part 4) | Treat it as a stretch goal only, explicitly gated behind finishing Weeks 1-2 |
-| Misty/Mt. Moon gaps in base policy make demo stall | Cap your "objective" at first badge (Brock) for the core demo; mention further-game limitations as known gaps, not failures |
+| Compounding rollout error makes k-step imagination unreliable | Report drift honestly; cap k to where accuracy is still useful; consider direct k-step training targets |
+| RAM extraction for battle/dialogue state is buggy or incomplete | Validate against a handful of manually-verified episodes before scaling data collection |
+| Planner's hand-written objective function feels too simple to be "real planning" | Frame this correctly — simplicity of the planner is fine and expected; the contribution is the world model + the ablation, not planner sophistication |
+| Temptation to add VLM/LLM back in as the decision-maker under time pressure | Keep it as an optional thin translation layer only (Section 6); never let it choose actions directly |
+| Running out of time before the ablation (Section 5) | This is the non-negotiable deliverable — protect Day 12-13 even if it means cutting the stretch goals in Section 6 |
 
 ---
 
-## What You Can Honestly Claim on a Resume/Portfolio
+## What Changed From the VLM-Planner Version
 
-- Hierarchical System 1 / System 2 agent design
-- Reused open-source RL checkpoint with zero retraining (or minimal BC, clearly labeled)
-- Built a goal-translation/control layer bridging symbolic planner output to a continuous-control policy
-- Trained a lightweight learned world-model component (stuck/progress predictor) from rollout data
-- Implemented closed-loop replanning based on predictive monitoring
-- Quantitative evaluation: instruction success rate, replan accuracy, task completion metrics
+| | Old plan | New plan |
+|---|---|---|
+| Star of the project | VLM planner | Learned dynamics (world) model |
+| What's learned | Frozen PPO + tiny stuck classifier | RAM dynamics model (one-step + multi-step rollout) |
+| Planner role | Issues goals based on perception | Imagines futures via world model, scores them, picks best |
+| PPO role | Primary executor, steered by goals | Boring executor only, can be replaced by scripted controller |
+| Key evaluation | Instruction success rate | Planning ablation: with-imagination vs. without |
+| Risk profile | Engineering-heavy, low research risk | Slightly more research risk, but directly answers the "that's not a world model" critique |
