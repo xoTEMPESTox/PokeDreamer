@@ -27,8 +27,15 @@ env/
 # PyBoy / emulator saves created at runtime
 *.state.bak
 
-# Checkpoints (large — use external storage)
+# Checkpoints — exclude large model files; keep videos and images
 checkpoints/
+!checkpoints/**/*.mp4
+!checkpoints/**/*.png
+
+# v2 archive — exclude model weights, keep code + videos + images
+v2/checkpoints/**/*.pt
+!v2/checkpoints/**/*.mp4
+!v2/checkpoints/**/*.png
 
 # Jupyter
 .ipynb_checkpoints/
