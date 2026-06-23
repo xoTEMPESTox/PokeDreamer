@@ -1,5 +1,5 @@
-# PokéWorld — 3-Week Build Plan
-**Core contribution: a learned RAM-state dynamics model (world model) for Pokémon Red, used for lookahead planning over imagined futures — not a VLM-wrapper-around-screenshots project.**
+# PokéWorld  3-Week Build Plan
+**Core contribution: a learned RAM-state dynamics model (world model) for Pokémon Red, used for lookahead planning over imagined futures  not a VLM-wrapper-around-screenshots project.**
 
 Repo name: `pokeworld` (or `redworld`)
 Subtitle: *A Learned Dynamics Model of Pokémon Red for Lookahead Planning*
@@ -21,13 +21,13 @@ Planner imagines several action sequences, asks the world model what happens, pi
 
 The world model is now the **star** of the project. The planner can be simple/even rule-based at first. PPO is just the executor. This is the architecture your senior would recognize as a real model-based system (Dreamer/PlaNet/MuZero lineage), just symbolic instead of pixel-latent.
 
-**Test for whether you're done:** can you point at a component and say "this learned `(s_t, a_t) → s_t+1` from data, and the planner used its rollouts — not the real emulator — to decide"? If yes at every decision point, you have a world model project. If the planner ever needs to actually step the emulator to "see what happens," you've slipped back into reactive planning.
+**Test for whether you're done:** can you point at a component and say "this learned `(s_t, a_t) → s_t+1` from data, and the planner used its rollouts  not the real emulator  to decide"? If yes at every decision point, you have a world model project. If the planner ever needs to actually step the emulator to "see what happens," you've slipped back into reactive planning.
 
 ---
 
 ## 1. State & Action Representation (Day 1)
 
-Use RAM-derived symbolic state, not pixels — this is the single biggest scope-control decision in the whole plan.
+Use RAM-derived symbolic state, not pixels  this is the single biggest scope-control decision in the whole plan.
 
 ### State Schema
 ```
@@ -59,14 +59,14 @@ action ∈ {up, down, left, right, A, B, start}
 ## 2. Data Collection (Day 2-3)
 
 - [ ] Run the frozen PPO (PWhiddy checkpoint) for enough episodes to collect **500k-1M transitions** covering: open-world walking, building entry/exit, battle entry/exit, menu/dialogue states.
-- [ ] Make sure data isn't *only* successful runs — include stuck loops, wall-bumps, battle losses too. The dynamics model needs to learn what happens on failed actions, not just the happy path.
+- [ ] Make sure data isn't *only* successful runs  include stuck loops, wall-bumps, battle losses too. The dynamics model needs to learn what happens on failed actions, not just the happy path.
 - [ ] Stratify/check coverage: are buildings, battles, and dialogue transitions represented in reasonable numbers, or do they need targeted collection (e.g. scripted episodes that walk straight at a door)?
 
 **Deliverable:** a labeled dataset file (e.g. parquet/npz) of transitions, plus a short coverage report (counts per transition type).
 
 ---
 
-## 3. The Dynamics Model — Core Deliverable (Day 4-7)
+## 3. The Dynamics Model  Core Deliverable (Day 4-7)
 
 ### 3.1 One-step model (baseline, Day 4-5)
 ```
@@ -98,7 +98,7 @@ choose argmax(score) sequence
 hand winning sequence to PPO executor (or to a simple scripted move-toward-target controller)
 ```
 
-- [ ] Day 8: define `evaluate(state, objective)` — start simple: distance-to-target-map, badge count, HP threshold, "reached unexplored map_id."
+- [ ] Day 8: define `evaluate(state, objective)`  start simple: distance-to-target-map, badge count, HP threshold, "reached unexplored map_id."
 - [ ] Day 9-10: implement candidate generation (a small fixed set of macro-actions, e.g. "walk N in direction D," "approach nearest building," "approach nearest battle trigger") and the imagine-then-score loop.
 - [ ] Day 11: wire the winning macro-action to an executor. Either:
   - (a) Frozen PPO with the simple controller-loop from v1 of the plan.
@@ -140,9 +140,9 @@ hand winning sequence to PPO executor (or to a simple scripted move-toward-targe
 |---|---|
 | Compounding rollout error makes k-step imagination unreliable | Report drift honestly; cap k to where accuracy is still useful; consider direct k-step training targets |
 | RAM extraction for battle/dialogue state is buggy or incomplete | Validate against a handful of manually-verified episodes before scaling data collection |
-| Planner's hand-written objective function feels too simple to be "real planning" | Frame this correctly — simplicity of the planner is fine and expected; the contribution is the world model + the ablation, not planner sophistication |
+| Planner's hand-written objective function feels too simple to be "real planning" | Frame this correctly  simplicity of the planner is fine and expected; the contribution is the world model + the ablation, not planner sophistication |
 | Temptation to add VLM/LLM back in as the decision-maker under time pressure | Keep it as an optional thin translation layer only (Section 6); never let it choose actions directly |
-| Running out of time before the ablation (Section 5) | This is the non-negotiable deliverable — protect Day 12-13 even if it means cutting the stretch goals in Section 6 |
+| Running out of time before the ablation (Section 5) | This is the non-negotiable deliverable  protect Day 12-13 even if it means cutting the stretch goals in Section 6 |
 
 ---
 
