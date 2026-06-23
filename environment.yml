@@ -1,0 +1,17 @@
+name: pokemon-rl
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - numpy
+  - pip:
+    - pyboy>=2.0.0
+    - gymnasium>=0.29
+    - stable-baselines3>=2.3
+    - torch --index-url https://download.pytorch.org/whl/cpu
+    - opencv-python
+    - Pillow
+    - tqdm
+    - matplotlib

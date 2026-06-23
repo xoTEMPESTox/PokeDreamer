@@ -1,0 +1,42 @@
+# Pokémon Red RL — .gitignore
+
+# ROM (never commit)
+*.gb
+*.gbc
+
+# Logs and trajectories
+logs/
+*.jsonl
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Conda / virtualenv
+.env
+.venv
+env/
+
+# PyBoy / emulator saves created at runtime
+*.state.bak
+
+# Checkpoints (large — use external storage)
+checkpoints/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Custom additions
+external/
+saves/
+scratch/
