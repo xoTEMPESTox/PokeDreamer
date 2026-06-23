@@ -8,7 +8,7 @@ Subtitle: *A Learned Dynamics Model of Pokémon Red for Lookahead Planning*
 
 ## 0. The Reframe (why this plan differs from v1)
 
-Old framing (rejected by senior):
+Old framing (rejected):
 ```
 Screenshot → VLM → Action      (perception + reaction, no prediction = not a world model)
 ```
