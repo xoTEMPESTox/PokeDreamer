@@ -182,7 +182,6 @@ def main() -> None:
         pyboy.tick(args.ticks_per_action, render=True)
         
         real_frame = screen_capture(pyboy)
-        real_downsampled = cv2.resize(real_frame, (40, 36), interpolation=cv2.INTER_AREA)
         
         # Decode the corresponding imagined frame from our BPTT lookahead sequence
         # We display the lookahead step corresponding to the current execution index
@@ -192,10 +191,16 @@ def main() -> None:
             
         pred_obs = pred_obs_tensor.squeeze(0).cpu().numpy()
         pred_obs = np.transpose(pred_obs, (1, 2, 0))
+        
+        # Contrast stretch to push soft grey values to sharp black/white (retro pixel art style)
+        pred_obs = (pred_obs - pred_obs.min()) / (pred_obs.max() - pred_obs.min() + 1e-5)
+        pred_obs = 1.0 / (1.0 + np.exp(-12.0 * (pred_obs - 0.5)))
         pred_obs = (pred_obs * 255.0).clip(0, 255).astype(np.uint8)
         
         # Stacking panels
-        left_panel = cv2.resize(real_downsampled, (view_w, view_h), interpolation=cv2.INTER_NEAREST)
+        # Left panel: native high-resolution frame from the emulator
+        left_panel = cv2.resize(real_frame, (view_w, view_h), interpolation=cv2.INTER_CUBIC)
+        # Right panel: upscaled imagined frame with retro nearest-neighbor scaling
         right_panel = cv2.resize(pred_obs, (view_w, view_h), interpolation=cv2.INTER_NEAREST)
         
         left_panel_bgr = cv2.cvtColor(left_panel, cv2.COLOR_RGB2BGR)

@@ -154,8 +154,6 @@ def main() -> None:
         pyboy.tick(args.ticks_per_action, render=True)
         
         real_frame = screen_capture(pyboy)
-        # Downsample real frame to show resolution equivalent
-        real_downsampled = cv2.resize(real_frame, (40, 36), interpolation=cv2.INTER_AREA)
         
         # ────────── B. IMAGINED DYNAMICS STEP ──────────
         # Perform rollout purely in latent space starting from z_start using all actions so far
@@ -167,11 +165,16 @@ def main() -> None:
             
         pred_obs = pred_obs_tensor.squeeze(0).cpu().numpy() # (3, 36, 40)
         pred_obs = np.transpose(pred_obs, (1, 2, 0)) # (36, 40, 3)
+        
+        # Contrast stretch to push soft grey values to sharp black/white (retro pixel art style)
+        pred_obs = (pred_obs - pred_obs.min()) / (pred_obs.max() - pred_obs.min() + 1e-5)
+        pred_obs = 1.0 / (1.0 + np.exp(-12.0 * (pred_obs - 0.5)))
         pred_obs = (pred_obs * 255.0).clip(0, 255).astype(np.uint8)
         
         # ────────── C. CREATE COMBINED VISUAL FRAME ──────────
-        # Resize both panels to standard viewing size
-        left_panel = cv2.resize(real_downsampled, (view_w, view_h), interpolation=cv2.INTER_NEAREST)
+        # Left panel: native high-resolution frame from the emulator
+        left_panel = cv2.resize(real_frame, (view_w, view_h), interpolation=cv2.INTER_CUBIC)
+        # Right panel: upscaled imagined frame with retro nearest-neighbor scaling
         right_panel = cv2.resize(pred_obs, (view_w, view_h), interpolation=cv2.INTER_NEAREST)
         
         # Convert RGB to BGR for OpenCV VideoWriter
