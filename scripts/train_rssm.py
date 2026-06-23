@@ -241,6 +241,21 @@ def main() -> None:
             train_kl_accum += kl_loss.item()
             train_reward_accum += reward_loss.item()
 
+            # Save mid-epoch checkpoint and print progress every 500 batches
+            if (batch_idx + 1) % 500 == 0:
+                mid_ckpt_path = args.out_dir / "checkpoint_latest.pt"
+                torch.save({
+                    'epoch': epoch,
+                    'batch_idx': batch_idx,
+                    'encoder_state_dict': encoder.state_dict(),
+                    'decoder_state_dict': decoder.state_dict(),
+                    'rssm_cell_state_dict': rssm_cell.state_dict(),
+                    'reward_predictor_state_dict': reward_predictor.state_dict(),
+                    'continue_predictor_state_dict': continue_predictor.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                }, mid_ckpt_path)
+                print(f"  [Progress] Epoch {epoch:02d} | Batch {batch_idx + 1:04d}/{len(train_loader):04d} | Loss: {total_loss.item():.4f} (Recon: {recon_loss.item():.4f}, KL: {kl_loss.item():.4f}) | Saved latest midpoint checkpoint")
+
         train_loss = train_loss_accum / len(train_loader)
         train_recon = train_recon_accum / len(train_loader)
         train_kl = train_kl_accum / len(train_loader)
