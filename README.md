@@ -1,10 +1,11 @@
-﻿# PokéWorld — Model-Based RL in Pokémon Red
+﻿# PokéWorld  Model-Based RL in Pokémon Red
 
 [![Hugging Face Models](https://img.shields.io/badge/🤗%20HuggingFace-Model%20Repo-blue)](https://huggingface.co/xxxTEMPESTxxx/PokeDreamer)
 [![Hugging Face Datasets](https://img.shields.io/badge/🤗%20HuggingFace-Dataset%20Repo-green)](https://huggingface.co/datasets/xxxTEMPESTxxx/PokeDreamer)
 [![GitHub](https://img.shields.io/badge/GitHub-xoTEMPESTox%2FPokeDreamer-black?logo=github)](https://github.com/xoTEMPESTox/PokeDreamer)
 
 An experimental research project applying **Dreamer-style model-based reinforcement learning** to play Pokémon Red on a Game Boy emulator (PyBoy). Built from scratch, iterating from a simple VAE + GRU dynamics model (v1) to a discrete Recurrent State-Space Model (RSSM) trained on native-resolution pixels (v2), with a roadmap toward a full dual-agent SOTA system (v3).
+<img width="1672" height="941" alt="ChatGPT Image Jun 23, 2026, 03_46_13 PM" src="https://github.com/user-attachments/assets/b5ca9f10-a6a8-4159-a582-2e26978b34c9" />
 
 ---
 
@@ -23,7 +24,9 @@ An experimental research project applying **Dreamer-style model-based reinforcem
 
 ## 🎮 PokéWorld v1: Continuous Latents & MPC Planner
 
-**Status: Completed & Archived** — [`v1/`](v1/)
+**Status: Completed & Archived**  [`v1/`](v1/)
+
+<img width="2816" height="1536" alt="Gemini_Generated_Image_ek3zcsek3zcsek3z (1)" src="https://github.com/user-attachments/assets/05a77274-9b2c-4ea2-8ea5-67162a08c977" />
 
 ### Architecture
 | Component | Description |
@@ -41,7 +44,7 @@ An experimental research project applying **Dreamer-style model-based reinforcem
 - **Dynamics Model** (Scheduled Sampling): Val AR Loss = **0.10314** vs. Pure TF Ablation = **0.72547**
 - **Imagination Stability**: At 29 steps of free rollout, SS model drifts only **3.47 tiles** vs 10.44 tiles for pure teacher forcing
 
-### Rollout Drift — Scheduled Sampling vs Teacher Forcing
+### Rollout Drift  Scheduled Sampling vs Teacher Forcing
 
 | Rollout Step | SS Latent MSE | TF Latent MSE | SS Tile Error | TF Tile Error |
 |---|---|---|---|---|
@@ -52,13 +55,15 @@ An experimental research project applying **Dreamer-style model-based reinforcem
 | Step 20 | 0.09830 | 0.78455 | **3.36 tiles** | **9.13 tiles** |
 | Step 29 | **0.11197** | **1.04063** | **3.47 tiles** | **10.44 tiles** |
 
-> **Finding**: Scheduled sampling is critical for imagination stability. The SS model's compounding drift stays flat under 3.5 tiles out to 29 steps, while the pure TF ablation exceeds 10.4 tiles — a 3× degradation.
+> **Finding**: Scheduled sampling is critical for imagination stability. The SS model's compounding drift stays flat under 3.5 tiles out to 29 steps, while the pure TF ablation exceeds 10.4 tiles  a 3× degradation.
 
 ---
 
 ## 🌟 PokéWorld v2: Discrete RSSM World Model
 
-**Status: Completed & Archived** — [`v2/`](v2/) *(archiving in progress)*
+**Status: Completed & Archived**  [`v2/`](v2/) *(archiving in progress)*
+
+<img width="2816" height="1536" alt="Gemini_Generated_Image_ek3zcsek3zcsek3z (1)" src="https://github.com/user-attachments/assets/158bb604-fcb4-4332-92e8-fbb16ebcb870" />
 
 ### Architecture
 | Component | Description |
@@ -81,7 +86,7 @@ Training was run for **4 epochs** (50 min/epoch on RTX GPU) using batch size 64,
 | 3 | 0.1490 | 0.1068 | 0.0422 | 0.1228 | 0.1142 | 0.0086 |
 | 4 | 0.1021 | 0.1015 | 0.0005 | 0.1651 | 0.1003 | 0.0648 |
 
-> **Finding**: Reconstruction loss steadily decreases across epochs, with the best model (epoch 4 by val recon = 0.1003) demonstrating pixel-level world modeling at native Game Boy resolution. KL divergence fluctuates as the discrete latent space balances expressiveness vs. compressibility — a known challenge with categorical RSSM training.
+> **Finding**: Reconstruction loss steadily decreases across epochs, with the best model (epoch 4 by val recon = 0.1003) demonstrating pixel-level world modeling at native Game Boy resolution. KL divergence fluctuates as the discrete latent space balances expressiveness vs. compressibility  a known challenge with categorical RSSM training.
 
 ### v2 vs v1: Key Improvements
 | Aspect | v1 | v2 |
@@ -105,7 +110,7 @@ The v1 agent uses the GRU dynamics model to simulate future states, then selects
 
 ### v2: Discrete RSSM Imagination vs. Real Emulator
 
-The v2 agent (right panel) generates frames purely from the RSSM prior dynamics — no emulator steps. Starting from the same seed frame, it imaginines the visual consequences of each action autoregressively. The left panel shows the real emulator.
+The v2 agent (right panel) generates frames purely from the RSSM prior dynamics  no emulator steps. Starting from the same seed frame, it imaginines the visual consequences of each action autoregressively. The left panel shows the real emulator.
 
 > *Video: `checkpoints/rssm_v2/side_by_side_demo_v2.mp4`*
 > [![v2 RSSM Demo](https://img.shields.io/badge/▶%20v2%20RSSM-Imagination%20Demo-orange)](checkpoints/rssm_v2/side_by_side_demo_v2.mp4)
@@ -206,21 +211,23 @@ PokeDreamer/
 ---
 
 ## 🚀 v3 Roadmap (Planned)
-
+ 
 See [`v3.md`](v3.md) for the full technical roadmap. High-level vision:
-
+ 
+### Long-Term Reference Point
+ 
+The eventual goal this roadmap is working toward is something architecturally closer to [DIAMOND](https://diamond-wm.github.io/) (Diffusion As a Model Of eNvironment Dreams)  a world model where the RL policy is trained entirely inside the imagined rollouts, at pixel fidelity good enough that the imagined environment is genuinely playable, not just a planning aid. Everything below (v1's continuous latents, v2's discrete RSSM) is scoped well below that bar intentionally  they're the steps being used to learn the concepts (latent dynamics, imagination-based planning, compounding-error mitigation) before attempting anything resembling DIAMOND's actual scale or fidelity. v3 is the first point where "policy trained inside imagination" becomes the explicit target rather than something deferred.
+ 
 ### System 1 (Fast Reactive Controller)
 - **Behaviour Cloning** warm-start from 10–50h of curated human demonstrations
 - **PPO + GRPO** online RL agent trained inside RSSM imagination rollouts
 - Multi-task actor-critic conditioned on goal embeddings from System 2
 - Reward from: Δbadges, Δ Pokédex, Δunique map IDs, battle outcomes, XP gain
-
 ### System 2 (Slow Strategic Planner)
 - **Multimodal LLM** (Gemini 2.0 Flash / GPT-4o) receiving game screenshots + RAM state JSON
 - Produces macro goals: "Reach Pewter City Gym", "Defeat Brock"
 - Sub-goal queue injected as conditioning token into System 1 policy
 - Replanning triggered on progress stalls (500+ steps without story flag advance)
-
 ### v3 Target Metrics
 | Metric | v2 Achieved | v3 Target |
 |---|---|---|
@@ -228,15 +235,15 @@ See [`v3.md`](v3.md) for the full technical roadmap. High-level vision:
 | Pokédex species caught | N/A | ≥ 10 |
 | 50-step imagination drift | ~5–8 tiles (est.) | < 5 tiles |
 | World model size | ~650MB | < 200MB |
-
+ 
 ---
 
 ## 📖 Citation & Credits
 
-- **Dreamer / DreamerV3**: Hafner et al. (2021, 2023) — RSSM architecture inspiration
-- **PWhiddy baseline PPO**: [PokemonRedExperiments](https://github.com/PWhiddy/PokemonRedExperiments) — used as data collection policy
+- **Dreamer / DreamerV3**: Hafner et al. (2021, 2023)  RSSM architecture inspiration
+- **PWhiddy baseline PPO**: [PokemonRedExperiments](https://github.com/PWhiddy/PokemonRedExperiments)  used as data collection policy
 - **PyBoy emulator**: [Baekalfen/PyBoy](https://github.com/Baekalfen/PyBoy)
 
 ---
 
-*Project by [@xoTEMPESTox](https://github.com/xoTEMPESTox) — Research-grade, educational use only. No ROM files included.*
+*Project by [@xoTEMPESTox](https://github.com/xoTEMPESTox)  Research-grade, educational use only. No ROM files included.*
