@@ -91,7 +91,7 @@ class LatentPlanner:
         score : float
         """
         # Extract predicted values
-        pred_pos = pred_state['pos'].squeeze(0).cpu().numpy() # (2,) -> (x, y)
+        pred_pos = pred_state['pos'].squeeze(0).detach().cpu().numpy() # (2,) -> (x, y)
         pred_x, pred_y = pred_pos[0], pred_pos[1]
         
         # Battle & dialog flags (sigmoid threshold)
@@ -168,29 +168,30 @@ class LatentPlanner:
         best_score = float("-inf")
         
         # Evaluate each sequence
-        for name, seq in candidates.items():
-            # Rollout in latent space
-            # pred_z_seq: (1, seq_len, latent_dim)
-            pred_z_seq = self.dynamics.rollout(z_start, seq, device=self.device)
-            
-            # Extract final predicted latent state z_{t+k}
-            z_final = pred_z_seq[:, -1] # (1, latent_dim)
-            
-            # Probe final state
-            pred_state = self.probe(z_final)
-            
-            # Score final state
-            score = self.evaluate_imagined_state(
-                pred_state, 
-                goal_x=goal_x, 
-                goal_y=goal_y, 
-                goal_map_id=goal_map_id,
-                avoid_battles=avoid_battles
-            )
-            
-            if score > best_score:
-                best_score = score
-                best_name = name
-                best_sequence = seq
+        with torch.no_grad():
+            for name, seq in candidates.items():
+                # Rollout in latent space
+                # pred_z_seq: (1, seq_len, latent_dim)
+                pred_z_seq = self.dynamics.rollout(z_start, seq, device=self.device)
+                
+                # Extract final predicted latent state z_{t+k}
+                z_final = pred_z_seq[:, -1] # (1, latent_dim)
+                
+                # Probe final state
+                pred_state = self.probe(z_final)
+                
+                # Score final state
+                score = self.evaluate_imagined_state(
+                    pred_state, 
+                    goal_x=goal_x, 
+                    goal_y=goal_y, 
+                    goal_map_id=goal_map_id,
+                    avoid_battles=avoid_battles
+                )
+                
+                if score > best_score:
+                    best_score = score
+                    best_name = name
+                    best_sequence = seq
                 
         return best_name, best_sequence, best_score
