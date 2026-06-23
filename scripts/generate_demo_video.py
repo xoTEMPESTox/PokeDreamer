@@ -66,6 +66,8 @@ def parse_args() -> argparse.Namespace:
                    help="Ticks per emulator action")
     p.add_argument("--fps", type=int, default=5,
                    help="Video frame rate (FPS)")
+    p.add_argument("--max-steps", type=int, default=30,
+                   help="Maximum actions/steps to run the demo (default: 30)")
     return p.parse_args()
 
 
@@ -140,7 +142,9 @@ def main() -> None:
     action_history = []
     
     # Execute the demo sequence
-    for step_idx, action_val in enumerate(DEMO_ACTIONS):
+    max_steps = min(args.max_steps, len(DEMO_ACTIONS))
+    for step_idx in range(max_steps):
+        action_val = DEMO_ACTIONS[step_idx]
         action_history.append(action_val)
         btn = BUTTONS[action_val]
         
