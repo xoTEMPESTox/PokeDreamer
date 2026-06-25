@@ -87,17 +87,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
-  // ── Rollout Drift Chart ─────────────────────────────────────
-  const canvas = document.getElementById('driftChart');
-  if (canvas) {
-    drawDriftChart(canvas);
+  // ── Theme toggle logic ──────────────────────────────────────
+  const themeToggle = document.getElementById('themeToggle');
+  if (themeToggle) {
+    themeToggle.addEventListener('click', () => {
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      
+      // Redraw charts since colors depend on the theme
+      redrawCharts();
+    });
   }
 
-  // ── RSSM Training Chart ─────────────────────────────────────
-  const rssmCanvas = document.getElementById('rssmChart');
-  if (rssmCanvas) {
-    drawRSSMChart(rssmCanvas);
-  }
+  // ── Chart initialization ────────────────────────────────────
+  window.redrawCharts = function() {
+    const driftCanvas = document.getElementById('driftChart');
+    if (driftCanvas) {
+      drawDriftChart(driftCanvas);
+    }
+    const rssmCanvas = document.getElementById('rssmChart');
+    if (rssmCanvas) {
+      drawRSSMChart(rssmCanvas);
+    }
+  };
+  
+  redrawCharts();
 
   // ── Smooth scroll for anchor links ─────────────────────────
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -142,8 +158,16 @@ function drawDriftChart(canvas) {
   ctx.fillStyle = 'transparent';
   ctx.fillRect(0, 0, W, H);
 
+  // Theme detection
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const gridColor = isLight ? 'rgba(15, 23, 42, 0.06)' : 'rgba(255,255,255,0.05)';
+  const subGridColor = isLight ? 'rgba(15, 23, 42, 0.04)' : 'rgba(255,255,255,0.04)';
+  const labelColor = isLight ? 'rgba(71, 85, 105, 0.8)' : 'rgba(148,163,184,0.6)';
+  const tfAreaColor = isLight ? 'rgba(245,158,11,0.04)' : 'rgba(245,158,11,0.08)';
+  const ssAreaColor = isLight ? 'rgba(6,182,212,0.04)' : 'rgba(6,182,212,0.08)';
+
   // Grid lines
-  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.strokeStyle = gridColor;
   ctx.lineWidth = 1;
   for (let g = 0; g <= 5; g++) {
     const y = pad.top + (g / 5) * chartH;
@@ -152,7 +176,7 @@ function drawDriftChart(canvas) {
     ctx.lineTo(pad.left + chartW, y);
     ctx.stroke();
     const lbl = ((maxVal * (5 - g) / 5)).toFixed(1);
-    ctx.fillStyle = 'rgba(148,163,184,0.6)';
+    ctx.fillStyle = labelColor;
     ctx.font = '10px Inter';
     ctx.textAlign = 'right';
     ctx.fillText(lbl, pad.left - 8, y + 4);
@@ -162,10 +186,10 @@ function drawDriftChart(canvas) {
   ctx.textAlign = 'center';
   steps.forEach((s, i) => {
     const x = xScale(i);
-    ctx.fillStyle = 'rgba(148,163,184,0.6)';
+    ctx.fillStyle = labelColor;
     ctx.font = '10px Inter';
     ctx.fillText(`Step ${s}`, x, H - 8);
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.strokeStyle = subGridColor;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(x, pad.top);
@@ -177,7 +201,7 @@ function drawDriftChart(canvas) {
   ctx.save();
   ctx.translate(14, pad.top + chartH / 2);
   ctx.rotate(-Math.PI / 2);
-  ctx.fillStyle = 'rgba(148,163,184,0.7)';
+  ctx.fillStyle = labelColor;
   ctx.font = '11px Inter';
   ctx.textAlign = 'center';
   ctx.fillText('Tile Error (Manhattan)', 0, 0);
@@ -189,7 +213,7 @@ function drawDriftChart(canvas) {
   ctx.lineTo(xScale(steps.length - 1), yScale(0));
   ctx.lineTo(xScale(0), yScale(0));
   ctx.closePath();
-  ctx.fillStyle = 'rgba(245,158,11,0.08)';
+  ctx.fillStyle = tfAreaColor;
   ctx.fill();
 
   // SS area fill
@@ -198,7 +222,7 @@ function drawDriftChart(canvas) {
   ctx.lineTo(xScale(steps.length - 1), yScale(0));
   ctx.lineTo(xScale(0), yScale(0));
   ctx.closePath();
-  ctx.fillStyle = 'rgba(6,182,212,0.08)';
+  ctx.fillStyle = ssAreaColor;
   ctx.fill();
 
   // TF line
@@ -214,8 +238,9 @@ function drawDriftChart(canvas) {
   // Legend
   const legendX = pad.left + chartW - 200;
   const legendY = pad.top + 12;
-  drawLegend(ctx, legendX, legendY, '#22d3ee', 'Scheduled Sampling (SS)');
-  drawLegend(ctx, legendX, legendY + 22, '#f59e0b', 'Teacher Forcing (TF)');
+  const legendLabelColor = isLight ? 'rgba(15, 23, 42, 0.9)' : 'rgba(148,163,184,0.9)';
+  drawLegend(ctx, legendX, legendY, '#22d3ee', 'Scheduled Sampling (SS)', legendLabelColor);
+  drawLegend(ctx, legendX, legendY + 22, '#f59e0b', 'Teacher Forcing (TF)', legendLabelColor);
 }
 
 function drawLine(ctx, steps, data, xScale, yScale, color, width) {
@@ -237,10 +262,10 @@ function drawDot(ctx, x, y, color, r) {
   ctx.stroke();
 }
 
-function drawLegend(ctx, x, y, color, label) {
+function drawLegend(ctx, x, y, color, label, textColor) {
   ctx.fillStyle = color;
   ctx.fillRect(x, y, 16, 3);
-  ctx.fillStyle = 'rgba(148,163,184,0.9)';
+  ctx.fillStyle = textColor || 'rgba(148,163,184,0.9)';
   ctx.font = '11px Inter';
   ctx.textAlign = 'left';
   ctx.fillText(label, x + 22, y + 6);
@@ -270,8 +295,14 @@ function drawRSSMChart(canvas) {
   const xScale = i => pad.left + ((i) / (epochs.length - 1)) * chartW;
   const yScale = v => pad.top + chartH - (v / maxVal) * chartH;
 
+  // Theme detection
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const gridColor = isLight ? 'rgba(15, 23, 42, 0.06)' : 'rgba(255,255,255,0.05)';
+  const labelColor = isLight ? 'rgba(71, 85, 105, 0.8)' : 'rgba(148,163,184,0.6)';
+  const legendLabelColor = isLight ? 'rgba(15, 23, 42, 0.9)' : 'rgba(148,163,184,0.9)';
+
   // Grid
-  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.strokeStyle = gridColor;
   ctx.lineWidth = 1;
   for (let g = 0; g <= 5; g++) {
     const y = pad.top + (g / 5) * chartH;
@@ -279,7 +310,7 @@ function drawRSSMChart(canvas) {
     ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y);
     ctx.stroke();
     const lbl = (maxVal * (5 - g) / 5).toFixed(3);
-    ctx.fillStyle = 'rgba(148,163,184,0.6)';
+    ctx.fillStyle = labelColor;
     ctx.font = '10px Inter';
     ctx.textAlign = 'right';
     ctx.fillText(lbl, pad.left - 8, y + 4);
@@ -287,7 +318,7 @@ function drawRSSMChart(canvas) {
 
   // X labels
   epochs.forEach((e, i) => {
-    ctx.fillStyle = 'rgba(148,163,184,0.6)';
+    ctx.fillStyle = labelColor;
     ctx.font = '11px Inter';
     ctx.textAlign = 'center';
     ctx.fillText(`Epoch ${e}`, xScale(i), H - 10);
@@ -297,7 +328,7 @@ function drawRSSMChart(canvas) {
   ctx.save();
   ctx.translate(14, pad.top + chartH / 2);
   ctx.rotate(-Math.PI / 2);
-  ctx.fillStyle = 'rgba(148,163,184,0.7)';
+  ctx.fillStyle = labelColor;
   ctx.font = '11px Inter';
   ctx.textAlign = 'center';
   ctx.fillText('Reconstruction Loss', 0, 0);
@@ -318,13 +349,13 @@ function drawRSSMChart(canvas) {
   ctx.strokeStyle = '#fbbf24';
   ctx.lineWidth = 2;
   ctx.stroke();
-  ctx.fillStyle = '#fbbf24';
+  ctx.fillStyle = isLight ? '#b45309' : '#fbbf24';
   ctx.font = 'bold 10px Inter';
   ctx.textAlign = 'left';
   ctx.fillText('Best ★', bx + 12, by + 4);
 
   // Legend
   const lx = pad.left + 10, ly = pad.top + 10;
-  drawLegend(ctx, lx, ly, '#9d5ff5', 'Train Recon');
-  drawLegend(ctx, lx, ly + 22, '#22d3ee', 'Val Recon');
+  drawLegend(ctx, lx, ly, '#9d5ff5', 'Train Recon', legendLabelColor);
+  drawLegend(ctx, lx, ly + 22, '#22d3ee', 'Val Recon', legendLabelColor);
 }

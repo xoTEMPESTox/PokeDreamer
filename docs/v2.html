@@ -3,12 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PokéDreamer v2 — Discrete RSSM World Model</title>
+  <title>PokéDreamer v2 - Discrete RSSM World Model</title>
   <meta name="description" content="PokéDreamer v2: Discrete RSSM world model at native 160×144 Game Boy resolution. Full architecture documentation, training details, and experimental results." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="stylesheet" href="assets/style.css?v=1.3" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
 </head>
 <body>
   <nav id="navbar" class="navbar">
@@ -16,15 +22,19 @@
       <a href="index.html" class="nav-brand"><span class="nav-logo">⚡</span><span>PokéDreamer</span></a>
       <ul class="nav-links" id="navLinks">
         <li><a href="index.html" class="nav-link">Home</a></li>
-        <li><a href="v1.html" class="nav-link">v1 — VAE+GRU</a></li>
-        <li><a href="v2.html" class="nav-link active">v2 — RSSM</a></li>
-        <li><a href="v3.html" class="nav-link">v3 — Roadmap</a></li>
+        <li><a href="v1.html" class="nav-link">v1 - VAE+GRU</a></li>
+        <li><a href="v2.html" class="nav-link active">v2 - RSSM</a></li>
+        <li><a href="v3.html" class="nav-link">v3 - Roadmap</a></li>
         <li><a href="api.html" class="nav-link">Code Reference</a></li>
         <li><a href="https://github.com/xoTEMPESTox/PokeDreamer" target="_blank" class="nav-link nav-cta">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
           GitHub
         </a></li>
       </ul>
+      <button id="themeToggle" class="theme-toggle" aria-label="Toggle Theme">
+        <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+        <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      </button>
       <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation"><span></span><span></span><span></span></button>
     </div>
   </nav>
@@ -34,7 +44,7 @@
       <div class="breadcrumb">
         <a href="index.html">Home</a>
         <span class="breadcrumb-sep">›</span>
-        <span>v2 — Discrete RSSM</span>
+        <span>v2 - Discrete RSSM</span>
       </div>
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
         <span class="version-badge v2-badge">Completed &amp; Archived ✓</span>
@@ -44,7 +54,7 @@
         <span class="gradient-text">v2: Discrete RSSM</span><br>World Model
       </h1>
       <p class="page-subtitle">
-        The major leap — native 160×144 Game Boy resolution, a 4-layer Residual CNN, and a full Recurrent State-Space Model with 32×32 discrete categorical latents. The RSSM's prior enables pure imagination rollouts at pixel fidelity.
+        The major leap - native 160×144 Game Boy resolution, a 4-layer Residual CNN, and a full Recurrent State-Space Model with 32×32 discrete categorical latents. The RSSM's prior enables pure imagination rollouts at pixel fidelity.
       </p>
     </div>
   </div>
@@ -78,7 +88,7 @@
         v2 is the central contribution of PokéDreamer: a full <em>Dreamer-style discrete RSSM</em> world model operating at native Game Boy resolution. The key advances over v1:
       </p>
       <ul>
-        <li><strong>4× resolution increase</strong>: 160×144 vs. 40×36 — native Game Boy pixels, preserving text, sprite details, and UI elements</li>
+        <li><strong>4× resolution increase</strong>: 160×144 vs. 40×36 - native Game Boy pixels, preserving text, sprite details, and UI elements</li>
         <li><strong>Discrete latents</strong>: 32 categories × 32 classes → 1024-dim one-hot encoding (vs. continuous ℝ³²)</li>
         <li><strong>Full RSSM</strong>: Deterministic GRU path + stochastic categorical path trained jointly</li>
         <li><strong>Prior imagination</strong>: The prior network enables pure latent rollouts with no emulator access</li>
@@ -86,7 +96,7 @@
       </ul>
       <div class="callout callout-info">
         <div class="callout-title">Dreamer Lineage</div>
-        v2 is architecturally based on DreamerV2 (Hafner et al., 2021). The discrete categorical latents are trained via Gumbel-Softmax straight-through estimation — a key technique for backpropagating through discrete distributions.
+        v2 is architecturally based on DreamerV2 (Hafner et al., 2021). The discrete categorical latents are trained via Gumbel-Softmax straight-through estimation - a key technique for backpropagating through discrete distributions.
       </div>
 
       <h2 id="encoder">Residual CNN Encoder</h2>
@@ -160,12 +170,12 @@ latent = concat([h_t, s_t])  # (B, 512 + 1024 = 1536)</code></pre>
         </table>
       </div>
       <p>
-        During training, we minimize the KL divergence between posterior and prior (ELBO). At inference time, the prior enables <em>pure imagination</em> — generating future frames from the prior without any emulator access.
+        During training, we minimize the KL divergence between posterior and prior (ELBO). At inference time, the prior enables <em>pure imagination</em> - generating future frames from the prior without any emulator access.
       </p>
 
       <h2 id="discrete-latents">Discrete Categorical Latents</h2>
       <p>
-        v2 uses <strong>discrete categorical latents</strong> — 32 independent categorical variables, each with 32 classes. The total stochastic state is a 32×32 = 1024-dimensional one-hot vector.
+        v2 uses <strong>discrete categorical latents</strong> - 32 independent categorical variables, each with 32 classes. The total stochastic state is a 32×32 = 1024-dimensional one-hot vector.
       </p>
       <h3>Why Discrete?</h3>
       <ul>
@@ -193,7 +203,7 @@ return sample.reshape(batch_size, self.stoch_dim)  # (B, 1024)</code></pre>
         The latent state <code>concat(h_t, s_t)</code> (1536-dim) feeds into three decoder heads trained jointly:
       </p>
       <h3>Pixel Decoder (<code>Decoder</code>)</h3>
-      <p>Mirror of the encoder — transposed convolutions with residual blocks at each scale, outputting a sigmoid-normalized 3×144×160 reconstruction.</p>
+      <p>Mirror of the encoder - transposed convolutions with residual blocks at each scale, outputting a sigmoid-normalized 3×144×160 reconstruction.</p>
       <div class="code-block">
         <div class="code-header"><span class="code-lang">text</span></div>
         <pre><code>Input:  (B, 1536)
@@ -209,9 +219,9 @@ deconv3: ConvTranspose2d(32→3, k=4, s=2)     → (B, 3,  144, 160)
 sigmoid → output in [0, 1]</code></pre>
       </div>
       <h3>Reward Predictor (<code>RewardPredictor</code>)</h3>
-      <p>MLP: <code>Linear(1536, 256) → ELU → Linear(256, 1)</code> — scalar reward prediction.</p>
+      <p>MLP: <code>Linear(1536, 256) → ELU → Linear(256, 1)</code> - scalar reward prediction.</p>
       <h3>Continue Predictor (<code>ContinuePredictor</code>)</h3>
-      <p>MLP: <code>Linear(1536, 256) → ELU → Linear(256, 1) → Sigmoid</code> — episode continuation probability (not-done mask).</p>
+      <p>MLP: <code>Linear(1536, 256) → ELU → Linear(256, 1) → Sigmoid</code> - episode continuation probability (not-done mask).</p>
 
       <h2 id="training">Training &amp; Losses</h2>
       <p>The RSSM world model is trained end-to-end with a combined multi-task loss:</p>
@@ -231,7 +241,7 @@ sigmoid → output in [0, 1]</code></pre>
       </div>
       <div class="callout callout-warn">
         <div class="callout-title">KL Balancing Rationale</div>
-        Standard ELBO pushes the posterior toward the prior. KL balancing (α=0.8) directs most gradient signal toward improving the prior — which is what we care about for imagination. The posterior gets lighter updates (α=0.2).
+        Standard ELBO pushes the posterior toward the prior. KL balancing (α=0.8) directs most gradient signal toward improving the prior - which is what we care about for imagination. The posterior gets lighter updates (α=0.2).
       </div>
       <h3>Training Configuration</h3>
       <div class="code-block">
@@ -288,17 +298,17 @@ sigmoid → output in [0, 1]</code></pre>
         <canvas id="rssmChart" width="800" height="280"></canvas>
       </div>
       <p>
-        Reconstruction loss steadily decreases across epochs. The best checkpoint (epoch 4, val recon = <strong>0.1003</strong>) demonstrates pixel-level world modeling at native Game Boy resolution. KL divergence fluctuates — a known challenge with categorical RSSM training as the discrete latent space balances expressiveness vs. compressibility.
+        Reconstruction loss steadily decreases across epochs. The best checkpoint (epoch 4, val recon = <strong>0.1003</strong>) demonstrates pixel-level world modeling at native Game Boy resolution. KL divergence fluctuates - a known challenge with categorical RSSM training as the discrete latent space balances expressiveness vs. compressibility.
       </p>
 
       <h2 id="reconstruction">Reconstruction Quality</h2>
       <p>
-        Reconstruction grids are saved during training to <code>checkpoints/rssm_v2/</code> — each grid shows a row of real Game Boy frames alongside their RSSM reconstructions. The best epoch produces visually recognizable reconstructions of the overworld, buildings, and UI elements at native 160×144 resolution.
+        Reconstruction grids are saved during training to <code>checkpoints/rssm_v2/</code> - each grid shows a row of real Game Boy frames alongside their RSSM reconstructions. The best epoch produces visually recognizable reconstructions of the overworld, buildings, and UI elements at native 160×144 resolution.
       </p>
 
       <h2 id="imagination">Imagination Demo</h2>
       <p>
-        The v2 demo video generates frames <em>purely from the RSSM prior</em> — starting from one seed frame, the model imagines the visual consequences of each action autoregressively without any additional emulator access.
+        The v2 demo video generates frames <em>purely from the RSSM prior</em> - starting from one seed frame, the model imagines the visual consequences of each action autoregressively without any additional emulator access.
       </p>
       <div class="code-block">
         <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
@@ -354,7 +364,6 @@ hardware:
 
       <div style="margin-top:48px; display:flex; gap:16px; flex-wrap:wrap;">
         <a href="v3.html" class="btn btn-primary">Next: v3 Roadmap →</a>
-        <a href="v1.html" class="btn btn-secondary">← Back: v1 VAE+GRU</a>
       </div>
     </main>
   </div>

@@ -3,12 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PokéDreamer v1 — VAE + GRU MPC Planner</title>
+  <title>PokéDreamer v1 - VAE + GRU MPC Planner</title>
   <meta name="description" content="PokéDreamer v1: VAE + GRU dynamics model with MPC lookahead planner for Pokémon Red. Full technical documentation with architecture details and experimental results." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="stylesheet" href="assets/style.css?v=1.3" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
 </head>
 <body>
   <!-- Navigation -->
@@ -20,15 +26,19 @@
       </a>
       <ul class="nav-links" id="navLinks">
         <li><a href="index.html" class="nav-link">Home</a></li>
-        <li><a href="v1.html" class="nav-link active">v1 — VAE+GRU</a></li>
-        <li><a href="v2.html" class="nav-link">v2 — RSSM</a></li>
-        <li><a href="v3.html" class="nav-link">v3 — Roadmap</a></li>
+        <li><a href="v1.html" class="nav-link active">v1 - VAE+GRU</a></li>
+        <li><a href="v2.html" class="nav-link">v2 - RSSM</a></li>
+        <li><a href="v3.html" class="nav-link">v3 - Roadmap</a></li>
         <li><a href="api.html" class="nav-link">Code Reference</a></li>
         <li><a href="https://github.com/xoTEMPESTox/PokeDreamer" target="_blank" class="nav-link nav-cta">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
           GitHub
         </a></li>
       </ul>
+      <button id="themeToggle" class="theme-toggle" aria-label="Toggle Theme">
+        <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+        <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      </button>
       <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation"><span></span><span></span><span></span></button>
     </div>
   </nav>
@@ -39,7 +49,7 @@
       <div class="breadcrumb">
         <a href="index.html">Home</a>
         <span class="breadcrumb-sep">›</span>
-        <span>v1 — VAE + GRU MPC Planner</span>
+        <span>v1 - VAE + GRU MPC Planner</span>
       </div>
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
         <span class="version-badge v1-badge">Completed &amp; Archived ✓</span>
@@ -49,7 +59,7 @@
         <span class="gradient-text">v1: VAE + GRU</span><br>MPC Planner
       </h1>
       <p class="page-subtitle">
-        The first generation world model — a Variational Autoencoder compressing Game Boy frames to 32-dimensional continuous latents, paired with a GRU dynamics model and a lookahead MPC planner that reasons about imagined futures.
+        The first generation world model - a Variational Autoencoder compressing Game Boy frames to 32-dimensional continuous latents, paired with a GRU dynamics model and a lookahead MPC planner that reasons about imagined futures.
       </p>
     </div>
   </div>
@@ -86,7 +96,7 @@
       </p>
       <div class="callout callout-info">
         <div class="callout-title">The Key Question</div>
-        Can you point at a component and say "this learned <code>(s_t, a_t) → s_{t+1}</code> from data, and the planner used its rollouts — not the real emulator — to decide"? If yes at every decision point, you have a world model project.
+        Can you point at a component and say "this learned <code>(s_t, a_t) → s_{t+1}</code> from data, and the planner used its rollouts - not the real emulator - to decide"? If yes at every decision point, you have a world model project.
       </div>
       <p>
         The v1 approach uses a symbolic intermediate representation: the VAE compresses pixel frames to a compact latent <code>z ∈ ℝ³²</code>, the GRU dynamics model propagates those latents autoregressively, and linear/MLP probes read out player position from frozen latents for the planner's objective function.
@@ -108,7 +118,7 @@
         </table>
       </div>
       <p>
-        The observation space uses the PWhiddy PPO's downsampled <strong>40×36×3</strong> pixel format — this allows reusing the frozen PPO checkpoint as data collection policy and executor, while the world model operates in the same latent space.
+        The observation space uses the PWhiddy PPO's downsampled <strong>40×36×3</strong> pixel format - this allows reusing the frozen PPO checkpoint as data collection policy and executor, while the world model operates in the same latent space.
       </p>
 
       <h2 id="vae">Variational Autoencoder (VAE)</h2>
@@ -137,7 +147,7 @@ batch_size:    128</code></pre>
 
       <h2 id="dynamics">GRU Dynamics Model</h2>
       <p>
-        The dynamics model learns the transition function <code>z_{t+1} ≈ f(z_t, a_t)</code> — predicting the next latent from the current latent plus the chosen action. This is what enables the agent to <em>imagine</em> future states without running the emulator.
+        The dynamics model learns the transition function <code>z_{t+1} ≈ f(z_t, a_t)</code> - predicting the next latent from the current latent plus the chosen action. This is what enables the agent to <em>imagine</em> future states without running the emulator.
       </p>
       <h3>Scheduled Sampling</h3>
       <p>
@@ -145,7 +155,7 @@ batch_size:    128</code></pre>
       </p>
       <div class="callout callout-warn">
         <div class="callout-title">Why Scheduled Sampling Matters</div>
-        Without scheduled sampling (pure teacher forcing), compounding errors cause the dynamics model to drift rapidly — exceeding 10 tiles of position error after 29 imagined steps. With scheduled sampling, this drift stays flat under 3.5 tiles.
+        Without scheduled sampling (pure teacher forcing), compounding errors cause the dynamics model to drift rapidly - exceeding 10 tiles of position error after 29 imagined steps. With scheduled sampling, this drift stays flat under 3.5 tiles.
       </div>
       <h3>Architecture Details</h3>
       <ul>
@@ -158,7 +168,7 @@ batch_size:    128</code></pre>
 
       <h2 id="probes">RAM State Probes</h2>
       <p>
-        To use the world model for planning, the agent needs a way to extract meaningful information from the latent space <code>z</code>. We train lightweight probes on frozen latents — they never modify the VAE or dynamics model.
+        To use the world model for planning, the agent needs a way to extract meaningful information from the latent space <code>z</code>. We train lightweight probes on frozen latents - they never modify the VAE or dynamics model.
       </p>
       <h3>Probe Architecture</h3>
       <ul>
@@ -169,7 +179,7 @@ batch_size:    128</code></pre>
       </ul>
       <div class="callout callout-info">
         <div class="callout-title">What This Proves</div>
-        A 98.7% map ID classification accuracy and 1.23-tile coordinate error from a 32-dim continuous latent demonstrates the VAE is capturing rich semantic information about game state — not just pixel statistics.
+        A 98.7% map ID classification accuracy and 1.23-tile coordinate error from a 32-dim continuous latent demonstrates the VAE is capturing rich semantic information about game state - not just pixel statistics.
       </div>
 
       <h2 id="planner">MPC Planner</h2>
@@ -234,7 +244,7 @@ Execute first action of best sequence via frozen PPO</code></pre>
         </table>
       </div>
       <p>
-        Autoregressive (AR) loss is the meaningful metric — it measures performance when the model uses its own predictions as input, as it must do during imagination. The TF model has low teacher-forced loss but <em>fails catastrophically</em> in autoregressive rollout.
+        Autoregressive (AR) loss is the meaningful metric - it measures performance when the model uses its own predictions as input, as it must do during imagination. The TF model has low teacher-forced loss but <em>fails catastrophically</em> in autoregressive rollout.
       </p>
 
       <h2 id="results-drift">Results: Rollout Drift Analysis</h2>
@@ -258,7 +268,7 @@ Execute first action of best sequence via frozen PPO</code></pre>
         </table>
       </div>
       <p>
-        The SS model's tile error remains flat (3.30–3.47 tiles) across all 29 steps. The TF ablation degrades from 4.06 tiles at step 1 to 10.44 tiles at step 29 — a <strong>3× degradation</strong> in imagination quality.
+        The SS model's tile error remains flat (3.30–3.47 tiles) across all 29 steps. The TF ablation degrades from 4.06 tiles at step 1 to 10.44 tiles at step 29 - a <strong>3× degradation</strong> in imagination quality.
       </p>
 
       <h2 id="hyperparams">Full Hyperparameter Registry</h2>
@@ -315,7 +325,6 @@ action ∈ {UP=0, DOWN=1, LEFT=2, RIGHT=3, A=4, B=5, START=6, SELECT=7}</code></
 
       <div style="margin-top:48px; display:flex; gap:16px; flex-wrap:wrap;">
         <a href="v2.html" class="btn btn-primary">Next: v2 Discrete RSSM →</a>
-        <a href="index.html" class="btn btn-secondary">← Back to Home</a>
       </div>
     </main>
   </div>

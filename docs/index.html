@@ -3,16 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PokéDreamer — Model-Based RL in Pokémon Red</title>
+  <title>PokéDreamer - Model-Based RL in Pokémon Red</title>
   <meta name="description" content="PokéDreamer: An experimental research project applying Dreamer-style model-based reinforcement learning to play Pokémon Red. Features a discrete RSSM world model trained on native Game Boy pixels." />
   <meta name="keywords" content="PokéDreamer, Dreamer, RSSM, reinforcement learning, Pokémon Red, world model, PyBoy, model-based RL, DreamerV3" />
-  <meta property="og:title" content="PokéDreamer — Model-Based RL in Pokémon Red" />
+  <meta property="og:title" content="PokéDreamer - Model-Based RL in Pokémon Red" />
   <meta property="og:description" content="Dreamer-style model-based RL applied to Pokémon Red. Discrete RSSM world model trained on native 160×144 Game Boy pixels." />
   <meta property="og:type" content="website" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="stylesheet" href="assets/style.css?v=1.3" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
 </head>
 <body>
   <!-- Navigation -->
@@ -24,15 +30,19 @@
       </a>
       <ul class="nav-links" id="navLinks">
         <li><a href="index.html" class="nav-link active">Home</a></li>
-        <li><a href="v1.html" class="nav-link">v1 — VAE+GRU</a></li>
-        <li><a href="v2.html" class="nav-link">v2 — RSSM</a></li>
-        <li><a href="v3.html" class="nav-link">v3 — Roadmap</a></li>
+        <li><a href="v1.html" class="nav-link">v1 - VAE+GRU</a></li>
+        <li><a href="v2.html" class="nav-link">v2 - RSSM</a></li>
+        <li><a href="v3.html" class="nav-link">v3 - Roadmap</a></li>
         <li><a href="api.html" class="nav-link">Code Reference</a></li>
         <li><a href="https://github.com/xoTEMPESTox/PokeDreamer" target="_blank" class="nav-link nav-cta">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
           GitHub
         </a></li>
       </ul>
+      <button id="themeToggle" class="theme-toggle" aria-label="Toggle Theme">
+        <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+        <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      </button>
       <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
         <span></span><span></span><span></span>
       </button>
@@ -60,7 +70,7 @@
       <p class="hero-subtitle">Model-Based Reinforcement Learning in Pokémon Red</p>
       <p class="hero-desc">
         An experimental research project applying <strong>Dreamer-style model-based RL</strong> to play 
-        Pokémon Red on a Game Boy emulator. Built from scratch — iterating from a simple VAE+GRU dynamics 
+        Pokémon Red on a Game Boy emulator. Built from scratch - iterating from a simple VAE+GRU dynamics 
         model to a discrete Recurrent State-Space Model trained on native-resolution pixels.
       </p>
       <div class="hero-actions">
@@ -110,14 +120,14 @@
         <h2 class="section-title">What is PokéDreamer?</h2>
         <p class="section-desc">
           PokéDreamer is a research project that teaches an agent to build an internal <em>world model</em> 
-          of Pokémon Red — then reason, plan, and act inside that imagined world rather than the real emulator.
+          of Pokémon Red - then reason, plan, and act inside that imagined world rather than the real emulator.
         </p>
       </div>
       <div class="concept-grid">
         <div class="concept-card glass-card">
           <div class="concept-icon">🧠</div>
           <h3>World Model</h3>
-          <p>A neural network that learns the transition dynamics of the game: given the current pixel observation and an action, predict the next frame — entirely in a compressed latent space.</p>
+          <p>A neural network that learns the transition dynamics of the game: given the current pixel observation and an action, predict the next frame - entirely in a compressed latent space.</p>
         </div>
         <div class="concept-card glass-card">
           <div class="concept-icon">🎮</div>
@@ -127,12 +137,12 @@
         <div class="concept-card glass-card">
           <div class="concept-icon">📡</div>
           <h3>Dreamer Lineage</h3>
-          <p>Architecturally inspired by Hafner et al.'s DreamerV2/V3 — using a Recurrent State-Space Model (RSSM) with discrete categorical latents and Gumbel-Softmax straight-through gradients.</p>
+          <p>Architecturally inspired by Hafner et al.'s DreamerV2/V3 - using a Recurrent State-Space Model (RSSM) with discrete categorical latents and Gumbel-Softmax straight-through gradients.</p>
         </div>
         <div class="concept-card glass-card">
           <div class="concept-icon">🔬</div>
           <h3>Research-Grade</h3>
-          <p>Built from scratch to understand every component — from the VAE bottleneck to KL-balancing in the RSSM. Not a wrapper around existing frameworks.</p>
+          <p>Built from scratch to understand every component - from the VAE bottleneck to KL-balancing in the RSSM. Not a wrapper around existing frameworks.</p>
         </div>
       </div>
     </div>
@@ -144,7 +154,7 @@
       <div class="section-header">
         <span class="section-tag">Evolution</span>
         <h2 class="section-title">The Research Journey</h2>
-        <p class="section-desc">From symbolic state probes to pixel-level imagination — three generations of world models.</p>
+        <p class="section-desc">From symbolic state probes to pixel-level imagination - three generations of world models.</p>
       </div>
       <div class="timeline">
         <div class="timeline-item" data-version="v1">
@@ -156,7 +166,7 @@
               <span class="version-badge v1-badge">Completed ✓</span>
               <h3>VAE + GRU MPC Planner</h3>
             </div>
-            <p>The first world model — a Variational Autoencoder compressing frames to 32-dim latents, with a GRU dynamics model predicting the next latent. An MPC planner imagines action sequences and picks the best path using linear probes for map position.</p>
+            <p>The first world model - a Variational Autoencoder compressing frames to 32-dim latents, with a GRU dynamics model predicting the next latent. An MPC planner imagines action sequences and picks the best path using linear probes for map position.</p>
             <div class="timeline-metrics">
               <div class="metric"><span class="metric-val">40×36</span><span class="metric-lbl">Resolution</span></div>
               <div class="metric"><span class="metric-val">R³²</span><span class="metric-lbl">Latent Space</span></div>
@@ -176,7 +186,7 @@
               <span class="version-badge v2-badge">Completed ✓</span>
               <h3>Discrete RSSM World Model</h3>
             </div>
-            <p>The major leap — native 160×144 resolution, a 4-layer Residual CNN encoder, and a full Recurrent State-Space Model with 32×32 discrete categorical latents trained via Gumbel-Softmax. The RSSM's prior enables pure imagination rollouts without any emulator steps.</p>
+            <p>The major leap - native 160×144 resolution, a 4-layer Residual CNN encoder, and a full Recurrent State-Space Model with 32×32 discrete categorical latents trained via Gumbel-Softmax. The RSSM's prior enables pure imagination rollouts without any emulator steps.</p>
             <div class="timeline-metrics">
               <div class="metric"><span class="metric-val">160×144</span><span class="metric-lbl">Resolution</span></div>
               <div class="metric"><span class="metric-val">1024-dim</span><span class="metric-lbl">Discrete Latent</span></div>
@@ -196,7 +206,7 @@
               <span class="version-badge v3-badge">In Planning 🚀</span>
               <h3>Dual-Agent SOTA System</h3>
             </div>
-            <p>The vision: System 1 (a PPO/GRPO actor trained inside RSSM imagination) directed by System 2 (a multimodal LLM strategic planner). The first version where "policy trained inside imagination" becomes the explicit target — approaching DIAMOND-style pixel-fidelity world modeling.</p>
+            <p>The vision: System 1 (a PPO/GRPO actor trained inside RSSM imagination) directed by System 2 (a multimodal LLM strategic planner). The first version where "policy trained inside imagination" becomes the explicit target - approaching DIAMOND-style pixel-fidelity world modeling.</p>
             <div class="timeline-metrics">
               <div class="metric"><span class="metric-val">≥2</span><span class="metric-lbl">Target Badges</span></div>
               <div class="metric"><span class="metric-val">&lt;5 tiles</span><span class="metric-lbl">Imagination Drift</span></div>
@@ -223,10 +233,10 @@
       <div class="results-block">
         <h3 class="results-subtitle">
           <span class="result-icon">📈</span>
-          v1: Scheduled Sampling vs. Teacher Forcing — Rollout Drift
+          v1: Scheduled Sampling vs. Teacher Forcing - Rollout Drift
         </h3>
         <p class="results-desc">
-          Measured over 14,564 validation trajectories of length 29 steps. Scheduled sampling (SS) is critical: the SS model's compounding drift stays flat under 3.5 tiles out to 29 imagined steps, while the pure teacher-forcing (TF) ablation exceeds 10.4 tiles — a <strong>3× degradation</strong>.
+          Measured over 14,564 validation trajectories of length 29 steps. Scheduled sampling (SS) is critical: the SS model's compounding drift stays flat under 3.5 tiles out to 29 imagined steps, while the pure teacher-forcing (TF) ablation exceeds 10.4 tiles - a <strong>3× degradation</strong>.
         </p>
         <div class="table-wrapper">
           <table class="data-table" id="drift-table">
@@ -265,7 +275,7 @@
           v2: RSSM World Model Training Progression
         </h3>
         <p class="results-desc">
-          4 epochs on 20 NPZ files (~16,000 native-resolution transitions). Batch size 64, sequence length 15. Reconstruction loss steadily decreases — the best checkpoint (epoch 4, val recon = 0.1003) demonstrates pixel-level world modeling at native Game Boy resolution.
+          4 epochs on 20 NPZ files (~16,000 native-resolution transitions). Batch size 64, sequence length 15. Reconstruction loss steadily decreases - the best checkpoint (epoch 4, val recon = 0.1003) demonstrates pixel-level world modeling at native Game Boy resolution.
         </p>
         <div class="table-wrapper">
           <table class="data-table" id="rssm-table">
@@ -298,7 +308,7 @@
       <div class="section-header">
         <span class="section-tag">Architecture</span>
         <h2 class="section-title">v1 vs v2 Architecture Comparison</h2>
-        <p class="section-desc">How the world model evolved across versions — from continuous latents and teacher forcing to discrete RSSM with KL-balancing.</p>
+        <p class="section-desc">How the world model evolved across versions - from continuous latents and teacher forcing to discrete RSSM with KL-balancing.</p>
       </div>
       <div class="comparison-table-wrapper glass-card">
         <table class="comparison-table" id="arch-comparison">
@@ -397,7 +407,7 @@ conda activate pokemon-rl</code></pre>
                 <span class="code-lang">bash</span>
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
               </div>
-              <pre><code># Collect data (optional — dataset available on HF)
+              <pre><code># Collect data (optional - dataset available on HF)
 python scripts/collect_data.py --episodes 20 --out-dir data</code></pre>
             </div>
           </div>
@@ -453,7 +463,7 @@ python scripts/collect_data.py --episodes 20 --out-dir data</code></pre>
         <a href="https://huggingface.co/xxxTEMPESTxxx/PokeDreamer" target="_blank" class="resource-card glass-card">
           <div class="resource-icon">🤖</div>
           <h3>Model Checkpoints</h3>
-          <p>RSSM v2 best checkpoint (<code>best_world_model.pt</code>), v1 VAE and dynamics checkpoints — all on Hugging Face.</p>
+          <p>RSSM v2 best checkpoint (<code>best_world_model.pt</code>), v1 VAE and dynamics checkpoints - all on Hugging Face.</p>
           <span class="resource-link">HuggingFace Models →</span>
         </a>
         <a href="https://huggingface.co/datasets/xxxTEMPESTxxx/PokeDreamer" target="_blank" class="resource-card glass-card">
@@ -465,7 +475,7 @@ python scripts/collect_data.py --episodes 20 --out-dir data</code></pre>
         <a href="https://github.com/xoTEMPESTox/PokeDreamer" target="_blank" class="resource-card glass-card">
           <div class="resource-icon">💻</div>
           <h3>Source Code</h3>
-          <p>Full Python source — models, dataset loader, game state extractor, training scripts, and demo video generator.</p>
+          <p>Full Python source - models, dataset loader, game state extractor, training scripts, and demo video generator.</p>
           <span class="resource-link">GitHub Repository →</span>
         </a>
         <a href="api.html" class="resource-card glass-card">
@@ -482,19 +492,19 @@ python scripts/collect_data.py --episodes 20 --out-dir data</code></pre>
         <ul class="citation-list">
           <li>
             <span class="cite-tag">DreamerV2/V3</span>
-            <span>Hafner et al. (2021, 2023) — Mastering Atari with Discrete World Models / DreamerV3. Primary RSSM architecture inspiration.</span>
+            <span>Hafner et al. (2021, 2023) - Mastering Atari with Discrete World Models / DreamerV3. Primary RSSM architecture inspiration.</span>
           </li>
           <li>
             <span class="cite-tag">PWhiddy PPO</span>
-            <span><a href="https://github.com/PWhiddy/PokemonRedExperiments" target="_blank">PokemonRedExperiments</a> — Used as the data collection policy for gathering gameplay transitions.</span>
+            <span><a href="https://github.com/PWhiddy/PokemonRedExperiments" target="_blank">PokemonRedExperiments</a> - Used as the data collection policy for gathering gameplay transitions.</span>
           </li>
           <li>
             <span class="cite-tag">PyBoy</span>
-            <span><a href="https://github.com/Baekalfen/PyBoy" target="_blank">Baekalfen/PyBoy</a> — Game Boy emulator used for environment interaction and screen capture.</span>
+            <span><a href="https://github.com/Baekalfen/PyBoy" target="_blank">Baekalfen/PyBoy</a> - Game Boy emulator used for environment interaction and screen capture.</span>
           </li>
           <li>
             <span class="cite-tag">DIAMOND</span>
-            <span><a href="https://diamond-wm.github.io/" target="_blank">DIAMOND</a> — Diffusion As a Model Of eNvironment Dreams. Long-term architectural reference point for v3.</span>
+            <span><a href="https://diamond-wm.github.io/" target="_blank">DIAMOND</a> - Diffusion As a Model Of eNvironment Dreams. Long-term architectural reference point for v3.</span>
           </li>
         </ul>
       </div>
@@ -507,16 +517,16 @@ python scripts/collect_data.py --episodes 20 --out-dir data</code></pre>
       <div class="footer-content">
         <div class="footer-brand">
           <span class="footer-logo">⚡ PokéDreamer</span>
-          <p>Model-Based RL in Pokémon Red — Research-grade, educational use only. No ROM files included.</p>
+          <p>Model-Based RL in Pokémon Red - Research-grade, educational use only. No ROM files included.</p>
         </div>
         <div class="footer-links-grid">
           <div class="footer-col">
             <h4>Documentation</h4>
             <ul>
               <li><a href="index.html">Home</a></li>
-              <li><a href="v1.html">v1 — VAE+GRU</a></li>
-              <li><a href="v2.html">v2 — RSSM</a></li>
-              <li><a href="v3.html">v3 — Roadmap</a></li>
+              <li><a href="v1.html">v1 - VAE+GRU</a></li>
+              <li><a href="v2.html">v2 - RSSM</a></li>
+              <li><a href="v3.html">v3 - Roadmap</a></li>
               <li><a href="api.html">Code Reference</a></li>
             </ul>
           </div>
