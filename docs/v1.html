@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PokéDreamer v1 — VAE + GRU MPC Planner</title>
+  <meta name="description" content="PokéDreamer v1: VAE + GRU dynamics model with MPC lookahead planner for Pokémon Red. Full technical documentation with architecture details and experimental results." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <!-- Navigation -->
+  <nav id="navbar" class="navbar">
+    <div class="nav-container">
+      <a href="index.html" class="nav-brand">
+        <span class="nav-logo">⚡</span>
+        <span>PokéDreamer</span>
+      </a>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html" class="nav-link">Home</a></li>
+        <li><a href="v1.html" class="nav-link active">v1 — VAE+GRU</a></li>
+        <li><a href="v2.html" class="nav-link">v2 — RSSM</a></li>
+        <li><a href="v3.html" class="nav-link">v3 — Roadmap</a></li>
+        <li><a href="api.html" class="nav-link">Code Reference</a></li>
+        <li><a href="https://github.com/xoTEMPESTox/PokeDreamer" target="_blank" class="nav-link nav-cta">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+          GitHub
+        </a></li>
+      </ul>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation"><span></span><span></span><span></span></button>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <div class="page-hero">
+    <div class="container page-hero-content">
+      <div class="breadcrumb">
+        <a href="index.html">Home</a>
+        <span class="breadcrumb-sep">›</span>
+        <span>v1 — VAE + GRU MPC Planner</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+        <span class="version-badge v1-badge">Completed &amp; Archived ✓</span>
+        <span style="font-size:0.8rem; color:var(--text-muted); font-family:var(--font-mono);">v1/</span>
+      </div>
+      <h1 class="page-title">
+        <span class="gradient-text">v1: VAE + GRU</span><br>MPC Planner
+      </h1>
+      <p class="page-subtitle">
+        The first generation world model — a Variational Autoencoder compressing Game Boy frames to 32-dimensional continuous latents, paired with a GRU dynamics model and a lookahead MPC planner that reasons about imagined futures.
+      </p>
+    </div>
+  </div>
+
+  <!-- Docs Layout -->
+  <div class="docs-layout">
+    <!-- Sidebar -->
+    <aside class="docs-sidebar">
+      <nav class="sidebar-nav">
+        <div class="sidebar-title">v1 Documentation</div>
+        <a href="#motivation" class="sidebar-link">Motivation &amp; Framing</a>
+        <a href="#architecture" class="sidebar-link">Architecture</a>
+        <a href="#vae" class="sidebar-link active">VAE Encoder</a>
+        <a href="#dynamics" class="sidebar-link">GRU Dynamics Model</a>
+        <a href="#probes" class="sidebar-link">RAM State Probes</a>
+        <a href="#planner" class="sidebar-link">MPC Planner</a>
+        <div class="sidebar-title">Experiments</div>
+        <a href="#results-vae" class="sidebar-link">VAE Results</a>
+        <a href="#results-probes" class="sidebar-link">Probe Results</a>
+        <a href="#results-dynamics" class="sidebar-link">Dynamics Results</a>
+        <a href="#results-drift" class="sidebar-link">Rollout Drift</a>
+        <div class="sidebar-title">Reference</div>
+        <a href="#hyperparams" class="sidebar-link">Hyperparameters</a>
+        <a href="#state-schema" class="sidebar-link">State Schema</a>
+        <a href="v2.html" class="sidebar-link" style="color:var(--accent-light);">→ Next: v2 RSSM</a>
+      </nav>
+    </aside>
+
+    <!-- Content -->
+    <main class="docs-content prose">
+      <h2 id="motivation">Motivation &amp; Framing</h2>
+      <p>
+        v1 establishes the core thesis of PokéDreamer: that an agent can reason about Pokémon Red using a <em>learned dynamics model</em> rather than requiring access to the real emulator at every decision step. This is the fundamental distinction between model-based and model-free RL.
+      </p>
+      <div class="callout callout-info">
+        <div class="callout-title">The Key Question</div>
+        Can you point at a component and say "this learned <code>(s_t, a_t) → s_{t+1}</code> from data, and the planner used its rollouts — not the real emulator — to decide"? If yes at every decision point, you have a world model project.
+      </div>
+      <p>
+        The v1 approach uses a symbolic intermediate representation: the VAE compresses pixel frames to a compact latent <code>z ∈ ℝ³²</code>, the GRU dynamics model propagates those latents autoregressively, and linear/MLP probes read out player position from frozen latents for the planner's objective function.
+      </p>
+
+      <h2 id="architecture">Architecture Overview</h2>
+      <p>The v1 system is composed of four distinct learned components working in sequence:</p>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr><th>Component</th><th>Input</th><th>Output</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>VAE Encoder</strong></td><td>40×36×3 pixels</td><td>z ∈ ℝ³²</td><td>Compresses screen frames to compact latents</td></tr>
+            <tr><td><strong>GRU Dynamics</strong></td><td>(z_t, a_t)</td><td>z_{t+1}</td><td>Predicts next latent given current state+action</td></tr>
+            <tr><td><strong>RAM Probes</strong></td><td>z ∈ ℝ³²</td><td>(x, y, map_id)</td><td>Decode player position from latents</td></tr>
+            <tr><td><strong>MPC Planner</strong></td><td>current z</td><td>action sequence</td><td>Imagines K-step futures, scores by probe output</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        The observation space uses the PWhiddy PPO's downsampled <strong>40×36×3</strong> pixel format — this allows reusing the frozen PPO checkpoint as data collection policy and executor, while the world model operates in the same latent space.
+      </p>
+
+      <h2 id="vae">Variational Autoencoder (VAE)</h2>
+      <p>
+        The VAE is the first piece of the world model pipeline. It learns to compress Game Boy screen frames into a low-dimensional latent space <code>z ∈ ℝ³²</code>, from which the decoder can reconstruct the original image.
+      </p>
+      <h3>Architecture Details</h3>
+      <ul>
+        <li><strong>Input</strong>: 40×36×3 RGB frames (PWhiddy downsampled resolution)</li>
+        <li><strong>Encoder</strong>: Convolutional layers → mean + log-variance heads → reparameterization</li>
+        <li><strong>Latent dim</strong>: 32 (continuous Gaussian)</li>
+        <li><strong>Decoder</strong>: Transposed convolutions reconstructing 40×36×3</li>
+        <li><strong>Loss</strong>: ELBO = Reconstruction (MSE) + β × KL divergence</li>
+        <li><strong>β</strong>: 1.0 (standard VAE)</li>
+      </ul>
+      <h3>Training Configuration</h3>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">text</span></div>
+        <pre><code>Checkpoint:    checkpoints/vae/best_vae.pt
+Epochs:        15
+latent_dim:    32
+beta (KL):     1.0
+lr:            1e-3
+batch_size:    128</code></pre>
+      </div>
+
+      <h2 id="dynamics">GRU Dynamics Model</h2>
+      <p>
+        The dynamics model learns the transition function <code>z_{t+1} ≈ f(z_t, a_t)</code> — predicting the next latent from the current latent plus the chosen action. This is what enables the agent to <em>imagine</em> future states without running the emulator.
+      </p>
+      <h3>Scheduled Sampling</h3>
+      <p>
+        A critical training detail: <strong>scheduled sampling</strong> gradually shifts the model from using ground-truth previous latents (teacher forcing) to using its own predicted latents. This prevents the <em>exposure bias</em> problem where the model sees perfect inputs at train time but its own (imperfect) predictions at inference time.
+      </p>
+      <div class="callout callout-warn">
+        <div class="callout-title">Why Scheduled Sampling Matters</div>
+        Without scheduled sampling (pure teacher forcing), compounding errors cause the dynamics model to drift rapidly — exceeding 10 tiles of position error after 29 imagined steps. With scheduled sampling, this drift stays flat under 3.5 tiles.
+      </div>
+      <h3>Architecture Details</h3>
+      <ul>
+        <li><strong>Input</strong>: concat(z_t ∈ ℝ³², action_embedding ∈ ℝ¹⁶) = ℝ⁴⁸</li>
+        <li><strong>Hidden state</strong>: GRU with 256-dim hidden vector</li>
+        <li><strong>Output</strong>: z_{t+1} ∈ ℝ³²</li>
+        <li><strong>Sequence length</strong>: 30 steps (BPTT rollout)</li>
+        <li><strong>Scheduled sampling</strong>: Linear decay over 15 epochs to 20% teacher forcing</li>
+      </ul>
+
+      <h2 id="probes">RAM State Probes</h2>
+      <p>
+        To use the world model for planning, the agent needs a way to extract meaningful information from the latent space <code>z</code>. We train lightweight probes on frozen latents — they never modify the VAE or dynamics model.
+      </p>
+      <h3>Probe Architecture</h3>
+      <ul>
+        <li><strong>Input</strong>: frozen z ∈ ℝ³²</li>
+        <li><strong>Shared base</strong>: 64-dim hidden layer</li>
+        <li><strong>Coordinate head</strong>: Linear regression for (x, y) tile position (MAE loss)</li>
+        <li><strong>Map ID head</strong>: 248-class classification (cross-entropy loss)</li>
+      </ul>
+      <div class="callout callout-info">
+        <div class="callout-title">What This Proves</div>
+        A 98.7% map ID classification accuracy and 1.23-tile coordinate error from a 32-dim continuous latent demonstrates the VAE is capturing rich semantic information about game state — not just pixel statistics.
+      </div>
+
+      <h2 id="planner">MPC Planner</h2>
+      <p>
+        The Model Predictive Control (MPC) planner is the brain of the v1 agent. Rather than reacting to observations, it looks ahead by simulating multiple action sequences through the dynamics model and selecting the best-scoring imagined future.
+      </p>
+      <h3>Planning Loop</h3>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">pseudocode</span></div>
+        <pre><code>For each candidate action sequence:
+    imagined_state = dynamics.rollout(z_current, sequence, k steps)
+    (x_pred, y_pred) = probe.decode(imagined_state)
+    score = evaluate(x_pred, y_pred, target_map_id)
+
+Best sequence = argmax(score)
+Execute first action of best sequence via frozen PPO</code></pre>
+      </div>
+      <p>
+        The evaluation function is deliberately simple: minimize Manhattan distance to a target tile/map. The contribution is the world model + imagination capability, not the sophistication of the planner.
+      </p>
+
+      <h2 id="results-vae">Results: VAE Training</h2>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr><th>Metric</th><th>Value</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Train Loss (Total)</td><td class="highlight-cell">1258.41</td><td>Recon: 1227.76, KL: 30.66</td></tr>
+            <tr><td>Val Loss (Total)</td><td class="highlight-cell">1255.95</td><td>Recon: 1225.83, KL: 30.13</td></tr>
+            <tr><td>Epochs</td><td>15</td><td>Converged before 15</td></tr>
+            <tr><td>Latent Dim</td><td>32</td><td>Continuous Gaussian</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Note: Loss values are in raw MSE pixel space (not normalized). The train/val parity indicates no significant overfitting.</p>
+
+      <h2 id="results-probes">Results: RAM State Probes</h2>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr><th>Task</th><th>Metric</th><th>Value</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Map ID Classification</td><td>Validation Accuracy</td><td class="highlight-cell"><strong>98.7%</strong></td></tr>
+            <tr><td>Player Coordinate Decoding</td><td>Manhattan Distance (MAE)</td><td class="highlight-cell"><strong>1.23 tiles</strong></td></tr>
+            <tr><td>Val Loss (Combined)</td><td>Probe loss</td><td>8.3260</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="results-dynamics">Results: Dynamics Model</h2>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr><th>Model</th><th>Val AR Loss</th><th>Val TF Loss</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Scheduled Sampling (Primary)</strong></td><td class="highlight-cell"><strong>0.10314</strong></td><td>0.03675</td><td>20% min TF ratio</td></tr>
+            <tr><td>Pure Teacher Forcing (Ablation)</td><td class="warn-cell">0.72547</td><td>0.01913</td><td>TF=1.0 always</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Autoregressive (AR) loss is the meaningful metric — it measures performance when the model uses its own predictions as input, as it must do during imagination. The TF model has low teacher-forced loss but <em>fails catastrophically</em> in autoregressive rollout.
+      </p>
+
+      <h2 id="results-drift">Results: Rollout Drift Analysis</h2>
+      <p>
+        This is the key ablation. Over 14,564 validation trajectories of length 29, we compare the scheduled sampling model vs. the pure teacher forcing ablation as both are rolled out autoregressively.
+      </p>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr><th>Step k</th><th>SS Latent MSE</th><th>TF Latent MSE</th><th>SS Tile Error</th><th>TF Tile Error</th><th>Ratio</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td>0.09268</td><td>0.12240</td><td>3.72 tiles</td><td>4.06 tiles</td><td class="improvement">1.09×</td></tr>
+            <tr><td>5</td><td>0.08751</td><td>0.23061</td><td>3.32 tiles</td><td>5.08 tiles</td><td class="improvement">1.53×</td></tr>
+            <tr><td>10</td><td>0.08842</td><td>0.40189</td><td class="highlight-cell">3.30 tiles</td><td class="warn-cell">6.47 tiles</td><td class="improvement">1.96×</td></tr>
+            <tr><td>15</td><td>0.09238</td><td>0.59876</td><td class="highlight-cell">3.33 tiles</td><td class="warn-cell">7.81 tiles</td><td class="improvement">2.35×</td></tr>
+            <tr><td>20</td><td>0.09830</td><td>0.78455</td><td class="highlight-cell">3.36 tiles</td><td class="warn-cell">9.13 tiles</td><td class="improvement">2.72×</td></tr>
+            <tr><td>25</td><td>0.10606</td><td>0.92376</td><td>3.42 tiles</td><td>9.72 tiles</td><td class="improvement">2.84×</td></tr>
+            <tr><td><strong>29</strong></td><td><strong>0.11197</strong></td><td><strong>1.04063</strong></td><td class="highlight-cell"><strong>3.47 tiles</strong></td><td class="warn-cell"><strong>10.44 tiles</strong></td><td class="improvement best-improvement"><strong>3.01×</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        The SS model's tile error remains flat (3.30–3.47 tiles) across all 29 steps. The TF ablation degrades from 4.06 tiles at step 1 to 10.44 tiles at step 29 — a <strong>3× degradation</strong> in imagination quality.
+      </p>
+
+      <h2 id="hyperparams">Full Hyperparameter Registry</h2>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">yaml</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code># VAE
+vae:
+  latent_dim: 32
+  beta: 1.0
+  lr: 1.0e-3
+  batch_size: 128
+  epochs: 15
+  input_resolution: [40, 36]   # HxW
+
+# Dynamics (Scheduled Sampling)
+dynamics:
+  hidden_dim: 256               # GRU hidden size
+  action_embed_dim: 16
+  seq_len: 30                   # BPTT rollout steps
+  decay_epochs: 15              # linear SS decay
+  min_teacher_forcing: 0.2
+  lr: 1.0e-3
+  batch_size: 128
+  epochs: 20
+
+# Probes
+probes:
+  input_dim: 32                 # frozen latent dim
+  hidden_dim: 64                # per-task head
+  lr: 1.0e-3
+  batch_size: 128
+  epochs: 10</code></pre>
+      </div>
+
+      <h2 id="state-schema">State &amp; Action Schema</h2>
+      <p>The symbolic state representation extracted from WRAM at each emulator tick:</p>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>state = {
+    'map_id':      int,          # raw map ID byte (248 locations)
+    'x':           int,          # player tile X coordinate
+    'y':           int,          # player tile Y coordinate
+    'facing':      int,          # 0=down, 4=up, 8=left, 12=right
+    'in_battle':   bool,         # True when battle is active
+    'dialog_open': bool,         # True when text box is showing
+    'badges':      int,          # bitmask of 8 gym badges
+    'party_hp':    list[int],    # current HP per party slot
+    'party_max_hp':list[int],    # max HP per party slot
+}
+
+# Action Space
+action ∈ {UP=0, DOWN=1, LEFT=2, RIGHT=3, A=4, B=5, START=6, SELECT=7}</code></pre>
+      </div>
+
+      <div style="margin-top:48px; display:flex; gap:16px; flex-wrap:wrap;">
+        <a href="v2.html" class="btn btn-primary">Next: v2 Discrete RSSM →</a>
+        <a href="index.html" class="btn btn-secondary">← Back to Home</a>
+      </div>
+    </main>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-bottom">
+        <p>⚡ PokéDreamer · By <a href="https://github.com/xoTEMPESTox" target="_blank">@xoTEMPESTox</a> · Research-grade, educational use only</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/main.js"></script>
+</body>
+</html>

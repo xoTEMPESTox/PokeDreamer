@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PokéDreamer v3 — Dual-Agent Roadmap</title>
+  <meta name="description" content="PokéDreamer v3 Roadmap: System 1 (PPO actor trained in RSSM imagination) + System 2 (Multimodal LLM strategic planner). Full technical roadmap toward DIAMOND-style world modeling." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <nav id="navbar" class="navbar">
+    <div class="nav-container">
+      <a href="index.html" class="nav-brand"><span class="nav-logo">⚡</span><span>PokéDreamer</span></a>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html" class="nav-link">Home</a></li>
+        <li><a href="v1.html" class="nav-link">v1 — VAE+GRU</a></li>
+        <li><a href="v2.html" class="nav-link">v2 — RSSM</a></li>
+        <li><a href="v3.html" class="nav-link active">v3 — Roadmap</a></li>
+        <li><a href="api.html" class="nav-link">Code Reference</a></li>
+        <li><a href="https://github.com/xoTEMPESTox/PokeDreamer" target="_blank" class="nav-link nav-cta">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+          GitHub
+        </a></li>
+      </ul>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation"><span></span><span></span><span></span></button>
+    </div>
+  </nav>
+
+  <div class="page-hero">
+    <div class="container page-hero-content">
+      <div class="breadcrumb">
+        <a href="index.html">Home</a>
+        <span class="breadcrumb-sep">›</span>
+        <span>v3 — Dual-Agent Roadmap</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+        <span class="version-badge v3-badge">In Planning 🚀</span>
+        <span style="font-size:0.8rem; color:var(--text-muted); font-family:var(--font-mono);">v3.md</span>
+      </div>
+      <h1 class="page-title">
+        <span style="background: linear-gradient(135deg, #f59e0b, #ef4444, #9d5ff5); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">v3: Dual-Agent</span><br>SOTA System
+      </h1>
+      <p class="page-subtitle">
+        System 1 (PPO actor trained inside RSSM imagination) + System 2 (Multimodal LLM strategic planner). The first version where "policy trained inside imagination" becomes the explicit target — approaching DIAMOND-style pixel-fidelity world modeling.
+      </p>
+    </div>
+  </div>
+
+  <div class="docs-layout">
+    <aside class="docs-sidebar">
+      <nav class="sidebar-nav">
+        <div class="sidebar-title">v3 Roadmap</div>
+        <a href="#vision" class="sidebar-link active">Long-Term Vision</a>
+        <a href="#system1" class="sidebar-link">System 1 — Fast Controller</a>
+        <a href="#system2" class="sidebar-link">System 2 — Strategic Planner</a>
+        <a href="#dual-agent" class="sidebar-link">Dual-Agent Integration</a>
+        <div class="sidebar-title">Technical Plan</div>
+        <a href="#improved-world-model" class="sidebar-link">Improved World Model</a>
+        <a href="#behaviour-cloning" class="sidebar-link">Behaviour Cloning</a>
+        <a href="#imagination-rl" class="sidebar-link">Imagination-Based RL</a>
+        <a href="#reward-design" class="sidebar-link">Reward Design</a>
+        <div class="sidebar-title">Evaluation</div>
+        <a href="#targets" class="sidebar-link">Target Metrics</a>
+        <a href="#risks" class="sidebar-link">Risks &amp; Mitigations</a>
+        <a href="api.html" class="sidebar-link" style="color:var(--accent-light);">→ Code Reference</a>
+      </nav>
+    </aside>
+
+    <main class="docs-content prose">
+      <h2 id="vision">Long-Term Vision</h2>
+      <p>
+        The eventual goal of this roadmap is something architecturally closer to <a href="https://diamond-wm.github.io/" target="_blank">DIAMOND</a> (Diffusion As a Model Of eNvironment Dreams) — a world model where the RL policy is trained entirely inside imagined rollouts, at pixel fidelity good enough that the imagined environment is genuinely playable.
+      </p>
+      <div class="callout callout-info">
+        <div class="callout-title">The Progression</div>
+        v1's continuous latents and v2's discrete RSSM are intentionally scoped well below DIAMOND's bar — they're the steps to learn the concepts (latent dynamics, imagination-based planning, compounding-error mitigation) before attempting anything at that scale. <strong>v3 is the first point where "policy trained inside imagination" becomes the explicit target.</strong>
+      </div>
+      <p>
+        Everything from v1 and v2 was preparation. v3 is where research becomes game-playing: can the agent earn Gym badges, catch Pokémon, and progress through the story — all driven by a policy that has never needed to interact with the real emulator during training?
+      </p>
+
+      <h2 id="system1">System 1 — Fast Reactive Controller</h2>
+      <p>
+        System 1 is a neural network policy <code>π(a_t | h_t, s_t)</code> — an <em>Actor</em> conditioned on the RSSM latent state. It executes actions at emulator speed and is responsible for low-level reactive control.
+      </p>
+      <h3>Behaviour Cloning Warm-Start</h3>
+      <p>
+        Before RL fine-tuning, the actor is pre-trained on 10–50h of curated human demonstrations via <strong>Behaviour Cloning (BC)</strong>. This gives the policy a reasonable prior over useful action sequences before it starts exploring.
+      </p>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">text</span></div>
+        <pre><code>BC Phase:
+  Input:  (h_t, s_t) ← RSSM latent at time t
+  Target: expert action a_t from human gameplay
+  Loss:   cross-entropy(actor_logits, expert_actions)
+  Data:   10–50h curated human demonstrations</code></pre>
+      </div>
+      <h3>PPO + GRPO RL Fine-tuning</h3>
+      <p>
+        After BC warm-start, the actor is fine-tuned with <strong>PPO</strong> (Proximal Policy Optimization) — and potentially <strong>GRPO</strong> (Group Relative Policy Optimization) — trained entirely inside the RSSM's imagined rollouts.
+      </p>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">text</span></div>
+        <pre><code>Imagination Training Loop:
+  1. Sample starting states from replay buffer
+  2. Roll out RSSM prior for H=15 steps using actor π
+  3. Compute rewards from reward_predictor and RAM probes
+  4. Compute λ-returns: V_λ = r_t + γ(1-λ)v(h_{t+1},s_{t+1}) + γλV_{t+1}
+  5. Update Actor via policy gradient on V_λ
+  6. Update Critic via MSE(v(h_t,s_t), V_λ)
+  7. Periodically collect real environment data to refresh world model</code></pre>
+      </div>
+      <h3>Multi-Task Actor-Critic</h3>
+      <p>
+        The actor is conditioned on a <strong>goal embedding</strong> from System 2 — enabling the same policy to pursue different objectives (navigation, battle, exploration) depending on the current macro-goal.
+      </p>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead><tr><th>Component</th><th>Architecture</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Actor</strong></td><td>MLP(1536+goal_dim → 256 → 256 → 8)</td><td>Policy network outputting action logits</td></tr>
+            <tr><td><strong>Critic</strong></td><td>MLP(1536+goal_dim → 256 → 256 → 1)</td><td>Value function for λ-return targets</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="system2">System 2 — Slow Strategic Planner</h2>
+      <p>
+        System 2 is a <strong>Multimodal LLM</strong> (Gemini 2.0 Flash or GPT-4o) that receives game screenshots and RAM state JSON, and produces high-level macro goals for System 1.
+      </p>
+      <h3>Interface</h3>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">json</span></div>
+        <pre><code>// System 2 Input (per planning call):
+{
+  "screenshot": "&lt;base64 160×144 Game Boy frame&gt;",
+  "state": {
+    "map_name": "Pallet Town",
+    "x": 5, "y": 7,
+    "badges": 0,
+    "party_hp": [45, 0],
+    "in_battle": false,
+    "dialog_open": false,
+    "steps_without_progress": 312
+  },
+  "current_goal": "Reach Viridian City"
+}
+
+// System 2 Output (macro goal):
+{
+  "goal": "Navigate to Route 1 entrance",
+  "goal_embedding": [0.23, -0.14, ...],  // embedded for System 1 conditioning
+  "rationale": "Need to head north to reach Viridian City"
+}</code></pre>
+      </div>
+      <h3>Replanning Trigger</h3>
+      <p>
+        System 2 is called when any of these conditions are met:
+      </p>
+      <ul>
+        <li>A story progress flag advances (new badge, new area reached)</li>
+        <li>System 1 has taken <strong>500+ steps without story progress</strong></li>
+        <li>System 1 requests a goal update explicitly</li>
+        <li>A battle ends (success or failure)</li>
+      </ul>
+
+      <h2 id="dual-agent">Dual-Agent Integration</h2>
+      <p>
+        The two systems form a hierarchical architecture — System 2 acts as a manager that sets objectives, System 1 acts as a worker that executes them:
+      </p>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">text</span></div>
+        <pre><code>┌─────────────────────────────────────────────────────┐
+│                   SYSTEM 2 (LLM)                    │
+│  Input: screenshot + RAM JSON                        │
+│  Output: macro goal (text + embedding)               │
+│  Speed: ~1–5 calls/min (slow)                        │
+└───────────────────┬─────────────────────────────────┘
+                    │ goal embedding
+                    ▼
+┌─────────────────────────────────────────────────────┐
+│               SYSTEM 1 (Actor-Critic)               │
+│  Input: RSSM latent (h_t, s_t) + goal embedding     │
+│  Output: action logits → sampled action              │
+│  Speed: ~60 Hz (real-time)                           │
+└───────────────────┬─────────────────────────────────┘
+                    │ action
+                    ▼
+              PyBoy Emulator</code></pre>
+      </div>
+
+      <h2 id="improved-world-model">Improved World Model</h2>
+      <p>
+        v3 requires a more capable world model than v2 to support policy training inside imagination. Key improvements:
+      </p>
+      <ul>
+        <li><strong>More data</strong>: Scale from ~16k to 100k+ transitions with diverse coverage (all gym routes, battle sequences, buildings)</li>
+        <li><strong>Longer training</strong>: 20–50 epochs vs. 4 epochs in v2</li>
+        <li><strong>More RSSM capacity</strong>: Explore det_dim=1024, larger stochastic space</li>
+        <li><strong>Compression target</strong>: Target &lt;200MB vs. ~650MB current — essential for practical deployment</li>
+        <li><strong>Better KL scheduling</strong>: Free-bit training to prevent posterior collapse</li>
+      </ul>
+
+      <h2 id="behaviour-cloning">Phase 1: Behaviour Cloning</h2>
+      <p>Detailed plan for the BC warm-start phase:</p>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead><tr><th>Step</th><th>Task</th><th>Details</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Collect human demos</td><td>10–50h of expert gameplay covering all major game segments</td></tr>
+            <tr><td>2</td><td>Encode to RSSM latents</td><td>Pass demo frames through encoder + RSSM to get (h_t, s_t) sequences</td></tr>
+            <tr><td>3</td><td>BC training</td><td>Minimize cross-entropy between actor logits and expert actions</td></tr>
+            <tr><td>4</td><td>Validate</td><td>Test actor on PyBoy — should exhibit basic navigation and battle behavior</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="imagination-rl">Phase 2: Imagination-Based RL</h2>
+      <p>The core contribution of v3 — training the actor entirely inside imagined rollouts:</p>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead><tr><th>Component</th><th>Details</th></tr></thead>
+          <tbody>
+            <tr><td>Rollout horizon</td><td>H = 15 imagination steps per update</td></tr>
+            <tr><td>λ-return discount</td><td>γ = 0.99, λ = 0.95</td></tr>
+            <tr><td>Actor loss</td><td>Policy gradient on λ-returns (PPO clip)</td></tr>
+            <tr><td>Critic loss</td><td>MSE between value estimates and λ-returns</td></tr>
+            <tr><td>World model refresh</td><td>Every N training epochs, collect real transitions and retrain world model</td></tr>
+            <tr><td>Entropy bonus</td><td>Small entropy term to prevent premature policy collapse</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="reward-design">Reward Design</h2>
+      <p>
+        The reward function must balance multiple objectives for comprehensive game progress. Rewards are predicted by the world model's reward head, with sparse ground-truth signals from RAM at real-environment collection steps.
+      </p>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead><tr><th>Signal</th><th>Type</th><th>Value</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>Δ Badges</td><td>Sparse</td><td>+10.0</td><td>Earning a new Gym badge</td></tr>
+            <tr><td>Δ Pokédex species</td><td>Sparse</td><td>+2.0</td><td>First time catching a species</td></tr>
+            <tr><td>Δ Unique map IDs</td><td>Moderate</td><td>+0.5</td><td>Entering a new map location</td></tr>
+            <tr><td>Battle win</td><td>Moderate</td><td>+1.0</td><td>Successfully winning a battle</td></tr>
+            <tr><td>XP gain</td><td>Dense</td><td>+0.01×Δ</td><td>Small continuous exploration signal</td></tr>
+            <tr><td>HP lost</td><td>Penalty</td><td>-0.05×Δ</td><td>Discourage reckless behavior</td></tr>
+            <tr><td>Stuck penalty</td><td>Penalty</td><td>-0.001</td><td>Per step with no progress signal</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="targets">Target Metrics</h2>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead><tr><th>Metric</th><th>v2 Achieved</th><th>v3 Target</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>Badges (no human intervention)</td><td>0 (policy not trained)</td><td class="highlight-cell"><strong>≥ 2</strong></td><td>Brock + Misty</td></tr>
+            <tr><td>Pokédex species caught</td><td>N/A</td><td class="highlight-cell"><strong>≥ 10</strong></td><td>Early Routes</td></tr>
+            <tr><td>50-step imagination drift</td><td>~5–8 tiles (est.)</td><td class="highlight-cell"><strong>&lt; 5 tiles</strong></td><td>Better world model</td></tr>
+            <tr><td>World model size</td><td>~650MB</td><td class="highlight-cell"><strong>&lt; 200MB</strong></td><td>Compression required</td></tr>
+            <tr><td>Inference speed</td><td>N/A</td><td class="highlight-cell"><strong>≥ 60 Hz</strong></td><td>Real-time playback</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="risks">Risks &amp; Mitigations</h2>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead><tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr></thead>
+          <tbody>
+            <tr><td>World model hallucination at long horizons</td><td class="warn-cell">High</td><td>Cap imagination rollout to H=15; refresh world model with real data every N epochs</td></tr>
+            <tr><td>Critic overfitting to imagined rollouts</td><td class="warn-cell">High</td><td>Alternating world-model and policy update phases; use fresh trajectories for each</td></tr>
+            <tr><td>Discrete gradient estimation instability</td><td class="warn-cell">Medium</td><td>Temperature annealing for Gumbel-Softmax; fall back to straight-through if needed</td></tr>
+            <tr><td>LLM System 2 latency bottleneck</td><td>Low</td><td>S2 replanning is infrequent (every 500 steps); use async calls</td></tr>
+            <tr><td>Reward sparsity — no badge for thousands of steps</td><td class="warn-cell">High</td><td>Dense auxiliary rewards (XP gain, map exploration) to maintain training signal</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:48px; display:flex; gap:16px; flex-wrap:wrap;">
+        <a href="api.html" class="btn btn-primary">Next: Code Reference →</a>
+        <a href="v2.html" class="btn btn-secondary">← Back: v2 RSSM</a>
+      </div>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-bottom">
+        <p>⚡ PokéDreamer · By <a href="https://github.com/xoTEMPESTox" target="_blank">@xoTEMPESTox</a> · Research-grade, educational use only</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PokéDreamer — Code Reference</title>
+  <meta name="description" content="PokéDreamer code reference: complete API documentation for models.py, dataset.py, game_state.py, ram_addresses.py, and all training scripts." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <nav id="navbar" class="navbar">
+    <div class="nav-container">
+      <a href="index.html" class="nav-brand"><span class="nav-logo">⚡</span><span>PokéDreamer</span></a>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html" class="nav-link">Home</a></li>
+        <li><a href="v1.html" class="nav-link">v1 — VAE+GRU</a></li>
+        <li><a href="v2.html" class="nav-link">v2 — RSSM</a></li>
+        <li><a href="v3.html" class="nav-link">v3 — Roadmap</a></li>
+        <li><a href="api.html" class="nav-link active">Code Reference</a></li>
+        <li><a href="https://github.com/xoTEMPESTox/PokeDreamer" target="_blank" class="nav-link nav-cta">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+          GitHub
+        </a></li>
+      </ul>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation"><span></span><span></span><span></span></button>
+    </div>
+  </nav>
+
+  <div class="page-hero">
+    <div class="container page-hero-content">
+      <div class="breadcrumb">
+        <a href="index.html">Home</a>
+        <span class="breadcrumb-sep">›</span>
+        <span>Code Reference</span>
+      </div>
+      <h1 class="page-title"><span class="gradient-text">Code Reference</span></h1>
+      <p class="page-subtitle">
+        Complete API documentation for every module in the PokéDreamer codebase — models, dataset, game state extraction, RAM addresses, and training scripts.
+      </p>
+    </div>
+  </div>
+
+  <div class="docs-layout">
+    <aside class="docs-sidebar">
+      <nav class="sidebar-nav">
+        <div class="sidebar-title">src/ Modules</div>
+        <a href="#models" class="sidebar-link active">models.py</a>
+        <a href="#encoder" class="sidebar-link">↳ Encoder</a>
+        <a href="#decoder" class="sidebar-link">↳ Decoder</a>
+        <a href="#rssm" class="sidebar-link">↳ RSSMCell</a>
+        <a href="#reward-predictor" class="sidebar-link">↳ RewardPredictor</a>
+        <a href="#continue-predictor" class="sidebar-link">↳ ContinuePredictor</a>
+        <a href="#actor" class="sidebar-link">↳ Actor</a>
+        <a href="#critic" class="sidebar-link">↳ Critic</a>
+        <a href="#residual" class="sidebar-link">↳ ResidualBlock</a>
+        <a href="#dataset" class="sidebar-link">dataset.py</a>
+        <a href="#gamestate" class="sidebar-link">game_state.py</a>
+        <a href="#ramaddresses" class="sidebar-link">ram_addresses.py</a>
+        <div class="sidebar-title">scripts/</div>
+        <a href="#collect-data" class="sidebar-link">collect_data.py</a>
+        <a href="#train-rssm" class="sidebar-link">train_rssm.py</a>
+        <a href="#generate-demo" class="sidebar-link">generate_demo_video_v2.py</a>
+        <a href="#upload-hf" class="sidebar-link">upload_to_hf.py</a>
+        <a href="#train-policy" class="sidebar-link">train_policy.py</a>
+      </nav>
+    </aside>
+
+    <main class="docs-content prose">
+
+      <!-- ── models.py ─────────────────────────────────────── -->
+      <h2 id="models">src/models.py</h2>
+      <p>
+        Contains all neural network modules for the v2 RSSM world model system. All classes are <code>torch.nn.Module</code> subclasses. Import with:
+      </p>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>from src.models import (
+    ResidualBlock, Encoder, Decoder,
+    RSSMCell, RewardPredictor, ContinuePredictor,
+    Actor, Critic
+)</code></pre>
+      </div>
+
+      <!-- ResidualBlock -->
+      <div class="api-class" id="residual">
+        <div class="api-class-header">
+          <div class="api-class-name">ResidualBlock(channels)</div>
+          <div class="api-class-desc">Standard convolutional residual block. Two 3×3 Conv2d layers with BatchNorm and ReLU, plus skip connection. Used inside both Encoder and Decoder.</div>
+        </div>
+        <div class="api-class-body">
+          <div class="api-method">
+            <div class="api-method-sig">__init__(self, channels: int)</div>
+            <div class="api-method-body">
+              <div class="api-method-desc">Initializes two conv layers, two BN layers.</div>
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">channels</span><span class="param-type">int</span><span class="param-desc">Number of input and output channels (must match for skip connection)</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="api-method">
+            <div class="api-method-sig">forward(self, x: Tensor) → Tensor</div>
+            <div class="api-method-body">
+              <div class="api-method-desc">Applies <code>relu(BN(conv1(x))) → BN(conv2) → + x → relu</code>. Preserves spatial dimensions.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Encoder -->
+      <div class="api-class" id="encoder">
+        <div class="api-class-header">
+          <div class="api-class-name">Encoder(embed_dim=512)</div>
+          <div class="api-class-desc">4-layer Residual CNN that maps native 160×144×3 Game Boy frames to a 512-dim embedding vector. Used by the RSSM to compute the posterior distribution from real observations.</div>
+        </div>
+        <div class="api-class-body">
+          <div class="api-method">
+            <div class="api-method-sig">__init__(self, embed_dim: int = 512)</div>
+            <div class="api-method-body">
+              <div class="api-method-desc">Builds 4 downsampling convolutional layers (k=4, s=2) with residual blocks at each stage, plus a final linear projection.</div>
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">embed_dim</span><span class="param-type">int</span><span class="param-desc">Output embedding dimension. Default: 512</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="api-method">
+            <div class="api-method-sig">forward(self, x: Tensor) → Tensor</div>
+            <div class="api-method-body">
+              <div class="api-method-desc">Maps pixel frames to embeddings.</div>
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">x</span><span class="param-type">Tensor</span><span class="param-desc">Shape <code>(B, 3, 144, 160)</code>. Values in [0, 1].</span></div>
+                <div class="api-param"><span class="param-name">returns</span><span class="param-type">Tensor</span><span class="param-desc">Shape <code>(B, embed_dim)</code>. Encoder embedding e_t.</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Decoder -->
+      <div class="api-class" id="decoder">
+        <div class="api-class-header">
+          <div class="api-class-name">Decoder(latent_dim=1536)</div>
+          <div class="api-class-desc">Mirror of Encoder — ConvTranspose2d layers with residual blocks reconstructing the pixel frame from the RSSM latent state. Output is sigmoid-normalized to [0, 1].</div>
+        </div>
+        <div class="api-class-body">
+          <div class="api-method">
+            <div class="api-method-sig">__init__(self, latent_dim: int = 512 + 1024)</div>
+            <div class="api-method-body">
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">latent_dim</span><span class="param-type">int</span><span class="param-desc">Input latent dimension = det_dim + stoch_dim = 512+1024=1536 by default</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="api-method">
+            <div class="api-method-sig">forward(self, latent: Tensor) → Tensor</div>
+            <div class="api-method-body">
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">latent</span><span class="param-type">Tensor</span><span class="param-desc">Shape <code>(B, latent_dim)</code>. Concatenated [h_t, s_t].</span></div>
+                <div class="api-param"><span class="param-name">returns</span><span class="param-type">Tensor</span><span class="param-desc">Shape <code>(B, 3, 144, 160)</code>. Reconstructed frame, values in [0, 1].</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RSSMCell -->
+      <div class="api-class" id="rssm">
+        <div class="api-class-header">
+          <div class="api-class-name">RSSMCell(action_dim=8, det_dim=512, class_num=32, category_num=32)</div>
+          <div class="api-class-desc">Single recurrent step of the RSSM. Maintains a deterministic GRU hidden state h_t and a stochastic discrete categorical state s_t. Supports both prior (imagination) and posterior (training with real frames) modes.</div>
+        </div>
+        <div class="api-class-body">
+          <div class="api-method">
+            <div class="api-method-sig">__init__(self, action_dim, det_dim, class_num, category_num)</div>
+            <div class="api-method-body">
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">action_dim</span><span class="param-type">int</span><span class="param-desc">Size of one-hot action vector. Default: 8 (8-button Game Boy)</span></div>
+                <div class="api-param"><span class="param-name">det_dim</span><span class="param-type">int</span><span class="param-desc">GRU hidden dimension. Default: 512</span></div>
+                <div class="api-param"><span class="param-name">class_num</span><span class="param-type">int</span><span class="param-desc">Number of categorical variables. Default: 32</span></div>
+                <div class="api-param"><span class="param-name">category_num</span><span class="param-type">int</span><span class="param-desc">Classes per categorical variable. Default: 32 → stoch_dim = 1024</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="api-method">
+            <div class="api-method-sig">get_initial_state(self, batch_size, device) → tuple[Tensor, Tensor]</div>
+            <div class="api-method-body">
+              <div class="api-method-desc">Returns zero-initialized h and uniform-initialized s for sequence starts.</div>
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">returns</span><span class="param-type">tuple</span><span class="param-desc"><code>(h, s)</code> where h is <code>(B, det_dim)</code> zeros, s is <code>(B, stoch_dim)</code> uniform softmax</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="api-method">
+            <div class="api-method-sig">sample_stochastic(self, logits, use_gumbel=True, hard=True, temp=1.0) → Tensor</div>
+            <div class="api-method-body">
+              <div class="api-method-desc">Samples discrete categorical latents from logits. Uses Gumbel-Softmax straight-through by default.</div>
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">logits</span><span class="param-type">Tensor</span><span class="param-desc">Shape <code>(B, stoch_dim)</code></span></div>
+                <div class="api-param"><span class="param-name">use_gumbel</span><span class="param-type">bool</span><span class="param-desc">If True, use Gumbel-Softmax. If False, use argmax straight-through.</span></div>
+                <div class="api-param"><span class="param-name">hard</span><span class="param-type">bool</span><span class="param-desc">If True (default), forward pass uses one-hot argmax (discrete), backward uses soft gradients.</span></div>
+                <div class="api-param"><span class="param-name">temp</span><span class="param-type">float</span><span class="param-desc">Gumbel-Softmax temperature. Lower → sharper samples.</span></div>
+                <div class="api-param"><span class="param-name">returns</span><span class="param-type">Tensor</span><span class="param-desc">Shape <code>(B, stoch_dim)</code>. One-hot categorical sample.</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="api-method">
+            <div class="api-method-sig">forward(self, prev_h, prev_s, action, embed=None, use_gumbel=True, temp=1.0) → dict</div>
+            <div class="api-method-body">
+              <div class="api-method-desc">Runs a single RSSM step. If <code>embed</code> is provided, samples from posterior (training); otherwise from prior (imagination).</div>
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">prev_h</span><span class="param-type">Tensor</span><span class="param-desc">Previous deterministic state. Shape: <code>(B, det_dim)</code></span></div>
+                <div class="api-param"><span class="param-name">prev_s</span><span class="param-type">Tensor</span><span class="param-desc">Previous stochastic state. Shape: <code>(B, stoch_dim)</code></span></div>
+                <div class="api-param"><span class="param-name">action</span><span class="param-type">Tensor</span><span class="param-desc">One-hot action. Shape: <code>(B, action_dim)</code></span></div>
+                <div class="api-param"><span class="param-name">embed</span><span class="param-type">Tensor?</span><span class="param-desc">Encoder embedding. Shape: <code>(B, 512)</code>. None for imagination mode.</span></div>
+                <div class="api-param"><span class="param-name">returns</span><span class="param-type">dict</span><span class="param-desc"><code>{'h': Tensor, 's': Tensor, 'prior_logits': Tensor, 'post_logits': Tensor}</code></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RewardPredictor -->
+      <div class="api-class" id="reward-predictor">
+        <div class="api-class-header">
+          <div class="api-class-name">RewardPredictor(latent_dim=1536)</div>
+          <div class="api-class-desc">MLP predicting scalar reward from the concatenated RSSM latent state [h_t, s_t]. Part of the world model multi-task loss.</div>
+        </div>
+        <div class="api-class-body">
+          <div class="api-method">
+            <div class="api-method-sig">forward(self, latent: Tensor) → Tensor</div>
+            <div class="api-method-body">
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">latent</span><span class="param-type">Tensor</span><span class="param-desc">Shape <code>(B, latent_dim)</code></span></div>
+                <div class="api-param"><span class="param-name">returns</span><span class="param-type">Tensor</span><span class="param-desc">Shape <code>(B,)</code>. Predicted scalar reward.</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ContinuePredictor -->
+      <div class="api-class" id="continue-predictor">
+        <div class="api-class-header">
+          <div class="api-class-name">ContinuePredictor(latent_dim=1536)</div>
+          <div class="api-class-desc">MLP predicting episode continuation probability (1 - done). Output is sigmoid-normalized to [0, 1]. Used as the not-done discount mask during imagination training.</div>
+        </div>
+        <div class="api-class-body">
+          <div class="api-method">
+            <div class="api-method-sig">forward(self, latent: Tensor) → Tensor</div>
+            <div class="api-method-body">
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">latent</span><span class="param-type">Tensor</span><span class="param-desc">Shape <code>(B, latent_dim)</code></span></div>
+                <div class="api-param"><span class="param-name">returns</span><span class="param-type">Tensor</span><span class="param-desc">Shape <code>(B,)</code>. Continue probability in [0, 1].</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actor -->
+      <div class="api-class" id="actor">
+        <div class="api-class-header">
+          <div class="api-class-name">Actor(latent_dim=1536, action_dim=8)</div>
+          <div class="api-class-desc">Policy network for the v3 imagination-based RL agent. Outputs action logits from the RSSM latent state. Trained via policy gradient on λ-returns inside imagined rollouts.</div>
+        </div>
+        <div class="api-class-body">
+          <div class="api-method">
+            <div class="api-method-sig">forward(self, latent: Tensor) → Tensor</div>
+            <div class="api-method-body">
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">latent</span><span class="param-type">Tensor</span><span class="param-desc">Shape <code>(B, latent_dim)</code>. Concatenated [h_t, s_t].</span></div>
+                <div class="api-param"><span class="param-name">returns</span><span class="param-type">Tensor</span><span class="param-desc">Shape <code>(B, action_dim)</code>. Raw action logits (apply softmax for probabilities).</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Critic -->
+      <div class="api-class" id="critic">
+        <div class="api-class-header">
+          <div class="api-class-name">Critic(latent_dim=1536)</div>
+          <div class="api-class-desc">Value function network. Estimates expected discounted return from the current latent state. Trained to minimize MSE vs. λ-return targets during imagination rollouts.</div>
+        </div>
+        <div class="api-class-body">
+          <div class="api-method">
+            <div class="api-method-sig">forward(self, latent: Tensor) → Tensor</div>
+            <div class="api-method-body">
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">latent</span><span class="param-type">Tensor</span><span class="param-desc">Shape <code>(B, latent_dim)</code></span></div>
+                <div class="api-param"><span class="param-name">returns</span><span class="param-type">Tensor</span><span class="param-desc">Shape <code>(B,)</code>. Scalar value estimate V(h_t, s_t).</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── dataset.py ─────────────────────────────────────── -->
+      <h2 id="dataset">src/dataset.py</h2>
+
+      <div class="api-class">
+        <div class="api-class-header">
+          <div class="api-class-name">PokemonDataset(data_dir, seq_len=15, transform=None, max_files=None)</div>
+          <div class="api-class-desc">PyTorch Dataset loading gameplay transitions from NPZ files. Supports both single-frame mode (seq_len=1) and trajectory sequence mode (seq_len>1). Automatically validates sequences to avoid episode-boundary crossings.</div>
+        </div>
+        <div class="api-class-body">
+          <div class="api-method">
+            <div class="api-method-sig">__init__(self, data_dir, seq_len=15, transform=None, max_files=None)</div>
+            <div class="api-method-body">
+              <div class="api-method-desc">Loads all <code>transitions_*.npz</code> files from <code>data_dir</code> into memory. Computes valid starting indices for non-boundary-crossing sequences.</div>
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">data_dir</span><span class="param-type">str|Path</span><span class="param-desc">Directory containing <code>transitions_*.npz</code> files</span></div>
+                <div class="api-param"><span class="param-name">seq_len</span><span class="param-type">int</span><span class="param-desc">Sequence length for RSSM training. Use 1 for VAE frame mode.</span></div>
+                <div class="api-param"><span class="param-name">max_files</span><span class="param-type">int?</span><span class="param-desc">Cap number of loaded files (for debugging)</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="api-method">
+            <div class="api-method-sig">__getitem__(self, idx) → dict</div>
+            <div class="api-method-body">
+              <div class="api-method-desc">Returns a sample dict. In sequence mode, includes time dimension T:</div>
+              <div class="code-block" style="margin-top:8px;">
+                <div class="code-header"><span class="code-lang">python</span></div>
+                <pre><code># seq_len > 1 (sequence mode):
+{
+    'obs':         Tensor[(T, 3, H, W)],  # normalized [0,1]
+    'actions':     Tensor[(T,)],           # long int action indices
+    'rewards':     Tensor[(T,)],
+    # RAM fields (if available in NPZ):
+    'map_ids':     Tensor[(T,)],
+    'xs':          Tensor[(T,)],
+    'ys':          Tensor[(T,)],
+    'facings':     Tensor[(T,)],
+    'in_battles':  Tensor[(T,)],
+    'dialog_opens':Tensor[(T,)],
+    'badges':      Tensor[(T,)],
+    'party_hps':   Tensor[(T, 6)],
+    'party_max_hps':Tensor[(T, 6)],
+}</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── game_state.py ─────────────────────────────────── -->
+      <h2 id="gamestate">src/game_state.py</h2>
+      <p>Provides the <code>GameState</code> dataclass and extraction utilities for reading synchronized RAM + screen state from a live PyBoy instance.</p>
+
+      <div class="api-class">
+        <div class="api-class-header">
+          <div class="api-class-name">GameState (dataclass)</div>
+          <div class="api-class-desc">Snapshot of all relevant Pokémon Red game state at a single emulator tick. Guaranteed to be synchronized — RAM and screen are read after the same tick.</div>
+        </div>
+        <div class="api-class-body">
+          <h4>Fields</h4>
+          <div class="api-params" style="margin-bottom:16px;">
+            <div class="api-param"><span class="param-name">map_id</span><span class="param-type">int</span><span class="param-desc">Raw WRAM map ID byte (0–248)</span></div>
+            <div class="api-param"><span class="param-name">x, y</span><span class="param-type">int</span><span class="param-desc">Player tile coordinates</span></div>
+            <div class="api-param"><span class="param-name">facing</span><span class="param-type">int</span><span class="param-desc">Direction: 0=down, 4=up, 8=left, 12=right</span></div>
+            <div class="api-param"><span class="param-name">in_battle</span><span class="param-type">bool</span><span class="param-desc">True when battle engine is active</span></div>
+            <div class="api-param"><span class="param-name">dialog_open</span><span class="param-type">bool</span><span class="param-desc">True when any text box is on screen</span></div>
+            <div class="api-param"><span class="param-name">party_hp</span><span class="param-type">list[int]</span><span class="param-desc">Current HP for each party slot</span></div>
+            <div class="api-param"><span class="param-name">party_max_hp</span><span class="param-type">list[int]</span><span class="param-desc">Max HP for each party slot</span></div>
+            <div class="api-param"><span class="param-name">badges</span><span class="param-type">int</span><span class="param-desc">Bitmask of 8 gym badges. <code>bin(badges).count('1')</code> = badge count</span></div>
+          </div>
+          <h4>Properties</h4>
+          <div class="api-params">
+            <div class="api-param"><span class="param-name">badge_count</span><span class="param-type">int</span><span class="param-desc">Number of earned badges (popcount of bitmask)</span></div>
+            <div class="api-param"><span class="param-name">map_name</span><span class="param-type">str</span><span class="param-desc">Human-readable map name from MAP_NAMES dict</span></div>
+            <div class="api-param"><span class="param-name">facing_name</span><span class="param-type">str</span><span class="param-desc">"up" / "down" / "left" / "right"</span></div>
+            <div class="api-param"><span class="param-name">total_hp</span><span class="param-type">int</span><span class="param-desc">Sum of all party current HP</span></div>
+            <div class="api-param"><span class="param-name">total_max_hp</span><span class="param-type">int</span><span class="param-desc">Sum of all party max HP</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="api-class">
+        <div class="api-class-header">
+          <div class="api-class-name">extract_game_state(pyboy: PyBoy) → GameState</div>
+          <div class="api-class-desc">Reads all relevant RAM addresses from a running PyBoy instance and returns a synchronized GameState snapshot. Must be called after pyboy.tick().</div>
+        </div>
+        <div class="api-class-body">
+          <div class="api-method">
+            <div class="api-method-sig">extract_game_state(pyboy) → GameState</div>
+            <div class="api-method-body">
+              <div class="api-method-desc">Reads map_id, x, y, facing, in_battle, dialog_open, badges, and party HP (up to 6 slots) from WRAM.</div>
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">pyboy</span><span class="param-type">PyBoy</span><span class="param-desc">Running PyBoy emulator instance</span></div>
+                <div class="api-param"><span class="param-name">returns</span><span class="param-type">GameState</span><span class="param-desc">Complete game state snapshot</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="api-class">
+        <div class="api-class-header">
+          <div class="api-class-name">screen_capture(pyboy: PyBoy) → np.ndarray</div>
+          <div class="api-class-desc">Captures the current Game Boy screen as a (144, 160, 3) uint8 RGB array. Handles both RGBA and RGB output from PyBoy ≥2.0.</div>
+        </div>
+        <div class="api-class-body">
+          <div class="api-method">
+            <div class="api-method-sig">screen_capture(pyboy) → ndarray</div>
+            <div class="api-method-body">
+              <div class="api-params">
+                <div class="api-param"><span class="param-name">returns</span><span class="param-type">ndarray</span><span class="param-desc">Shape <code>(144, 160, 3)</code>, dtype uint8. Native Game Boy resolution.</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ram_addresses.py ─────────────────────────────── -->
+      <h2 id="ramaddresses">src/ram_addresses.py</h2>
+      <p>
+        Defines all WRAM address constants for Pokémon Red (USA/Europe). Addresses are verified against documented memory maps. All addresses are integers in the <code>0xC000–0xDFFF</code> range.
+      </p>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>from src.ram_addresses import (
+    PLAYER_X,          # 0xD362 — tile X coordinate
+    PLAYER_Y,          # 0xD361 — tile Y coordinate
+    MAP_ID,            # 0xD35E — current map ID
+    PLAYER_FACING,     # 0xC109 — facing direction byte
+    IN_BATTLE,         # 0xD057 — battle state flag
+    TEXT_BOX_ID,       # 0xD125 — dialog/text box active flag
+    BADGE_FLAGS,       # 0xD356 — 8-bit badge bitmask
+    PARTY_SIZE,        # 0xD163 — number of Pokémon in party
+    HP_ADDRESSES,      # list[int] — current HP hi-byte per slot
+    MAX_HP_ADDRESSES,  # list[int] — max HP hi-byte per slot
+    MAP_NAMES,         # dict[int, str] — map ID → name
+    FACING_NAMES,      # dict[int, str] — facing byte → direction
+)</code></pre>
+      </div>
+
+      <!-- ── Scripts ─────────────────────────────────────── -->
+      <h2 id="collect-data">scripts/collect_data.py</h2>
+      <p>
+        Runs the PyBoy emulator with the PWhiddy frozen PPO checkpoint as behavior policy, collecting native-resolution transition data into NPZ files.
+      </p>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>python scripts/collect_data.py \
+    --episodes 20 \          # number of episodes to collect
+    --out-dir data \         # output directory for NPZ files
+    --rom path/to/rom.gb \   # path to Pokémon Red ROM
+    --save-state saves/intro_done.state  # starting save state</code></pre>
+      </div>
+      <p>Output: one <code>transitions_{i:04d}.npz</code> per episode, each containing obs, actions, rewards, episode_starts, and all RAM fields.</p>
+
+      <h2 id="train-rssm">scripts/train_rssm.py</h2>
+      <p>Trains the full RSSM world model — encoder, RSSMCell, decoder, reward predictor, continue predictor — with the multi-task loss including KL balancing.</p>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>python scripts/train_rssm.py \
+    --data-dir data \             # NPZ dataset directory
+    --epochs 12 \                 # training epochs
+    --batch-size 64 \             # batch size
+    --seq-len 15 \                # BPTT sequence length
+    --det-dim 512 \               # GRU hidden dimension
+    --class-num 32 \              # categorical variable count
+    --category-num 32 \           # classes per variable
+    --kl-alpha 0.8 \              # KL balancing weight
+    --lr 3e-4 \                   # learning rate
+    --out-dir checkpoints/rssm_v2 # output directory</code></pre>
+      </div>
+      <p>Saves per-epoch checkpoints, reconstruction grids, and the best model by validation reconstruction loss.</p>
+
+      <h2 id="generate-demo">scripts/generate_demo_video_v2.py</h2>
+      <p>Generates the side-by-side demo video: real emulator (left) vs. RSSM imagination (right). The imagination panel runs purely from the RSSM prior — no emulator access.</p>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>python scripts/generate_demo_video_v2.py \
+    --checkpoint checkpoints/rssm_v2/best_world_model.pt \
+    --save-state saves/intro_done.state \
+    --steps 200 \                 # number of steps to record
+    --out-video output/demo.mp4</code></pre>
+      </div>
+
+      <h2 id="upload-hf">scripts/upload_to_hf.py</h2>
+      <p>Utility script for uploading checkpoints and datasets to Hugging Face Hub.</p>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>python scripts/upload_to_hf.py \
+    --checkpoint checkpoints/rssm_v2/best_world_model.pt \
+    --repo xxxTEMPESTxxx/PokeDreamer \
+    --token $HF_TOKEN</code></pre>
+      </div>
+
+      <h2 id="train-policy">scripts/train_policy.py</h2>
+      <p>
+        v3 preparation script — trains the Actor-Critic policy inside RSSM imagination rollouts. Currently under development.
+      </p>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>python scripts/train_policy.py \
+    --world-model checkpoints/rssm_v2/best_world_model.pt \
+    --imagination-horizon 15 \
+    --epochs 50 \
+    --out-dir checkpoints/policy_v3</code></pre>
+      </div>
+
+      <div style="margin-top:48px; display:flex; gap:16px; flex-wrap:wrap;">
+        <a href="index.html" class="btn btn-primary">← Back to Home</a>
+        <a href="https://github.com/xoTEMPESTox/PokeDreamer" target="_blank" class="btn btn-secondary">View Source on GitHub</a>
+      </div>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-bottom">
+        <p>⚡ PokéDreamer · By <a href="https://github.com/xoTEMPESTox" target="_blank">@xoTEMPESTox</a> · Research-grade, educational use only</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PokéDreamer v2 — Discrete RSSM World Model</title>
+  <meta name="description" content="PokéDreamer v2: Discrete RSSM world model at native 160×144 Game Boy resolution. Full architecture documentation, training details, and experimental results." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <nav id="navbar" class="navbar">
+    <div class="nav-container">
+      <a href="index.html" class="nav-brand"><span class="nav-logo">⚡</span><span>PokéDreamer</span></a>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html" class="nav-link">Home</a></li>
+        <li><a href="v1.html" class="nav-link">v1 — VAE+GRU</a></li>
+        <li><a href="v2.html" class="nav-link active">v2 — RSSM</a></li>
+        <li><a href="v3.html" class="nav-link">v3 — Roadmap</a></li>
+        <li><a href="api.html" class="nav-link">Code Reference</a></li>
+        <li><a href="https://github.com/xoTEMPESTox/PokeDreamer" target="_blank" class="nav-link nav-cta">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+          GitHub
+        </a></li>
+      </ul>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation"><span></span><span></span><span></span></button>
+    </div>
+  </nav>
+
+  <div class="page-hero">
+    <div class="container page-hero-content">
+      <div class="breadcrumb">
+        <a href="index.html">Home</a>
+        <span class="breadcrumb-sep">›</span>
+        <span>v2 — Discrete RSSM</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+        <span class="version-badge v2-badge">Completed &amp; Archived ✓</span>
+        <span style="font-size:0.8rem; color:var(--text-muted); font-family:var(--font-mono);">v2/ · src/models.py</span>
+      </div>
+      <h1 class="page-title">
+        <span class="gradient-text">v2: Discrete RSSM</span><br>World Model
+      </h1>
+      <p class="page-subtitle">
+        The major leap — native 160×144 Game Boy resolution, a 4-layer Residual CNN, and a full Recurrent State-Space Model with 32×32 discrete categorical latents. The RSSM's prior enables pure imagination rollouts at pixel fidelity.
+      </p>
+    </div>
+  </div>
+
+  <div class="docs-layout">
+    <aside class="docs-sidebar">
+      <nav class="sidebar-nav">
+        <div class="sidebar-title">v2 Documentation</div>
+        <a href="#overview" class="sidebar-link active">Overview &amp; Motivation</a>
+        <a href="#encoder" class="sidebar-link">Residual CNN Encoder</a>
+        <a href="#rssm" class="sidebar-link">RSSM Architecture</a>
+        <a href="#prior-posterior" class="sidebar-link">Prior vs. Posterior</a>
+        <a href="#discrete-latents" class="sidebar-link">Discrete Categorical Latents</a>
+        <a href="#decoder" class="sidebar-link">Decoder &amp; Predictors</a>
+        <a href="#training" class="sidebar-link">Training &amp; Losses</a>
+        <a href="#dataset" class="sidebar-link">Dataset</a>
+        <div class="sidebar-title">Experiments</div>
+        <a href="#results" class="sidebar-link">Training Results</a>
+        <a href="#reconstruction" class="sidebar-link">Reconstruction Quality</a>
+        <a href="#imagination" class="sidebar-link">Imagination Demo</a>
+        <div class="sidebar-title">Reference</div>
+        <a href="#hyperparams" class="sidebar-link">Hyperparameters</a>
+        <a href="#checkpoints" class="sidebar-link">Checkpoints</a>
+        <a href="v3.html" class="sidebar-link" style="color:var(--gold-light);">→ Next: v3 Roadmap</a>
+      </nav>
+    </aside>
+
+    <main class="docs-content prose">
+      <h2 id="overview">Overview &amp; Motivation</h2>
+      <p>
+        v2 is the central contribution of PokéDreamer: a full <em>Dreamer-style discrete RSSM</em> world model operating at native Game Boy resolution. The key advances over v1:
+      </p>
+      <ul>
+        <li><strong>4× resolution increase</strong>: 160×144 vs. 40×36 — native Game Boy pixels, preserving text, sprite details, and UI elements</li>
+        <li><strong>Discrete latents</strong>: 32 categories × 32 classes → 1024-dim one-hot encoding (vs. continuous ℝ³²)</li>
+        <li><strong>Full RSSM</strong>: Deterministic GRU path + stochastic categorical path trained jointly</li>
+        <li><strong>Prior imagination</strong>: The prior network enables pure latent rollouts with no emulator access</li>
+        <li><strong>Multi-task decoders</strong>: Pixel reconstruction + reward prediction + continue probability</li>
+      </ul>
+      <div class="callout callout-info">
+        <div class="callout-title">Dreamer Lineage</div>
+        v2 is architecturally based on DreamerV2 (Hafner et al., 2021). The discrete categorical latents are trained via Gumbel-Softmax straight-through estimation — a key technique for backpropagating through discrete distributions.
+      </div>
+
+      <h2 id="encoder">Residual CNN Encoder</h2>
+      <p>
+        The encoder (<code><a href="api.html#encoder">src/models.py · Encoder</a></code>) maps a raw 160×144×3 Game Boy frame to a 512-dimensional embedding vector. It uses 4 downsampling convolutional layers with residual blocks at each scale.
+      </p>
+      <h3>Architecture</h3>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>Input:  (B, 3, 144, 160)
+
+conv1: Conv2d(3→32,  k=4, s=2, p=1) → (B, 32,  72, 80)
+res1:  ResidualBlock(32)
+conv2: Conv2d(32→64, k=4, s=2, p=1) → (B, 64,  36, 40)
+res2:  ResidualBlock(64)
+conv3: Conv2d(64→128,k=4, s=2, p=1) → (B, 128, 18, 20)
+res3:  ResidualBlock(128)
+conv4: Conv2d(128→256,k=4,s=2, p=1)→ (B, 256, 9,  10)
+res4:  ResidualBlock(256)
+
+flatten → (B, 23040)
+fc:     Linear(23040, 512)
+
+Output: (B, 512)  ← encoder embedding e_t</code></pre>
+      </div>
+      <p>
+        Each <code>ResidualBlock</code> consists of two 3×3 convolutions with BatchNorm and ReLU, plus a skip connection. This preserves high-frequency spatial details (text, sprite outlines) that a simple CNN stack would lose.
+      </p>
+
+      <h2 id="rssm">RSSM Architecture</h2>
+      <p>
+        The Recurrent State-Space Model (<code><a href="api.html#rssm">src/models.py · RSSMCell</a></code>) maintains two interacting components at each time step:
+      </p>
+      <ul>
+        <li><strong>Deterministic path h_t</strong>: A GRU hidden state (512-dim) that carries temporal context across steps</li>
+        <li><strong>Stochastic path s_t</strong>: Discrete categorical latents (32 × 32 = 1024-dim one-hot) that capture the stochastic aspects of the environment</li>
+      </ul>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>RSSM Step (for time t):
+
+# 1. Deterministic update (always runs)
+gru_input = concat([prev_s, action_onehot])  # (B, 1024 + 8)
+h_t = GRUCell(gru_input, prev_h)             # (B, 512)
+
+# 2. Prior distribution (imagination / prior rollout)
+prior_logits = prior_net(h_t)                # (B, 1024)
+
+# 3. Posterior distribution (training with real frames)
+if embed is not None:  # encoder embedding available
+    post_logits = post_net(concat([h_t, e_t]))  # (B, 1024)
+    s_t = gumbel_softmax(post_logits)           # (B, 1024)
+else:                  # imagination mode
+    s_t = gumbel_softmax(prior_logits)          # (B, 1024)
+
+# Latent state for decoders
+latent = concat([h_t, s_t])  # (B, 512 + 1024 = 1536)</code></pre>
+      </div>
+
+      <h2 id="prior-posterior">Prior vs. Posterior</h2>
+      <p>
+        The RSSM has two distributions over the stochastic state <code>s_t</code>:
+      </p>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead><tr><th>Distribution</th><th>Notation</th><th>Input</th><th>When Used</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Prior</strong></td><td>p(s_t | h_t)</td><td>GRU hidden state h_t only</td><td>Imagination / generation (no real frames)</td></tr>
+            <tr><td><strong>Posterior</strong></td><td>q(s_t | h_t, e_t)</td><td>h_t + encoder embedding e_t</td><td>Training (real observations available)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        During training, we minimize the KL divergence between posterior and prior (ELBO). At inference time, the prior enables <em>pure imagination</em> — generating future frames from the prior without any emulator access.
+      </p>
+
+      <h2 id="discrete-latents">Discrete Categorical Latents</h2>
+      <p>
+        v2 uses <strong>discrete categorical latents</strong> — 32 independent categorical variables, each with 32 classes. The total stochastic state is a 32×32 = 1024-dimensional one-hot vector.
+      </p>
+      <h3>Why Discrete?</h3>
+      <ul>
+        <li>Categorical distributions can represent multi-modal or sharp distinctions (e.g., "in battle" vs. "overworld") more naturally than Gaussian</li>
+        <li>Gradient flows through discrete variables via <strong>Gumbel-Softmax straight-through</strong>: forward pass uses hard one-hot samples, backward pass uses soft Gumbel-Softmax gradients</li>
+        <li>DreamerV2 established this as the preferred approach for model-based RL</li>
+      </ul>
+      <h3>Gumbel-Softmax Sampling</h3>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code># From src/models.py · RSSMCell.sample_stochastic()
+logits = logits.reshape(batch_size, self.category_num, self.class_num)
+# → (B, 32, 32)
+
+# Gumbel-Softmax with hard=True (straight-through)
+sample = F.gumbel_softmax(logits, tau=1.0, hard=True)
+# Forward: one-hot argmax (discrete)
+# Backward: Gumbel-Softmax gradients (continuous)
+
+return sample.reshape(batch_size, self.stoch_dim)  # (B, 1024)</code></pre>
+      </div>
+
+      <h2 id="decoder">Decoder &amp; Prediction Heads</h2>
+      <p>
+        The latent state <code>concat(h_t, s_t)</code> (1536-dim) feeds into three decoder heads trained jointly:
+      </p>
+      <h3>Pixel Decoder (<code>Decoder</code>)</h3>
+      <p>Mirror of the encoder — transposed convolutions with residual blocks at each scale, outputting a sigmoid-normalized 3×144×160 reconstruction.</p>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">text</span></div>
+        <pre><code>Input:  (B, 1536)
+fc:     Linear(1536, 23040) → reshape (B, 256, 9, 10)
+res4:   ResidualBlock(256)
+deconv4: ConvTranspose2d(256→128, k=4, s=2)  → (B, 128, 18, 20)
+res3:   ResidualBlock(128)
+deconv1: ConvTranspose2d(128→64, k=4, s=2)   → (B, 64,  36, 40)
+res2:   ResidualBlock(64)
+deconv2: ConvTranspose2d(64→32, k=4, s=2)    → (B, 32,  72, 80)
+res1:   ResidualBlock(32)
+deconv3: ConvTranspose2d(32→3, k=4, s=2)     → (B, 3,  144, 160)
+sigmoid → output in [0, 1]</code></pre>
+      </div>
+      <h3>Reward Predictor (<code>RewardPredictor</code>)</h3>
+      <p>MLP: <code>Linear(1536, 256) → ELU → Linear(256, 1)</code> — scalar reward prediction.</p>
+      <h3>Continue Predictor (<code>ContinuePredictor</code>)</h3>
+      <p>MLP: <code>Linear(1536, 256) → ELU → Linear(256, 1) → Sigmoid</code> — episode continuation probability (not-done mask).</p>
+
+      <h2 id="training">Training &amp; Losses</h2>
+      <p>The RSSM world model is trained end-to-end with a combined multi-task loss:</p>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">text</span></div>
+        <pre><code>Total Loss = Reconstruction Loss + KL-Balanced Loss + Reward Loss
+
+1. Reconstruction Loss (BCE / MSE on pixels):
+   L_recon = MSE(decoder(concat(h_t, s_t)), x_t)
+
+2. KL-Balancing Loss (prior vs. posterior):
+   KL = α × KL(sg[posterior] || prior) + (1-α) × KL(posterior || sg[prior])
+   α = 0.8  (80% trains prior, 20% trains posterior)
+   
+3. Reward Loss:
+   L_reward = MSE(reward_pred(latent), r_t)</code></pre>
+      </div>
+      <div class="callout callout-warn">
+        <div class="callout-title">KL Balancing Rationale</div>
+        Standard ELBO pushes the posterior toward the prior. KL balancing (α=0.8) directs most gradient signal toward improving the prior — which is what we care about for imagination. The posterior gets lighter updates (α=0.2).
+      </div>
+      <h3>Training Configuration</h3>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>python scripts/train_rssm.py \
+    --data-dir data \
+    --epochs 12 \
+    --batch-size 64 \
+    --seq-len 15 \
+    --out-dir checkpoints/rssm_v2</code></pre>
+      </div>
+
+      <h2 id="dataset">Dataset</h2>
+      <p>
+        The training dataset was collected using the PWhiddy PPO checkpoint as a behavioral policy, running for 20 episodes on the PyBoy emulator.
+      </p>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead><tr><th>Property</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td>Format</td><td>NPZ files (<code>transitions_*.npz</code>)</td></tr>
+            <tr><td>Number of files</td><td>20</td></tr>
+            <tr><td>Transitions per file</td><td>~800</td></tr>
+            <tr><td>Total transitions</td><td>~16,000</td></tr>
+            <tr><td>Observation resolution</td><td>160×144×3 (native Game Boy)</td></tr>
+            <tr><td>RAM fields</td><td>map_id, x, y, facing, in_battle, dialog_open, badges, party_hp</td></tr>
+            <tr><td>Total dataset size</td><td>~340MB</td></tr>
+            <tr><td>HuggingFace</td><td><a href="https://huggingface.co/datasets/xxxTEMPESTxxx/PokeDreamer" target="_blank">xxxTEMPESTxxx/PokeDreamer</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Data Collection</h3>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>python scripts/collect_data.py --episodes 20 --out-dir data</code></pre>
+      </div>
+
+      <h2 id="results">Training Results</h2>
+      <p>Training was run for <strong>4 epochs</strong> (approx. 50 min/epoch on RTX GPU), batch size 64, sequence length 15:</p>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr><th>Epoch</th><th>Train Loss</th><th>Train Recon</th><th>Train KL</th><th>Val Loss</th><th>Val Recon</th><th>Val KL</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td>0.1476</td><td>0.1379</td><td>0.0078</td><td>0.1266</td><td>0.1256</td><td>0.0010</td></tr>
+            <tr><td>2</td><td>0.1207</td><td>0.1144</td><td>0.0063</td><td>0.1172</td><td>0.1110</td><td>0.0062</td></tr>
+            <tr><td>3</td><td>0.1490</td><td>0.1068</td><td>0.0422</td><td>0.1228</td><td>0.1142</td><td>0.0086</td></tr>
+            <tr><td><strong>4</strong></td><td><strong>0.1021</strong></td><td><strong>0.1015</strong></td><td>0.0005</td><td>0.1651</td><td class="highlight-cell"><strong>0.1003 ★</strong></td><td>0.0648</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="chart-container">
+        <canvas id="rssmChart" width="800" height="280"></canvas>
+      </div>
+      <p>
+        Reconstruction loss steadily decreases across epochs. The best checkpoint (epoch 4, val recon = <strong>0.1003</strong>) demonstrates pixel-level world modeling at native Game Boy resolution. KL divergence fluctuates — a known challenge with categorical RSSM training as the discrete latent space balances expressiveness vs. compressibility.
+      </p>
+
+      <h2 id="reconstruction">Reconstruction Quality</h2>
+      <p>
+        Reconstruction grids are saved during training to <code>checkpoints/rssm_v2/</code> — each grid shows a row of real Game Boy frames alongside their RSSM reconstructions. The best epoch produces visually recognizable reconstructions of the overworld, buildings, and UI elements at native 160×144 resolution.
+      </p>
+
+      <h2 id="imagination">Imagination Demo</h2>
+      <p>
+        The v2 demo video generates frames <em>purely from the RSSM prior</em> — starting from one seed frame, the model imagines the visual consequences of each action autoregressively without any additional emulator access.
+      </p>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code># Generate side-by-side: real emulator (left) vs. RSSM imagination (right)
+python scripts/generate_demo_video_v2.py \
+    --checkpoint checkpoints/rssm_v2/best_world_model.pt \
+    --save-state saves/intro_done.state \
+    --out-video checkpoints/rssm_v2/side_by_side_demo_v2.mp4</code></pre>
+      </div>
+      <p>The output MP4 shows left panel (real emulator stepping actions) vs. right panel (RSSM prior imagination of the same action sequence).</p>
+
+      <h2 id="hyperparams">Hyperparameter Reference</h2>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">yaml</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code># RSSM Architecture
+rssm:
+  embed_dim:     512      # encoder output dim
+  det_dim:       512      # GRU hidden size (h_t)
+  class_num:     32       # categorical variables
+  category_num:  32       # classes per variable
+  stoch_dim:     1024     # class_num × category_num
+  action_dim:    8        # one-hot action size
+  latent_dim:    1536     # det_dim + stoch_dim (for decoders)
+
+# Training
+training:
+  batch_size:    64
+  seq_len:       15       # BPTT sequence length
+  lr:            3.0e-4
+  kl_alpha:      0.8      # KL balancing weight (prior fraction)
+  gumbel_temp:   1.0      # Gumbel-Softmax temperature
+  epochs:        12       # (4 completed in this run)
+  
+# Hardware
+hardware:
+  device:        RTX GPU
+  time_per_epoch: ~50 min</code></pre>
+      </div>
+
+      <h2 id="checkpoints">Checkpoints &amp; Files</h2>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead><tr><th>File</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>checkpoints/rssm_v2/best_world_model.pt</code></td><td>Best validation checkpoint (epoch 4, val recon 0.1003)</td></tr>
+            <tr><td><code>checkpoints/rssm_v2/rssm_epoch_*.pt</code></td><td>Per-epoch snapshots</td></tr>
+            <tr><td><code>checkpoints/rssm_v2/recon_grid_epoch_*.png</code></td><td>Reconstruction visualization grids</td></tr>
+            <tr><td><code>checkpoints/rssm_v2/side_by_side_demo_v2.mp4</code></td><td>Imagination vs. real emulator demo video</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>All checkpoints are also available on <a href="https://huggingface.co/xxxTEMPESTxxx/PokeDreamer" target="_blank">Hugging Face</a>.</p>
+
+      <div style="margin-top:48px; display:flex; gap:16px; flex-wrap:wrap;">
+        <a href="v3.html" class="btn btn-primary">Next: v3 Roadmap →</a>
+        <a href="v1.html" class="btn btn-secondary">← Back: v1 VAE+GRU</a>
+      </div>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-bottom">
+        <p>⚡ PokéDreamer · By <a href="https://github.com/xoTEMPESTox" target="_blank">@xoTEMPESTox</a> · Research-grade, educational use only</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/main.js"></script>
+</body>
+</html>
