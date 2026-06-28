@@ -26,7 +26,7 @@ An experimental research project applying **Dreamer-style model-based reinforcem
 
 **Status: Completed & Archived**  [`v1/`](v1/)
 
-<img width="2816" height="1536" alt="Gemini_Generated_Image_ek3zcsek3zcsek3z (1)" src="https://github.com/user-attachments/assets/05a77274-9b2c-4ea2-8ea5-67162a08c977" />
+<img width="2816" height="1536" alt="Gemini_Generated_Image_1hrfcw1hrfcw1hrf" src="https://github.com/user-attachments/assets/d9348efb-fd58-4e78-b10f-c5325af94289" />
 
 ### Architecture
 | Component | Description |
