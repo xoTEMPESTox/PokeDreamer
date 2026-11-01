@@ -9,17 +9,26 @@ Architecture:
     * Else -> "done"
     Re-plans after each skill execution.
 
+- Battle Strategies (System 2):
+    * "throw" (default): Immediately throws Poké Balls at full HP in every wild battle.
+    * "weaken": While enemy HP fraction > 0.6 and HP > 5, attacks with first move (FIGHT/Scratch);
+      once enemy HP fraction <= 0.6 (or HP <= 5), throws Poké Balls to maximize catch probability.
+      Tracks knockouts separately when an attack causes the wild Pokémon to faint.
+
 - System 1 skills: Scripted and reflexive skills with bounded action budgets:
     * throw_ball: In-battle skill navigating menu to ITEM, selecting POKé BALL, throwing,
       clearing text, declining nickname (B), closing Pokédex entry, and robustly detecting outcome
       from RAM signals.
-    * run_away: In-battle skill navigating menu to RUN to flee when out of balls.
+    * attack_first_move: In-battle skill navigating menu to FIGHT, selecting move 1 (Scratch),
+      and detecting hit vs. knockout.
+    * run_away: In-battle skill navigating menu to RUN to flee when out of balls or when traversing routes.
     * catch_in_grass: Overworld skill walking grass patch on Route 1 to trigger wild encounters,
-      repeatedly throwing balls in battle, running away if out of balls, and returning to planner
-      when HP drops, balls run out, or budget ends.
+      applying strategy (weakening and/or throwing balls), running away if out of balls, and
+      returning to planner when HP drops, balls run out, or budget ends.
     * heal: Enters Viridian Pokémon Center, talks to Nurse Joy, clears dialogue, and exits.
     * buy_poke_balls: Enters Viridian Mart, purchases balls at clerk counter, and exits.
-    * navigate: Overworld navigation between Viridian City, Mart, Pokémon Center, and Route 1 grass patch.
+    * navigate_catch: Overworld navigation between Viridian City and Route 1 grass patch,
+      safely fleeing wild encounters during transit.
 
 Signals verified for 'caught':
 1. Total Pokémon owned in RAM strictly increases: (party_size + box_count) > start_(party_size + box_count).
@@ -86,10 +95,11 @@ from src.ram_addresses import (
 )
 
 # ── RAM Addresses for Wild Battles & Storage ──────────────────────────────────
-# Source: pret/pokered disassembly (wram.asm)
+# Source: pret/pokered disassembly (wram.asm, macros/ram.asm)
 WRAM_ENEMY_MON_SPECIES = 0xCFE5  # Species ID of current wild opponent
 WRAM_ENEMY_MON_HP      = 0xCFE6  # 2-byte big-endian current HP of enemy (CFE6-CFE7)
 WRAM_ENEMY_MON_LEVEL   = 0xCFF3  # Level of enemy Pokémon
+WRAM_ENEMY_MON_MAX_HP  = 0xCFF4  # 2-byte big-endian Max HP of enemy (CFF4-CFF5)
 WRAM_BOX_COUNT         = 0xDA80  # Number of Pokémon stored in current PC Box (0-20)
 WRAM_CURRENT_MENU_ITEM = 0xCC26  # Currently selected item index on active menu
 WRAM_TILE_MAP          = 0xC3A0  # 20x18 screen tile map (0xC3A0 - 0xC507)
@@ -119,11 +129,15 @@ def read_enemy_status(env: PokemonRed) -> dict[str, Any]:
     mem = env.pyboy.memory
     species = int(mem[WRAM_ENEMY_MON_SPECIES])
     hp = (int(mem[WRAM_ENEMY_MON_HP]) << 8) | int(mem[WRAM_ENEMY_MON_HP + 1])
+    max_hp = (int(mem[WRAM_ENEMY_MON_MAX_HP]) << 8) | int(mem[WRAM_ENEMY_MON_MAX_HP + 1])
     level = int(mem[WRAM_ENEMY_MON_LEVEL])
+    hp_frac = (hp / max_hp) if max_hp > 0 else 1.0
     return {
         "species_id": species,
         "species_name": ITEM_NAMES.get(species, f"Mon_0x{species:02X}"),
         "hp": hp,
+        "max_hp": max_hp,
+        "hp_frac": hp_frac,
         "level": level,
     }
 
@@ -206,7 +220,87 @@ def plan_catch(
         return Goal("done", f"Target catches {catch_target} reached ({catches} catches)")
 
 
+# ── Strategy Decision Rule (Pure Function) ────────────────────────────────────
+def decide_battle_action(
+    enemy_hp: int,
+    enemy_max_hp: int,
+    strategy: str = "throw",
+    min_safe_hp: int = 5,
+    weaken_threshold: float = 0.6,
+) -> str:
+    """Pure decision rule for in-battle action under System 2 strategy.
+
+    Parameters:
+        enemy_hp: Current HP of enemy Pokémon.
+        enemy_max_hp: Maximum HP of enemy Pokémon.
+        strategy: "throw" (always throw ball) or "weaken" (attack down to <= 60% HP).
+        min_safe_hp: HP threshold below which attacking risks KOing the enemy (default 5).
+        weaken_threshold: HP fraction threshold above which to weaken (default 0.6).
+
+    Returns:
+        "fight": Use FIGHT with the first move to weaken the opponent.
+        "throw": Throw a Poké Ball.
+    """
+    if strategy == "throw":
+        return "throw"
+    if strategy == "weaken":
+        # Guard: if HP is so low that one Scratch would knock it out, throw immediately
+        if enemy_hp <= min_safe_hp:
+            return "throw"
+        hp_frac = (enemy_hp / enemy_max_hp) if enemy_max_hp > 0 else 1.0
+        if hp_frac > weaken_threshold:
+            return "fight"
+        return "throw"
+    return "throw"
+
+
 # ── System 1 Skills ───────────────────────────────────────────────────────────
+def attack_first_move(env: PokemonRed, budget: int = 150) -> tuple[str, int]:
+    """System 1 skill: in wild battle, uses FIGHT with the first move (Scratch).
+
+    Returns:
+        outcome: "hit" | "knockout" | "battle_ended"
+        presses: number of action steps used
+    """
+    presses = 0
+    _, ram = env.observe()
+    if not ram["in_battle"]:
+        return "battle_ended", presses
+
+    # Step 1: Advance to battle menu
+    while not is_battle_menu_active(env) and presses < budget:
+        _, ram = env.step("b")
+        presses += 1
+        if not ram["in_battle"]:
+            return "battle_ended", presses
+
+    if not is_battle_menu_active(env):
+        return "battle_ended", presses
+
+    # Step 2: Select FIGHT (cursor is on FIGHT by default)
+    _, ram = env.step("a")
+    presses += 1
+
+    # Step 3: Select Move 1 (cursor is on Move 1 by default)
+    _, ram = env.step("a")
+    presses += 1
+
+    # Step 4: Advance through attack animation and text
+    while presses < budget:
+        _, ram = env.step("b")
+        presses += 1
+        if not ram["in_battle"]:
+            # Battle ended during attack: enemy fainted (knockout)
+            return "knockout", presses
+        if is_battle_menu_active(env):
+            # Battle menu returned: enemy took damage and survived
+            return "hit", presses
+
+    if not ram["in_battle"]:
+        return "knockout", presses
+    return "hit", presses
+
+
 def throw_ball(env: PokemonRed, budget: int = 200) -> tuple[str, int]:
     """System 1 skill: used inside a wild battle to throw a Poké Ball.
 
@@ -344,11 +438,8 @@ def switch_to_conscious_mon_if_needed(env: PokemonRed) -> tuple[int, bool]:
     """If the party switch prompt ('Bring out which POKéMON?') is up, switch to first conscious mon."""
     mem = env.pyboy.memory
     presses = 0
-    # Check if party switch prompt is displayed (row 14 col 0..14)
-    # Check if active Pokémon HP is 0 and in_battle is True
     starter_hp = (int(mem[HP_ADDRESSES[0]]) << 8) | int(mem[HP_ADDRESSES[0] + 1])
     if starter_hp == 0 and bool(mem[IN_BATTLE]):
-        # Find first conscious Pokémon in party
         party_sz = min(int(mem[PARTY_SIZE]), 6)
         target_slot = None
         for s in range(1, party_sz):
@@ -357,11 +448,9 @@ def switch_to_conscious_mon_if_needed(env: PokemonRed) -> tuple[int, bool]:
                 target_slot = s
                 break
         if target_slot is not None:
-            # Move down to target_slot
             for _ in range(target_slot):
                 env.step("down")
                 presses += 1
-            # Select mon and confirm SHIFT
             env.step("a")
             presses += 1
             env.step("a")
@@ -395,10 +484,8 @@ def navigate_catch(
 
     while ram["map_id"] not in target_maps and presses < budget:
         if ram["in_battle"]:
-            # Switch mon if starter fainted
             p_sw, _ = switch_to_conscious_mon_if_needed(env)
             presses += p_sw
-            # Flee the wild encounter
             p_run, esc = run_away(env, budget=min(80, budget - presses))
             presses += p_run
             if esc:
@@ -446,11 +533,13 @@ def catch_in_grass(
     catch_target: int = 10,
     current_catches: int = 0,
     hp_threshold: float = 0.5,
+    strategy: str = "throw",
 ) -> dict[str, Any]:
     """System 1 catch_in_grass skill: walks tall grass patch on Route 1 and catches Pokémon.
 
     - Navigates to Route 1 grass patch (13, 30) if not already there.
     - Paces between (13, 30) and (14, 30) to trigger wild encounters.
+    - If strategy == 'weaken', uses FIGHT with move 1 (Scratch) while enemy HP > 60% and HP > 5.
     - In each battle, calls `throw_ball` repeatedly until caught, fled, or out of balls.
     - If balls reach 0 inside battle, calls `run_away` to escape safely.
     - Yields control back to System 2 planner when:
@@ -463,6 +552,7 @@ def catch_in_grass(
     catches = 0
     balls_thrown = 0
     escapes = 0
+    knockouts = 0
     battles_started = 0
     blackouts = 0
     events: list[dict[str, Any]] = []
@@ -471,7 +561,6 @@ def catch_in_grass(
     # If on Route 1 but outside grass patch, navigate to anchor (13, 30)
     if ram["map_id"] == MAP_ROUTE1 and (ram["x"], ram["y"]) not in GRASS_PATCH_TILES:
         for target in ROUTE1_SOUTH_WAYPOINTS:
-            # Skip targets north of current Y
             if ram["y"] > target[1] and target != (13, 30):
                 continue
             while (ram["x"], ram["y"]) != target and presses < budget:
@@ -501,7 +590,6 @@ def catch_in_grass(
         if ram["in_battle"]:
             battles_started += 1
             b_start = presses
-            opp_info = read_enemy_status(env)
             battle_balls = 0
             battle_outcome = "unknown"
 
@@ -516,6 +604,34 @@ def catch_in_grass(
                         battle_outcome = "escaped_out_of_balls"
                     break
 
+                # Query enemy status from RAM
+                enemy_st = read_enemy_status(env)
+                action = decide_battle_action(
+                    enemy_hp=enemy_st["hp"],
+                    enemy_max_hp=enemy_st["max_hp"],
+                    strategy=strategy,
+                )
+
+                if action == "fight":
+                    atk_outcome, p_atk = attack_first_move(env, budget=min(150, budget - presses))
+                    presses += p_atk
+                    if atk_outcome == "knockout":
+                        knockouts += 1
+                        battle_outcome = "knockout"
+                        events.append({
+                            "type": "knockout",
+                            "species": enemy_st["species_name"],
+                            "species_id": enemy_st["species_id"],
+                            "presses": presses - b_start,
+                        })
+                        break
+                    elif atk_outcome == "battle_ended":
+                        battle_outcome = "battle_ended"
+                        break
+                    # If outcome == "hit", loop re-evaluates next action
+                    continue
+
+                # Action is "throw"
                 rem_b = budget - presses
                 outcome, p_throw = throw_ball(env, budget=min(200, rem_b))
                 presses += p_throw
@@ -527,8 +643,8 @@ def catch_in_grass(
                     battle_outcome = "caught"
                     events.append({
                         "type": "catch",
-                        "species": opp_info["species_name"],
-                        "species_id": opp_info["species_id"],
+                        "species": enemy_st["species_name"],
+                        "species_id": enemy_st["species_id"],
                         "balls_used": battle_balls,
                         "presses": presses - b_start,
                     })
@@ -584,6 +700,7 @@ def catch_in_grass(
         "catches": catches,
         "balls_thrown": balls_thrown,
         "escapes": escapes,
+        "knockouts": knockouts,
         "battles_started": battles_started,
         "blackouts": blackouts,
         "events": events,
@@ -594,17 +711,18 @@ def catch_in_grass(
 def create_captioned_frame(
     rgb_frame: np.ndarray,
     goal: str,
+    strategy: str,
     balls: int,
     catches: int,
     catch_target: int,
     hp: int,
     max_hp: int,
 ) -> Image.Image:
-    """Add a top banner displaying goal, balls, catches, and HP to a native 144x160 Game Boy frame."""
+    """Add a top banner displaying strategy, goal, balls, catches, and HP to a native 144x160 Game Boy frame."""
     banner_height = 16
     w = rgb_frame.shape[1]
     banner = np.zeros((banner_height, w, 3), dtype=np.uint8)
-    caption = f"{goal[:6].upper()} | B:{balls} C:{catches}/{catch_target} | {hp}/{max_hp}"
+    caption = f"{strategy[:1].upper()}:{goal[:5].upper()} | B:{balls} C:{catches}/{catch_target} | {hp}/{max_hp}"
     cv2.putText(
         banner,
         caption,
@@ -624,6 +742,7 @@ def run_catch_quest(
     catch_target: int = 10,
     budget: int = 8000,
     seed: int = 0,
+    strategy: str = "throw",
     save_gif: bool = False,
     state_path: str | Path = "saves/pokedex_viridian.state",
     work_dir: str | Path = "work/catch",
@@ -640,6 +759,7 @@ def run_catch_quest(
     total_catches = 0
     total_balls_bought = 0
     total_balls_thrown = 0
+    total_knockouts = 0
     total_heals = 0
     total_blackouts = 0
 
@@ -666,6 +786,7 @@ def run_catch_quest(
                 captioned = create_captioned_frame(
                     raw_rgb,
                     current_goal_str,
+                    strategy,
                     cur_st["balls"],
                     total_catches,
                     catch_target,
@@ -678,7 +799,7 @@ def run_catch_quest(
         env.step = wrapped_step
 
         print(
-            f"\n[CatchQuest seed={seed}] Starting run: Catches 0/{catch_target}, "
+            f"\n[CatchQuest seed={seed} strat={strategy}] Starting run: Catches 0/{catch_target}, "
             f"Balls: {init_st['balls']}, Money: ${init_st['money']}, "
             f"Species Owned: {init_st['dex_owned']}, HP: {init_st['hp']}/{init_st['max_hp']}"
         )
@@ -694,8 +815,10 @@ def run_catch_quest(
                 "presses": total_presses,
                 "goal": str(goal),
                 "reason": reason,
+                "strategy": strategy,
                 "balls": status["balls"],
                 "catches": total_catches,
+                "knockouts": total_knockouts,
                 "money": status["money"],
                 "hp": status["hp"],
                 "max_hp": status["max_hp"],
@@ -705,7 +828,8 @@ def run_catch_quest(
 
             print(
                 f"[Planner t={elapsed:5.1f}s p={total_presses:4d}] "
-                f"Goal: {goal:<20} | Balls: {status['balls']:2d} | Catches: {total_catches:2d}/{catch_target} | "
+                f"Goal: {goal:<20} | Strat: {strategy:<6} | Balls: {status['balls']:2d} | "
+                f"Catches: {total_catches:2d}/{catch_target} | KO: {total_knockouts:2d} | "
                 f"Money: ${status['money']:4d} | HP: {status['hp']:2d}/{status['max_hp']:2d} | Reason: {reason}"
             )
 
@@ -729,7 +853,6 @@ def run_catch_quest(
                         env, exits, target_map=MAP_VIRIDIAN, budget=min(600, remaining_budget), rng=rng
                     )
                 elif status["map_id"] in (MAP_VIRIDIAN, MAP_VIRIDIAN_POKECENTER):
-                    # If in Viridian City at Mart (29, 20), follow MART_TO_PC_PATH to PC door
                     if status["map_id"] == MAP_VIRIDIAN and (status["x"], status["y"]) == (29, 20):
                         for a in MART_TO_PC_PATH:
                             if total_presses >= budget: break
@@ -746,7 +869,6 @@ def run_catch_quest(
                         env, exits, target_map=MAP_VIRIDIAN, budget=min(600, remaining_budget), rng=rng
                     )
                 elif status["map_id"] in (MAP_VIRIDIAN, MAP_VIRIDIAN_POKECENTER, MAP_VIRIDIAN_MART):
-                    # Calculate affordable balls up to 10
                     max_affordable = status["money"] // 200
                     n_buy = min(10, max_affordable)
                     skill_name = f"buy_poke_balls_{n_buy}"
@@ -756,7 +878,6 @@ def run_catch_quest(
 
             elif goal == "catch":
                 if status["map_id"] == MAP_VIRIDIAN:
-                    # If outside Mart (29, 20), take MART_TO_ROUTE1_PATH directly
                     if (status["x"], status["y"]) == (29, 20):
                         skill_name = "mart_to_route1"
                         for a in MART_TO_ROUTE1_PATH:
@@ -782,9 +903,11 @@ def run_catch_quest(
                         catch_target=catch_target,
                         current_catches=total_catches,
                         hp_threshold=0.5,
+                        strategy=strategy,
                     )
                     total_catches += res_grass["catches"]
                     total_balls_thrown += res_grass["balls_thrown"]
+                    total_knockouts += res_grass.get("knockouts", 0)
                     total_blackouts += res_grass["blackouts"]
                     skill_result = res_grass
 
@@ -801,6 +924,7 @@ def run_catch_quest(
 
         metrics = {
             "seed": seed,
+            "strategy": strategy,
             "catch_target": catch_target,
             "catches": total_catches,
             "species_owned_before": dex_start,
@@ -809,6 +933,7 @@ def run_catch_quest(
             "balls_bought": total_balls_bought,
             "balls_thrown": total_balls_thrown,
             "catch_rate_per_ball": catch_rate_per_ball,
+            "knockouts": total_knockouts,
             "money_start": money_start,
             "money_end": money_end,
             "money_spent": money_spent,
@@ -845,16 +970,19 @@ def run_catch_quest(
 # ── Main CLI Runner ───────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(description="System 1 / System 2 Pokémon Catching Agent.")
+    parser.add_argument("--strategy", choices=["throw", "weaken"], default="throw",
+                        help="Battle strategy: 'throw' (throw at full HP) or 'weaken' (FIGHT until HP <= 60%).")
     parser.add_argument("--catch-target", type=int, default=10, help="Target number of Pokémon to catch.")
     parser.add_argument("--budget", type=int, default=8000, help="Action press budget per run.")
     parser.add_argument("--runs", type=int, default=5, help="Number of independent runs.")
     parser.add_argument("--seed", type=int, default=0, help="Starting random seed.")
     parser.add_argument("--gif", action="store_true", help="Record and save GIF of each run.")
     parser.add_argument("--state", type=str, default="saves/pokedex_viridian.state", help="Save state path.")
-    parser.add_argument("--work-dir", type=str, default="work/catch", help="Output directory.")
+    parser.add_argument("--work-dir", type=str, default=None, help="Output directory (defaults to work/catch_<strategy>).")
     args = parser.parse_args()
 
-    work_dir = Path(args.work_dir)
+    work_dir_str = args.work_dir if args.work_dir else f"work/catch_{args.strategy}"
+    work_dir = Path(work_dir_str)
     work_dir.mkdir(parents=True, exist_ok=True)
 
     all_metrics = []
@@ -864,6 +992,7 @@ def main():
             catch_target=args.catch_target,
             budget=args.budget,
             seed=cur_seed,
+            strategy=args.strategy,
             save_gif=args.gif,
             state_path=args.state,
             work_dir=work_dir,
@@ -873,17 +1002,22 @@ def main():
     # Compute summary
     n_runs = len(all_metrics)
     summary = {
+        "strategy": args.strategy,
         "n_runs": n_runs,
         "runs": all_metrics,
         "summary": {
+            "strategy": args.strategy,
             "catch_target": args.catch_target,
             "budget": args.budget,
             "goals_reached": sum(1 for m in all_metrics if m["goal_reached"]),
             "avg_catches": round(float(np.mean([m["catches"] for m in all_metrics])), 2),
+            "min_catches": int(np.min([m["catches"] for m in all_metrics])),
+            "max_catches": int(np.max([m["catches"] for m in all_metrics])),
             "avg_species_owned_after": round(float(np.mean([m["species_owned_after"] for m in all_metrics])), 2),
             "avg_balls_bought": round(float(np.mean([m["balls_bought"] for m in all_metrics])), 2),
             "avg_balls_thrown": round(float(np.mean([m["balls_thrown"] for m in all_metrics])), 2),
             "avg_catch_rate_per_ball": round(float(np.mean([m["catch_rate_per_ball"] for m in all_metrics])), 3),
+            "avg_knockouts": round(float(np.mean([m["knockouts"] for m in all_metrics])), 2),
             "avg_money_spent": round(float(np.mean([m["money_spent"] for m in all_metrics])), 2),
             "avg_heals": round(float(np.mean([m["heals"] for m in all_metrics])), 2),
             "avg_blackouts": round(float(np.mean([m["blackouts"] for m in all_metrics])), 2),
@@ -891,10 +1025,40 @@ def main():
         },
     }
 
+    # If the sibling strategy's summary exists, record both strategies' means
+    sibling_strat = "weaken" if args.strategy == "throw" else "throw"
+    sibling_file = work_dir.parent / f"catch_{sibling_strat}" / "summary.json"
+    if sibling_file.exists():
+        try:
+            with open(sibling_file, "r", encoding="utf-8") as f_sib:
+                sib_data = json.load(f_sib)
+                if "summary" in sib_data:
+                    summary["both_strategies_means"] = {
+                        args.strategy: summary["summary"],
+                        sibling_strat: sib_data["summary"],
+                    }
+        except Exception:
+            pass
+
     summary_file = work_dir / "summary.json"
     with open(summary_file, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
     print(f"\nSaved summary over {n_runs} runs -> {summary_file}")
+
+    # Also save/update joint comparison summary in work/catch/summary.json if both exist
+    if "both_strategies_means" in summary:
+        joint_summary_file = work_dir.parent / "catch" / "summary.json"
+        try:
+            joint_data = {
+                "catch_target": args.catch_target,
+                "n_runs_per_strategy": n_runs,
+                "both_strategies_means": summary["both_strategies_means"],
+            }
+            with open(joint_summary_file, "w", encoding="utf-8") as f_joint:
+                json.dump(joint_data, f_joint, indent=2)
+            print(f"Updated joint comparison summary -> {joint_summary_file}")
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 from pathlib import Path
 import pytest
 
-from lab.agent.catch_quest import plan_catch
+from lab.agent.catch_quest import decide_battle_action, plan_catch
 from lab.agent.system12 import ROUTE1_SOUTH_WAYPOINTS
 from lab.env import ROM_PATH, PokemonRed
 from lab.make_pokedex_state import (
@@ -73,6 +73,36 @@ def test_plan_catch_rules():
     # 6. Healing latch in Viridian / Pokémon Center
     st_healing = {"hp": 20, "max_hp": 25, "hp_frac": 0.80, "balls": 0, "money": 500, "catches": 1, "map_id": 41}
     assert plan_catch(st_healing, catch_target=10, current_goal="heal") == "heal"
+
+
+def test_decide_battle_action_strategy():
+    """Verify in-battle action decision rule under throw vs weaken strategies on hand-crafted enemy status."""
+    # Strategy 'throw': ALWAYS throws Poké Ball regardless of enemy HP
+    assert decide_battle_action(enemy_hp=15, enemy_max_hp=15, strategy="throw") == "throw"
+    assert decide_battle_action(enemy_hp=9, enemy_max_hp=15, strategy="throw") == "throw"
+    assert decide_battle_action(enemy_hp=3, enemy_max_hp=15, strategy="throw") == "throw"
+    assert decide_battle_action(enemy_hp=1, enemy_max_hp=20, strategy="throw") == "throw"
+
+    # Strategy 'weaken':
+    # 1. When enemy HP fraction > 0.60 and enemy HP > 5, FIGHT to weaken
+    assert decide_battle_action(enemy_hp=15, enemy_max_hp=15, strategy="weaken") == "fight"  # 100% > 60%
+    assert decide_battle_action(enemy_hp=12, enemy_max_hp=15, strategy="weaken") == "fight"  # 80% > 60%
+    assert decide_battle_action(enemy_hp=10, enemy_max_hp=15, strategy="weaken") == "fight"  # 66.7% > 60%
+
+    # 2. When enemy HP fraction <= 0.60, throw Poké Ball
+    assert decide_battle_action(enemy_hp=9, enemy_max_hp=15, strategy="weaken") == "throw"   # 60.0% <= 60%
+    assert decide_battle_action(enemy_hp=8, enemy_max_hp=15, strategy="weaken") == "throw"   # 53.3% <= 60%
+    assert decide_battle_action(enemy_hp=6, enemy_max_hp=15, strategy="weaken") == "throw"   # 40.0% <= 60%
+
+    # 3. Guard: when enemy HP <= min_safe_hp (default 5), throw even if fraction > 0.60 to avoid KO
+    assert decide_battle_action(enemy_hp=5, enemy_max_hp=6, strategy="weaken") == "throw"    # 83.3% > 60%, but HP 5 <= 5
+    assert decide_battle_action(enemy_hp=4, enemy_max_hp=5, strategy="weaken") == "throw"    # 80.0% > 60%, but HP 4 <= 5
+    assert decide_battle_action(enemy_hp=3, enemy_max_hp=4, strategy="weaken") == "throw"    # 75.0% > 60%, but HP 3 <= 5
+
+    # 4. Custom thresholds
+    assert decide_battle_action(enemy_hp=8, enemy_max_hp=15, strategy="weaken", weaken_threshold=0.50) == "fight"  # 53.3% > 50%
+    assert decide_battle_action(enemy_hp=4, enemy_max_hp=5, strategy="weaken", min_safe_hp=3) == "fight"          # HP 4 > 3 and 80% > 60%
+
 
 
 @pytest.mark.skipif(not ROM_EXISTS, reason="ROM file not present")
