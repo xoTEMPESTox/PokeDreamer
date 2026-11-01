@@ -8,9 +8,30 @@
 leave_house: bedroom -> 1st floor -> Pallet Town (no Pokemon needed).
 route1:      Pallet Town -> Route 1, from the scripted starter-Pokemon state (Oak no longer stops you).
 viridian:    Pallet Town -> Route 1 -> Viridian City, through tall grass (wild battles) and ledges.
+to_route2:   Viridian City -> Route 2 south, through Viridian City (detours: Pokecenter, Mart, School, House, Route 22).
+forest:      Viridian Forest South Gate -> Viridian Forest -> North Gate (detours: Route 2 south).
+to_pewter:   Viridian Forest North Gate -> Route 2 north -> Pewter City (detours: Viridian Forest, South Gate).
+to_gym:      Pewter City entry -> Pewter Gym (detours: Pokecenter, Mart, Houses, Museum, Route 2).
 """
 
 _PALLET_DETOURS = {40: [(4, 11), (5, 11)], 39: [(3, 7)], 38: [(7, 1)], 37: [(2, 7)]}
+_VIRIDIAN_DETOURS = {
+    41: [(3, 7), (4, 7)],                       # Pokecenter (90 transitions: (3,7) 51, (4,7) 39)
+    42: [(3, 7), (4, 7)],                       # Mart (77 transitions: (4,7) 42, (3,7) 35)
+    43: [(2, 7), (3, 7)],                       # School (59 transitions: (2,7) 41, (3,7) 18)
+    44: [(2, 7), (3, 7)],                       # House (87 transitions: (2,7) 63, (3,7) 24)
+    33: [(39, 6), (39, 7), (39, 8), (39, 9)],   # Route 22 (59 transitions: (39,9) 25, (39,6) 21, (39,8) 6, (39,7) 6)
+    12: [(10, 0), (11, 0)],                     # Route 1 (118 transitions: (10,0) 70, (11,0) 44)
+    **_PALLET_DETOURS,
+}
+_PEWTER_DETOURS = {
+    58: [(3, 7), (4, 7)],                       # Pokecenter (79 transitions: (3,7) 49, (4,7) 30)
+    55: [(2, 7), (3, 7)],                       # Mart (81 transitions: (2,7) 63, (3,7) 18)
+    57: [(2, 7), (3, 7)],                       # House 1 (77 transitions: (2,7) 46, (3,7) 31)
+    52: [(10, 7), (11, 7)],                     # Museum (73 transitions: (10,7) 53, (11,7) 20)
+    56: [(3, 7), (4, 7)],                       # House 2 (70 transitions: (3,7) 38, (4,7) 32)
+    13: [(8, 0), (9, 0)],                       # Route 2 north exit to Pewter (97 transitions)
+}
 
 TASKS = {
     "leave_house": {"state": "saves/bedroom.state", "exits": {38: [(7, 1)], 37: [(2, 7)]}, "success_map": 0},
@@ -19,6 +40,36 @@ TASKS = {
     "viridian": {"state": "saves/starter_pallet.state",
                  "exits": {0: [(10, 0), (11, 0)], 12: [(10, 0), (11, 0)], **_PALLET_DETOURS},
                  "success_map": 1, "train_maps": [0, 12, 40]},
+    # to_route2: Viridian City (1) -> Route 2 south (13). North exit (17,0) / (18,0) / (19,0) (278 transitions).
+    "to_route2": {
+        "state": "work/route_states/seed100_map1.state",
+        "exits": {1: [(17, 0), (18, 0), (19, 0)], **_VIRIDIAN_DETOURS},
+        "success_map": 13,
+        "train_maps": [1],
+    },
+    # forest: South Gate (50) -> Viridian Forest (51) -> North Gate (47).
+    # 50 -> 51 at (5,1) (52 transitions); 51 -> 47 at (1,0) / (2,0) (109 transitions: (1,0) 91, (2,0) 18).
+    "forest": {
+        "state": "work/route_states/seed100_map50.state",
+        "exits": {50: [(5, 1)], 51: [(1, 0), (2, 0)], 13: [(3, 44)], 1: [(17, 0), (18, 0), (19, 0)], **_VIRIDIAN_DETOURS},
+        "success_map": 47,
+        "train_maps": [50, 51],
+    },
+    # to_pewter: North Gate (47) -> Route 2 north (13) -> Pewter City (2).
+    # 47 -> 13 at (5,1) (68 transitions); 13 -> 2 at (8,0) / (9,0) (97 transitions: (9,0) 63, (8,0) 34).
+    "to_pewter": {
+        "state": "work/route_states/seed100_map47.state",
+        "exits": {47: [(5, 1)], 13: [(8, 0), (9, 0)], 51: [(1, 0), (2, 0)], 50: [(5, 1)]},
+        "success_map": 2,
+        "train_maps": [47, 13],
+    },
+    # to_gym: Pewter City (2) -> Pewter Gym (54). Gym door at (16,18) (52 transitions).
+    "to_gym": {
+        "state": "work/route_states/seed100_map2.state",
+        "exits": {2: [(16, 18)], **_PEWTER_DETOURS},
+        "success_map": 54,
+        "train_maps": [2],
+    },
 }
 
 
@@ -70,11 +121,11 @@ def geodesic_fields(maps, xs, ys, episodes, exits, size=64):
     return fields
 
 
-def train_geodesic_fields(exits):
-    """geodesic_fields from the train split of the 72x80 cache (work/cache_72x80.npz, work/splits.json)."""
-    import json
+def train_geodesic_fields(exits, extended=False):
+    """geodesic_fields from the train split of the 72x80 cache (work/cache_72x80.npz, work/splits.json),
+    or the extended dataset (work/cache_ext_72x80.npz, work/splits_ext.json) when extended=True."""
     import numpy as np
-    from lab.data import CACHE
-    d = np.load(CACHE)
-    train = np.isin(d["episode_id"], json.load(open("work/splits.json"))["train"])
-    return geodesic_fields(*(d[k][train] for k in ("map_ids", "xs", "ys", "episode_id")), exits)
+    from lab.data import load
+    data, splits = load(extended=extended)
+    train = np.isin(data["episode_id"], splits["train"])
+    return geodesic_fields(*(data[k][train] for k in ("map_ids", "xs", "ys", "episode_id")), exits)

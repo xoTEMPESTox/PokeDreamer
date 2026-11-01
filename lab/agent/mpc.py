@@ -169,6 +169,7 @@ def main():
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--video", action="store_true", help="record the first episode")
     ap.add_argument("--geodesic", action="store_true", help="greedy: follow path distance over the train split's moves")
+    ap.add_argument("--data", choices=["base", "ext"], default="base", help="base or extended dataset for geodesic fields")
     args = ap.parse_args()
 
     model = load_world_model(args.run, device=args.device) if args.policy == "mpc" else None
@@ -179,7 +180,7 @@ def main():
         net = Policy().to(args.device).eval()
         net.load_state_dict(torch.load(f"work/agent_rl/{args.rl_name}/policy.pt", map_location=args.device,
                                        weights_only=True)["policy"])
-    fields = train_geodesic_fields(TASKS[args.task]["exits"]) if args.geodesic else None
+    fields = train_geodesic_fields(TASKS[args.task]["exits"], extended=args.data == "ext") if args.geodesic else None
     rng = np.random.default_rng(args.seed)
     tag = {"mpc": f"_{args.run}_n{args.n}_h{args.h}", "learned": f"_{args.rl_name}"}.get(args.policy, "") + ("_geo" if args.geodesic else "")
     stem = f"{args.task}_{args.policy}{tag}_s{args.seed}"

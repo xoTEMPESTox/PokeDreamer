@@ -95,6 +95,8 @@ def main():
     ap.add_argument("--name", default="leave_house")
     ap.add_argument("--minutes", type=float, required=True)
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--probe", default="work/probe/probe.pt", help="path to probe checkpoint")
+    ap.add_argument("--data", choices=["base", "ext"], default="base", help="base or extended dataset")
     ap.add_argument("--geodesic", action="store_true",
                     help="reward progress in path distance over the train split's observed moves, not Manhattan")
     ap.add_argument("--step-clip", type=float, default=None, help="clip per-step progress to +-this many tiles")
@@ -110,11 +112,11 @@ def main():
         logf.write(line + "\n")
         logf.flush()
 
-    data, splits = load()
+    data, splits = load(extended=args.data == "ext")
     starts = windows(data, splits["train"], CTX)
     last = starts + CTX - 1
     exits = TASKS[args.task]["exits"]
-    fields = train_geodesic_fields(exits) if args.geodesic else None
+    fields = train_geodesic_fields(exits, extended=args.data == "ext") if args.geodesic else None
     log(f"distance to exit: {'geodesic (observed moves, train split)' if args.geodesic else 'Manhattan'}; "
         f"step clip {args.step_clip}")
     train_maps = TASKS[args.task].get("train_maps", list(exits))
@@ -125,7 +127,7 @@ def main():
     acts = torch.from_numpy(data["actions"].astype(np.int64)).to(dev)
 
     model = load_world_model(args.run, device=dev)
-    probe = load_probe(device=dev)
+    probe = load_probe(args.probe, device=dev)
     policy = Policy().to(dev)
     opt = torch.optim.Adam(policy.parameters(), lr=3e-4)
     ckpt = out / "policy.pt"
