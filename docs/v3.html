@@ -295,6 +295,33 @@
         </figcaption>
       </figure>
 
+      <h2 id="hybrid">6. RAM-conditioned hybrid model (first result)</h2>
+      <p>
+        To attack the map-identity failure at its source, a <strong>hybrid</strong> model adds a small symbolic state model (1.3M params) that predicts the next RAM state (map, tile, facing, battle) from the last 4 states and buttons, and conditions the diffusion renderer on that predicted state. Trained step-matched to the pixel-only model without augmentation (50,200 steps, no context noise; single seed), evaluated on the same 512 held-out windows. It starts from the true RAM of the 4 context frames, which is always available in the real game.
+      </p>
+
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>at k = 32 steps (≈13 s)</th>
+              <th>pixel-only</th>
+              <th>hybrid</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Wrong map, the hybrid's own state prediction</td><td>n/a</td><td><strong>1.1%</strong></td></tr>
+            <tr><td>Position error of the state prediction, tiles ("nothing moves": 3.85)</td><td>n/a</td><td><strong>1.58</strong></td></tr>
+            <tr><td>Wrong map in the rendered frames (probe reading)</td><td>40.0%</td><td>25.9%</td></tr>
+            <tr><td>Map accuracy of the rendered frames</td><td>0.577</td><td>0.741</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        <strong>Reading:</strong> the symbolic state model solves state tracking: it almost never loses the map and beats "nothing moves" on position at every horizon, which confirms that the failure was memory, not pixels. The <strong>renderer only partly follows the state it is given</strong>: rendered frames still show the wrong map 26% of the time at 32 steps (CIs overlap with the pixel-only model at this sample size). Making the renderer obey its conditioning is the next step.
+      </p>
+
       <h2 id="not-done-yet">What is not done yet</h2>
       <p>
         v3's goal remains a System 1 + System 2 agent that makes real progress in Pokémon Red. Still to do, <strong>within v3</strong>:
@@ -311,7 +338,7 @@
           <tbody>
             <tr>
               <td>RAM-conditioned "hybrid" world model (symbolic state dynamics + diffusion renderer) to remove map hallucination</td>
-              <td>built; training/evaluation in progress</td>
+              <td>first result: state tracking solved (1.1% wrong map at 32 steps); renderer still drifts (26%); next: stronger conditioning, then retrain the agent on it</td>
             </tr>
             <tr>
               <td>Longer tasks without hand-given exit tiles (e.g. reach Route 1, Viridian City)</td>
@@ -390,7 +417,7 @@ python -m lab.play --run main                        # play inside the world mod
             </tr>
             <tr>
               <td>RAM state in the world model</td>
-              <td>in progress (hybrid model)</td>
+              <td>first result (hybrid model): state tracking works, rendering partly follows</td>
             </tr>
             <tr>
               <td>System 1: BC warm start, PPO/GRPO, multi-task reward</td>

@@ -6,7 +6,7 @@
 
 An experimental research project applying **Dreamer-style model-based reinforcement learning** to play Pokémon Red on a Game Boy emulator (PyBoy). Built from scratch, iterating from a simple VAE + GRU dynamics model (v1) to a discrete Recurrent State-Space Model (RSSM) trained on native-resolution pixels (v2), to **v3 (in progress): a DIAMOND-style diffusion world model with an agent trained entirely in its imagination**, on the way to a dual System 1 / System 2 agent.
 
-> **v3 status (2026-11-01):** Phase 1 is done. A policy trained only inside the diffusion world model leaves the house in the real game in **100/100** episodes (median 28 presses, shortest route ≈22) from the screen alone. Imagination is scored against game RAM, which shows where the model still fails (map identity over long horizons). System 2, longer tasks and the RAM-conditioned model are still in progress. Details: [`v3.md`](v3.md).
+> **v3 status (2026-11-01):** Phase 1 is done. A policy trained only inside the diffusion world model leaves the house in the real game in **100/100** episodes (median 28 presses, shortest route ≈22) from the screen alone. Imagination is scored against game RAM, which shows where the model still fails (map identity over long horizons); a first RAM-conditioned hybrid model keeps track of the map (1.1% wrong after 32 steps vs 40%), though its renderer only partly follows. System 2, longer tasks and the hybrid's renderer are still in progress. Details: [`v3.md`](v3.md).
 <img width="1672" height="941" alt="ChatGPT Image Jun 23, 2026, 03_46_13 PM" src="https://github.com/user-attachments/assets/b5ca9f10-a6a8-4159-a582-2e26978b34c9" />
 
 ---
