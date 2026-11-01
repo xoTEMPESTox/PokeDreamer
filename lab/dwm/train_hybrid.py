@@ -261,6 +261,7 @@ def main():
                 while PAUSE.exists():
                     time.sleep(10)
                 log("resumed")
+            t_last = time.time()  # time spent in guard pauses, saves and PAUSE does not count against the budget
         else:
             if step == 1:
                 t_last_check = now
