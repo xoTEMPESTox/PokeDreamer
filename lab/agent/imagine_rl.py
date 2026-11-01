@@ -8,8 +8,11 @@ planner in lab/agent/mpc.py: an imagined map change ends the rollout and is rewa
 next to the exit tile; elsewhere it is a hallucinated warp and is penalised). Advantage actor-critic with
 lambda-returns over H imagined steps (REINFORCE through the policy only; the world model is frozen).
 
-Usage: python -m lab.agent.imagine_rl --minutes 25        (train)
-       python -m lab.agent.mpc --policy learned --episodes 50   (real-game evaluation)
+Tasks (exit tiles per map) come from lab/agent/tasks.py. If the probe reads an imagined frame as a battle, the
+rollout ends with no bonus or penalty (the probe cannot read the map from a battle screen).
+
+Usage: python -m lab.agent.imagine_rl --task route1 --name route1 --minutes 30   (train)
+       python -m lab.agent.mpc --task route1 --policy learned --rl-name route1 --episodes 100   (real game)
 """
 import argparse
 import json
@@ -22,7 +25,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from lab.agent.mpc import DIRECTIONS, EXIT
+from lab.agent.mpc import DIRECTIONS
+from lab.agent.tasks import TASKS, exit_distance
 from lab.data import load
 from lab.dwm.controllability import load_world_model
 from lab.dwm.model import CTX, to_float
@@ -49,22 +53,21 @@ class Policy(nn.Module):
         return self.pi(h), self.v(h).squeeze(-1)
 
 
-def rewards_from_probe(maps, xs, ys, start_map, start_x, start_y):
+def rewards_from_probe(maps, xs, ys, start_map, start_x, start_y, exits=TASKS["leave_house"]["exits"], battle=None):
     """Per-step reward, alive mask (step belongs to the rollout) and continuation mask (rollout goes on after
     the step) for imagined trajectories (B, H) starting on start_map at the real tile (start_x, start_y)."""
     b, h = maps.shape
-    ex = np.array([EXIT[m][0] for m in start_map])[:, None]
-    ey = np.array([EXIT[m][1] for m in start_map])[:, None]
-    dist = np.abs(xs - ex) + np.abs(ys - ey)
-    dist0 = np.abs(start_x - ex[:, 0]) + np.abs(start_y - ey[:, 0])
-    on_map = np.cumprod(maps == start_map[:, None], axis=1).astype(bool)
+    battle = np.zeros((b, h), bool) if battle is None else np.asarray(battle, bool)
+    dist = exit_distance(np.broadcast_to(start_map[:, None], (b, h)), xs, ys, exits)
+    dist0 = exit_distance(start_map, start_x, start_y, exits)
+    on_map = np.cumprod((maps == start_map[:, None]) & ~battle, axis=1).astype(bool)
     r = np.zeros((b, h), np.float32)
     alive = np.zeros((b, h), np.float32)
     for k in range(h):
         prev = dist[:, k - 1] if k else dist0
         left = ~on_map[:, k] & (on_map[:, k - 1] if k else True)
         r[:, k] = np.where(on_map[:, k], prev - dist[:, k] - STEP_COST, 0.0)
-        r[:, k] = np.where(left, np.where(prev <= 1, WARP_BONUS, -HALLUCINATION_PENALTY), r[:, k])
+        r[:, k] = np.where(left, np.where(battle[:, k], -STEP_COST, np.where(prev <= 1, WARP_BONUS, -HALLUCINATION_PENALTY)), r[:, k])
         alive[:, k] = on_map[:, k] | left
     return r, alive, on_map.astype(np.float32)
 
@@ -84,6 +87,7 @@ def lambda_returns(r, v, cont, bootstrap):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--run", default="main")
+    ap.add_argument("--task", choices=sorted(TASKS), default="leave_house")
     ap.add_argument("--name", default="leave_house")
     ap.add_argument("--minutes", type=float, required=True)
     ap.add_argument("--device", default="cuda")
@@ -102,7 +106,9 @@ def main():
     data, splits = load()
     starts = windows(data, splits["train"], CTX)
     last = starts + CTX - 1
-    ok = np.isin(data["map_ids"][last], list(EXIT)) & ~data["in_battles"][starts[:, None] + np.arange(CTX)].any(1)
+    exits = TASKS[args.task]["exits"]
+    train_maps = TASKS[args.task].get("train_maps", list(exits))
+    ok = np.isin(data["map_ids"][last], train_maps) & ~data["in_battles"][starts[:, None] + np.arange(CTX)].any(1)
     starts = starts[ok]
     log(f"{len(starts)} real start contexts (maps {sorted(set(data['map_ids'][starts + CTX - 1].tolist()))})")
     frames = torch.from_numpy(data["frames"]).to(dev)
@@ -125,8 +131,8 @@ def main():
     t_last = time.time()
     # equal starts per map: the 1st floor is ~1.4% of contexts, and an unbalanced run (to it 220) learned the
     # bedroom stairs (30/30 real episodes reached the 1st floor) but walked straight back up from there
-    by_map = [starts[data["map_ids"][starts + CTX - 1] == m] for m in EXIT]
-    log("start contexts per map: " + ", ".join(f"{m}: {len(b)}" for m, b in zip(EXIT, by_map)))
+    by_map = [starts[data["map_ids"][starts + CTX - 1] == m] for m in train_maps]
+    log(f"task {args.task}; start contexts per map: " + ", ".join(f"{m}: {len(b)}" for m, b in zip(train_maps, by_map)))
     while elapsed < args.minutes * 60:
         s = torch.from_numpy(np.concatenate([rng.choice(b, BATCH // len(by_map)) for b in by_map])).to(dev)
         ctx = to_float(frames[s[:, None] + ar])                       # (B, CTX, H, W)
@@ -148,8 +154,9 @@ def main():
                 past = act_in[:, 1:]
             imag = torch.cat(imagined, 1)                             # (B, H, 72, 80)
             p = predict(probe, ((imag + 1) / 2).cpu().numpy().reshape(-1, 72, 80), device=dev)
+            battle = p["battle"].reshape(BATCH, H)
             r, alive, cont = rewards_from_probe(p["map_id"].reshape(BATCH, H), p["x"].reshape(BATCH, H),
-                                                p["y"].reshape(BATCH, H), start_map, start_x, start_y)
+                                                p["y"].reshape(BATCH, H), start_map, start_x, start_y, exits, battle)
             _, v_last = policy(ctx)
         obs_t = torch.stack(obs, 1)                                   # (B, H, CTX, 72, 80)
         logits, v = policy(obs_t.flatten(0, 1))
@@ -174,8 +181,9 @@ def main():
             elapsed += now - t_last
             ret = (r * alive).sum(1).mean()
             hall = (r == -HALLUCINATION_PENALTY).any(1).mean()
+            bat = (battle & (alive > 0)).any(1).mean()
             warp = (r == WARP_BONUS).any(1).mean()
-            log(f"it {it} imagined return {ret:.3f} warp-through-exit {warp:.3f} hallucinated-warp {hall:.3f} "
+            log(f"it {it} imagined return {ret:.3f} warp-through-exit {warp:.3f} hallucinated-warp {hall:.3f} battle {bat:.3f} "
                 f"entropy {ent.item():.3f} value-loss {vloss.item():.3f} ({20 / (now - t_last):.2f} it/s, "
                 f"{elapsed / 60:.1f} min)")
             tmp = out / "policy.tmp"

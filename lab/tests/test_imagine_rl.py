@@ -23,3 +23,15 @@ def test_lambda_returns_stop_at_termination():
     cont = torch.tensor([[1.0, 0.0, 0.0]])                                 # rollout ends at step 1
     g = lambda_returns(r, v, cont, bootstrap=torch.tensor([50.0]))
     assert torch.allclose(g[0, 1], torch.tensor(1.0))                     # no reward or value after the end
+
+
+def test_battle_ends_rollout_without_penalty_and_multi_exit_tasks():
+    from lab.agent.tasks import TASKS
+    exits = TASKS["route1"]["exits"]                      # Pallet Town -> Route 1 at (10, 0) or (11, 0)
+    maps = np.array([[0, 0, 0], [0, 0, 0]])
+    xs = np.array([[11, 11, 11], [10, 10, 10]])
+    ys = np.array([[3, 2, 1], [5, 5, 5]])
+    battle = np.array([[False, False, False], [False, True, True]])
+    r, alive, cont = rewards_from_probe(maps, xs, ys, np.array([0, 0]), np.array([11, 10]), np.array([4, 5]), exits, battle)
+    np.testing.assert_allclose(r[0], [1 - STEP_COST] * 3)                     # nearest exit (11, 0): one tile closer per step
+    assert r[1, 1] == -STEP_COST and alive[1, 2] == 0 and cont[1, 1] == 0      # battle: ends, no warp bonus or penalty

@@ -4,10 +4,10 @@ Each real step: imagine N candidate button sequences of length H from the last 4
 read the imagined map/tile with the frame probe, score progress toward the task goal, press the first button
 of the best sequence in the emulator, repeat (receding horizon). Success is judged by the emulator's RAM.
 
-Task "leave_house": start in Red's bedroom (map 38), succeed on reaching Pallet Town (map 0). Exit tiles come
-from the dataset's own map transitions (bedroom stairs (7,1): 27 transitions; front door (2,7): only 3).
+Tasks (start state, exit tiles, success map) are in lab/agent/tasks.py; default "leave_house" (bedroom -> Pallet Town).
+During wild battles every policy presses A (a scripted reflex, recorded per episode).
 
-Usage: python -m lab.agent.mpc --episodes 20 [--policy mpc|random] [--video]
+Usage: python -m lab.agent.mpc --task route1 --episodes 20 [--policy mpc|random|greedy|learned] [--video]
 """
 import argparse
 import json
@@ -18,15 +18,15 @@ import cv2
 import numpy as np
 import torch
 
+from lab.agent.tasks import TASKS, exit_distance
 from lab.dwm.controllability import load_world_model
 from lab.dwm.model import CTX, to_float
 from lab.env import PokemonRed
-from lab.eval.metrics import manhattan
 from lab.probe import load_probe, predict
 
-EXIT = {38: (7, 1), 37: (2, 7)}         # bedroom stairs, 1st-floor front door (then Pallet Town = success)
+EXITS = TASKS["leave_house"]["exits"]  # default task: bedroom stairs, 1st-floor front door
 DIRECTIONS = np.array([0, 1, 2, 3])     # down, left, right, up
-B = 5
+A, B = 4, 5
 
 
 def sample_sequences(rng, n, h):
@@ -41,24 +41,23 @@ def sample_sequences(rng, n, h):
     return out
 
 
-def score(maps, xs, ys, cur_map, cur_xy):
+def score(maps, xs, ys, cur_map, cur_xy, exits=EXITS):
     """Progress toward the current map's exit, over the part of each imagined trajectory (maps/xs/ys (N, H),
     probe readings) that stays on the current real map. An imagined map change earns credit only right next to
     the exit tile, where a real warp can happen. The first version rewarded any imagined map change, and the
     planner pressed into walls chasing warps the model hallucinates (work/videos/leave_house_mpc_naive_scoring_ep0.mp4)."""
-    ex = np.array(EXIT[cur_map])
-    dist = manhattan(np.stack([xs, ys], -1), ex)
+    dist = exit_distance(np.full(maps.shape, cur_map), xs, ys, exits)
+    cur_d = exit_distance([cur_map], [cur_xy[0]], [cur_xy[1]], exits)[0]
     same = np.cumprod(maps == cur_map, axis=1).astype(bool)
     value = np.where(same, -dist - 0.01 * np.arange(maps.shape[1]), -np.inf).max(1)
     first_off = np.argmin(same, axis=1)
-    before = np.where(first_off > 0, dist[np.arange(len(dist)), np.maximum(first_off - 1, 0)],
-                      manhattan(np.array(cur_xy), ex))
+    before = np.where(first_off > 0, dist[np.arange(len(dist)), np.maximum(first_off - 1, 0)], cur_d)
     value = np.where(~same.all(1) & (before <= 1), 10.0, value)
-    return np.where(np.isinf(value), -manhattan(np.array(cur_xy), ex) - 5.0, value)
+    return np.where(np.isinf(value), -cur_d - 5.0, value)
 
 
 @torch.no_grad()
-def plan(model, probe, frames, past_actions, ram, rng, n, h, device):
+def plan(model, probe, frames, past_actions, ram, rng, n, h, device, exits=EXITS):
     """Index of the best first button and the imagined frames of the best sequence."""
     seqs = sample_sequences(rng, n, h)
     ctx = to_float(torch.from_numpy(np.stack(frames[-CTX:])).to(device))[None].expand(n, -1, -1, -1)
@@ -68,14 +67,15 @@ def plan(model, probe, frames, past_actions, ram, rng, n, h, device):
     imagined01 = ((imagined.float() + 1) / 2).cpu().numpy()
     p = predict(probe, imagined01.reshape(-1, 72, 80), device=device)
     best = int(np.argmax(score(p["map_id"].reshape(n, h), p["x"].reshape(n, h), p["y"].reshape(n, h),
-                               ram["map_id"], (ram["x"], ram["y"]))))
+                               ram["map_id"], (ram["x"], ram["y"]), exits)))
     return int(seqs[best, 0]), imagined01[best]
 
 
-def greedy_action(ram, prev_ram, prev_a, rng):
+def greedy_action(ram, prev_ram, prev_a, rng, exits=EXITS):
     """Model-free control with privileged RAM: step toward the current map's exit; after a press that did not
     move the player (furniture, wall), try a different random direction."""
-    (ex, ey), x, y = EXIT[ram["map_id"]], ram["x"], ram["y"]
+    x, y = ram["x"], ram["y"]
+    ex, ey = min(exits[ram["map_id"]], key=lambda t: abs(t[0] - x) + abs(t[1] - y))
     toward = [a for a, ok in ((2, ex > x), (1, ex < x), (0, ey > y), (3, ey < y)) if ok]
     blocked = prev_ram is not None and (prev_ram["map_id"], prev_ram["x"], prev_ram["y"]) == (ram["map_id"], x, y)
     if blocked:
@@ -90,8 +90,10 @@ def learned_action(net, frames, device):
     return int(DIRECTIONS[torch.distributions.Categorical(logits=logits[0]).sample().item()])
 
 
-def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False, net=None):
-    env = PokemonRed(state="saves/bedroom.state")
+def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False, net=None, task="leave_house"):
+    spec = TASKS[task]
+    exits = spec["exits"]
+    env = PokemonRed(state=spec["state"])
     frames, actions, trace, video = [], [], [], []
     for i in range(CTX):          # fill the context with B presses (no effect in the overworld; 2.7% of training
         frame, ram = env.step(B)  # actions); skips the stale frame right after a state load (red tint in the data)
@@ -99,12 +101,15 @@ def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False
         if i:
             actions.append(B)
     t0 = time.time()
-    success_step, prev_ram = None, None
+    success_step, prev_ram, battle_presses = None, None, 0
     for t in range(max_steps):
-        if policy == "mpc":
-            a, dream = plan(model, probe, frames, actions, ram, rng, n, h, device)
+        if ram["in_battle"]:
+            a, dream = A, None                   # scripted battle reflex for every policy
+            battle_presses += 1
+        elif policy == "mpc":
+            a, dream = plan(model, probe, frames, actions, ram, rng, n, h, device, exits)
         elif policy == "greedy":
-            a, dream = greedy_action(ram, prev_ram, actions[-1], rng), None
+            a, dream = greedy_action(ram, prev_ram, actions[-1], rng, exits), None
         elif policy == "learned":
             a, dream = learned_action(net, frames, device), None
         else:
@@ -116,17 +121,17 @@ def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False
         trace.append([int(ram["map_id"]), int(ram["x"]), int(ram["y"]), a])
         if record:
             video.append((frames[-2], dream, a))
-        if ram["map_id"] == 0:
+        if ram["map_id"] == spec["success_map"]:
             success_step = t + 1
             break
     env.close()
     return {"success": success_step is not None, "steps": success_step, "trace": trace,
-            "seconds": round(time.time() - t0, 1)}, video
+            "battle_presses": battle_presses, "seconds": round(time.time() - t0, 1)}, video
 
 
 def write_video(video, path):
     """Real frame before each decision | the agent's best imagined next 4 frames, with the chosen button."""
-    names = ["down", "left", "right", "up"]
+    names = ["down", "left", "right", "up", "A (battle)"]
     writer = None
     for real, dream, a in video:
         row = [real] + ([(d * 255).astype(np.uint8) for d in dream[:4]] if dream is not None else [])
@@ -145,6 +150,7 @@ def write_video(video, path):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--task", choices=sorted(TASKS), default="leave_house")
     ap.add_argument("--policy", choices=["mpc", "random", "greedy", "learned"], default="mpc")
     ap.add_argument("--rl-name", default="leave_house", help="work/agent_rl/<name>/policy.pt for --policy learned")
     ap.add_argument("--run", default="main")
@@ -167,11 +173,11 @@ def main():
                                        weights_only=True)["policy"])
     rng = np.random.default_rng(args.seed)
     tag = {"mpc": f"_{args.run}_n{args.n}_h{args.h}", "learned": f"_{args.rl_name}"}.get(args.policy, "")
-    stem = f"leave_house_{args.policy}{tag}_s{args.seed}"
+    stem = f"{args.task}_{args.policy}{tag}_s{args.seed}"
     results = []
     for ep in range(args.episodes):
         res, video = run_episode(args.policy, model, probe, rng, args.max_steps, args.n, args.h, args.device,
-                                 record=args.video and ep == 0, net=net)
+                                 record=args.video and ep == 0, net=net, task=args.task)
         results.append(res)
         print(f"episode {ep}: success {res['success']} steps {res['steps']} final {res['trace'][-1][:3]} "
               f"({res['seconds']} s)", flush=True)
@@ -180,7 +186,7 @@ def main():
             write_video(video, f"work/videos/{stem}_ep0.mp4")
         k = sum(r["success"] for r in results)                # rewritten after every episode: crash-safe
         steps = [r["steps"] for r in results if r["success"]]
-        summary = {"task": "leave_house", "policy": args.policy, "args": vars(args), "episodes": len(results),
+        summary = {"task": args.task, "policy": args.policy, "args": vars(args), "episodes": len(results),
                    "successes": k, "success_rate": k / len(results),
                    "median_steps_when_successful": float(np.median(steps)) if steps else None, "results": results}
         Path("work/agent").mkdir(parents=True, exist_ok=True)
