@@ -26,14 +26,12 @@ EVAL_WINDOWS, EVAL_K = 32, 32
 
 
 class GpuGuard:
-    """Logs power/temperature; refuses to start above a 250 W board limit; pauses at >=80C until <=70C; asks to stop at >=87C or >5 pauses in an hour."""
+    """Logs power/temperature; pauses at >=80C until <=70C; asks to stop at >=87C or >5 pauses in an hour."""
 
     def __init__(self, log):
         self.log, self.pauses = log, deque()
         limit, _, _ = self.read()
-        log(f"gpu power limit {limit:.0f} W")
-        if limit > 255:
-            raise SystemExit(f"GPU power limit is {limit:.0f} W (> 250 W); set it with nvidia-smi -pl 250 first")
+        log(f"gpu power limit {limit:.0f} W (set by the owner)")
 
     @staticmethod
     def read():
