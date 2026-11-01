@@ -130,11 +130,12 @@ class Denoiser(nn.Module):
         out = self.unet(torch.cat([x_noisy * c_in, ctx], 1), self.cond_mlp(cond))
         return out, c_skip, c_out
 
-    def loss(self, frames, actions):
-        """frames (B,CTX+1,H,W) float in [-1,1] (last one is the target), actions (B,CTX) long."""
+    def loss(self, frames, actions, ctx_aug=True):
+        """frames (B,CTX+1,H,W) float in [-1,1] (last one is the target), actions (B,CTX) long.
+        ctx_aug=False trains on clean context only (ablation of the context-noise augmentation)."""
         b = frames.shape[0]
         target, ctx = frames[:, -1:], frames[:, :-1]
-        aug = torch.randint(0, AUG_BUCKETS, (b,), device=frames.device)
+        aug = torch.randint(0, AUG_BUCKETS if ctx_aug else 1, (b,), device=frames.device)
         ctx = ctx + torch.randn_like(ctx) * (aug * AUG_MAX / (AUG_BUCKETS - 1))[:, None, None, None]
         sigma = (torch.randn(b, device=frames.device) * P_STD + P_MEAN).exp()
         x_noisy = target + torch.randn_like(target) * sigma[:, None, None, None]

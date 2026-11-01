@@ -91,6 +91,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--name", required=True)
     ap.add_argument("--minutes", type=float, required=True)
+    ap.add_argument("--max-steps", type=int, default=0, help="also stop at this step (0 = no limit)")
+    ap.add_argument("--no-ctx-aug", action="store_true", help="ablation: train without context-noise augmentation")
     args = ap.parse_args()
     torch.set_num_threads(4)
     run = Path("work/runs") / args.name
@@ -125,7 +127,8 @@ def main():
         step, elapsed = state["step"], state["elapsed"]
         log(f"resumed at step {step}, {elapsed / 60:.1f} min trained")
     log(f"params {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M, train windows {len(train_starts)}, "
-        f"batch {BATCH}, lr {LR}, budget {args.minutes} min")
+        f"batch {BATCH}, lr {LR}, budget {args.minutes} min, max steps {args.max_steps or '-'}, "
+        f"context-noise aug {'OFF' if args.no_ctx_aug else 'on'}")
 
     def save():
         tmp = run / "ckpt.tmp"
@@ -135,11 +138,11 @@ def main():
 
     ar = torch.arange(CTX + 1, device=dev)
     t_last, t_ckpt, losses = time.time(), time.time(), []
-    while elapsed < args.minutes * 60:
+    while elapsed < args.minutes * 60 and not (args.max_steps and step >= args.max_steps):
         idx = train_starts[torch.randint(len(train_starts), (BATCH,), device=dev)][:, None] + ar
         f = to_float(frames[idx])
         with torch.autocast("cuda", torch.bfloat16):
-            loss = model.loss(f, actions[idx][:, :CTX].long())
+            loss = model.loss(f, actions[idx][:, :CTX].long(), ctx_aug=not args.no_ctx_aug)
         opt.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP)
