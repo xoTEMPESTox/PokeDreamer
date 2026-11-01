@@ -28,6 +28,7 @@ def main():
     ap.add_argument("--samples", type=int, default=4)
     ap.add_argument("--split", default="test_id")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--steps", type=int, default=3, help="Euler sampling steps (DIAMOND default 3)")
     args = ap.parse_args()
     H, dev = args.horizon, args.device
 
@@ -50,21 +51,21 @@ def main():
             ctx = to_float(torch.from_numpy(data["frames"][s[:, None] + np.arange(CTX)]).to(dev))
             act = torch.from_numpy(data["actions"][s[:, None] + np.arange(CTX + H - 1)]).long().to(dev)
             with torch.autocast("cuda", torch.bfloat16, enabled=dev == "cuda"):
-                frames = model.rollout(ctx, act, steps=3)
+                frames = model.rollout(ctx, act, steps=args.steps)
             out.append(((frames.float() + 1) * 127.5).round().clamp(0, 255).byte().cpu().numpy())
         frames = np.concatenate(out)
         imag.append(predict(probe, frames.reshape(-1, 72, 80), device=dev)["battle"].reshape(-1, H))
     imag = np.stack(imag)                                             # (samples, windows, H)
 
     res = {"run": args.run, "map": args.map, "split": args.split, "horizon": H, "windows": int(len(starts)),
-           "episodes": int(len(set(data["episode_id"][starts].tolist()))), "samples": args.samples,
+           "episodes": int(len(set(data["episode_id"][starts].tolist()))), "samples": args.samples, "sampling_steps": args.steps,
            "battle_within_H": {"ram": float(ram.any(1).mean()), "probe_on_real_frames": float(real_probe.any(1).mean()),
                                "probe_on_imagined_frames": float(imag.any(2).mean()),
                                "imagined_any_of_samples": float(imag.any((0, 2)).mean())},
            "battle_frame_fraction": {"ram": float(ram.mean()), "probe_on_real_frames": float(real_probe.mean()),
                                      "probe_on_imagined_frames": float(imag.mean())},
            "imagined_given_real_onset": float(imag.any(2)[:, ram.any(1)].mean()) if ram.any() else None}
-    out = Path("work/eval") / f"battle_onset_{args.run}_map{args.map}.json"
+    out = Path("work/eval") / (f"battle_onset_{args.run}_map{args.map}" + (f"_s{args.steps}" if args.steps != 3 else "") + ".json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(res, indent=2))
     print(json.dumps(res, indent=2))
