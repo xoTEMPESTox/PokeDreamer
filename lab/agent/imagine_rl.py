@@ -26,7 +26,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from lab.agent.mpc import DIRECTIONS
-from lab.agent.tasks import TASKS, exit_distance
+from lab.agent.tasks import TASKS, exit_distance, train_geodesic_fields
 from lab.data import load
 from lab.dwm.controllability import load_world_model
 from lab.dwm.model import CTX, to_float
@@ -53,13 +53,14 @@ class Policy(nn.Module):
         return self.pi(h), self.v(h).squeeze(-1)
 
 
-def rewards_from_probe(maps, xs, ys, start_map, start_x, start_y, exits=TASKS["leave_house"]["exits"], battle=None):
+def rewards_from_probe(maps, xs, ys, start_map, start_x, start_y, exits=TASKS["leave_house"]["exits"], battle=None,
+                       fields=None):
     """Per-step reward, alive mask (step belongs to the rollout) and continuation mask (rollout goes on after
     the step) for imagined trajectories (B, H) starting on start_map at the real tile (start_x, start_y)."""
     b, h = maps.shape
     battle = np.zeros((b, h), bool) if battle is None else np.asarray(battle, bool)
-    dist = exit_distance(np.broadcast_to(start_map[:, None], (b, h)), xs, ys, exits)
-    dist0 = exit_distance(start_map, start_x, start_y, exits)
+    dist = exit_distance(np.broadcast_to(start_map[:, None], (b, h)), xs, ys, exits, fields)
+    dist0 = exit_distance(start_map, start_x, start_y, exits, fields)
     on_map = np.cumprod((maps == start_map[:, None]) & ~battle, axis=1).astype(bool)
     r = np.zeros((b, h), np.float32)
     alive = np.zeros((b, h), np.float32)
@@ -91,6 +92,8 @@ def main():
     ap.add_argument("--name", default="leave_house")
     ap.add_argument("--minutes", type=float, required=True)
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--geodesic", action="store_true",
+                    help="reward progress in path distance over the train split's observed moves, not Manhattan")
     args = ap.parse_args()
     dev = args.device
     out = Path("work/agent_rl") / args.name
@@ -107,6 +110,8 @@ def main():
     starts = windows(data, splits["train"], CTX)
     last = starts + CTX - 1
     exits = TASKS[args.task]["exits"]
+    fields = train_geodesic_fields(exits) if args.geodesic else None
+    log(f"distance to exit: {'geodesic (observed moves, train split)' if args.geodesic else 'Manhattan'}")
     train_maps = TASKS[args.task].get("train_maps", list(exits))
     ok = np.isin(data["map_ids"][last], train_maps) & ~data["in_battles"][starts[:, None] + np.arange(CTX)].any(1)
     starts = starts[ok]
@@ -157,7 +162,7 @@ def main():
             p = predict(probe, ((imag + 1) / 2).cpu().numpy().reshape(-1, 72, 80), device=dev)
             battle = p["battle"].reshape(BATCH, H)
             r, alive, cont = rewards_from_probe(p["map_id"].reshape(BATCH, H), p["x"].reshape(BATCH, H),
-                                                p["y"].reshape(BATCH, H), start_map, start_x, start_y, exits, battle)
+                                                p["y"].reshape(BATCH, H), start_map, start_x, start_y, exits, battle, fields)
             _, v_last = policy(ctx)
         obs_t = torch.stack(obs, 1)                                   # (B, H, CTX, 72, 80)
         logits, v = policy(obs_t.flatten(0, 1))

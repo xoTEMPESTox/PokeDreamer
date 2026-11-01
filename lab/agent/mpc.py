@@ -18,7 +18,7 @@ import cv2
 import numpy as np
 import torch
 
-from lab.agent.tasks import TASKS, exit_distance
+from lab.agent.tasks import TASKS, exit_distance, train_geodesic_fields
 from lab.dwm.controllability import load_world_model
 from lab.dwm.model import CTX, to_float
 from lab.env import PokemonRed
@@ -71,12 +71,18 @@ def plan(model, probe, frames, past_actions, ram, rng, n, h, device, exits=EXITS
     return int(seqs[best, 0]), imagined01[best]
 
 
-def greedy_action(ram, prev_ram, prev_a, rng, exits=EXITS):
-    """Model-free control with privileged RAM: step toward the current map's exit; after a press that did not
-    move the player (furniture, wall), try a different random direction."""
+def greedy_action(ram, prev_ram, prev_a, rng, exits=EXITS, fields=None):
+    """Model-free control with privileged RAM: step toward the current map's exit (with `fields`: to a neighbour
+    tile with a smaller path distance); after a press that did not move the player (furniture, wall), try a
+    different random direction."""
     x, y = ram["x"], ram["y"]
-    ex, ey = min(exits[ram["map_id"]], key=lambda t: abs(t[0] - x) + abs(t[1] - y))
-    toward = [a for a, ok in ((2, ex > x), (1, ex < x), (0, ey > y), (3, ey < y)) if ok]
+    if fields is not None and ram["map_id"] in fields:
+        f = fields[ram["map_id"]]
+        at = lambda tx, ty: f[min(max(ty, 0), f.shape[0] - 1), min(max(tx, 0), f.shape[1] - 1)]
+        toward = [a for a, (dx, dy) in ((0, (0, 1)), (1, (-1, 0)), (2, (1, 0)), (3, (0, -1))) if at(x + dx, y + dy) < at(x, y)]
+    else:
+        ex, ey = min(exits[ram["map_id"]], key=lambda t: abs(t[0] - x) + abs(t[1] - y))
+        toward = [a for a, ok in ((2, ex > x), (1, ex < x), (0, ey > y), (3, ey < y)) if ok]
     blocked = prev_ram is not None and (prev_ram["map_id"], prev_ram["x"], prev_ram["y"]) == (ram["map_id"], x, y)
     if blocked:
         return int(rng.choice([a for a in DIRECTIONS if a != prev_a]))
@@ -90,7 +96,8 @@ def learned_action(net, frames, device):
     return int(DIRECTIONS[torch.distributions.Categorical(logits=logits[0]).sample().item()])
 
 
-def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False, net=None, task="leave_house"):
+def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False, net=None, task="leave_house",
+                fields=None):
     spec = TASKS[task]
     exits = spec["exits"]
     env = PokemonRed(state=spec["state"])
@@ -109,7 +116,7 @@ def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False
         elif policy == "mpc":
             a, dream = plan(model, probe, frames, actions, ram, rng, n, h, device, exits)
         elif policy == "greedy":
-            a, dream = greedy_action(ram, prev_ram, actions[-1], rng, exits), None
+            a, dream = greedy_action(ram, prev_ram, actions[-1], rng, exits, fields), None
         elif policy == "learned":
             a, dream = learned_action(net, frames, device), None
         else:
@@ -161,6 +168,7 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--video", action="store_true", help="record the first episode")
+    ap.add_argument("--geodesic", action="store_true", help="greedy: follow path distance over the train split's moves")
     args = ap.parse_args()
 
     model = load_world_model(args.run, device=args.device) if args.policy == "mpc" else None
@@ -171,13 +179,15 @@ def main():
         net = Policy().to(args.device).eval()
         net.load_state_dict(torch.load(f"work/agent_rl/{args.rl_name}/policy.pt", map_location=args.device,
                                        weights_only=True)["policy"])
+    fields = train_geodesic_fields(TASKS[args.task]["exits"]) if args.geodesic else None
     rng = np.random.default_rng(args.seed)
-    tag = {"mpc": f"_{args.run}_n{args.n}_h{args.h}", "learned": f"_{args.rl_name}"}.get(args.policy, "")
+    tag = {"mpc": f"_{args.run}_n{args.n}_h{args.h}", "learned": f"_{args.rl_name}"}.get(args.policy, "") + ("_geo" if args.geodesic else "")
     stem = f"{args.task}_{args.policy}{tag}_s{args.seed}"
     results = []
     for ep in range(args.episodes):
         res, video = run_episode(args.policy, model, probe, rng, args.max_steps, args.n, args.h, args.device,
-                                 record=args.video and ep == 0, net=net, task=args.task)
+                                 record=args.video and ep == 0, net=net, task=args.task,
+                                 fields=fields)
         results.append(res)
         print(f"episode {ep}: success {res['success']} steps {res['steps']} final {res['trace'][-1][:3]} "
               f"({res['seconds']} s)", flush=True)
