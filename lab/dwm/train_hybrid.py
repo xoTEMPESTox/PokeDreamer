@@ -114,6 +114,7 @@ def main():
     ap.add_argument("--minutes", type=float, required=True)
     ap.add_argument("--max-steps", type=int, default=0, help="also stop at this step (0 = no limit)")
     ap.add_argument("--no-ctx-aug", action="store_true", default=True, help="train without context-noise augmentation (default)")
+    ap.add_argument("--ctx-aug", dest="no_ctx_aug", action="store_false", help="enable context-noise augmentation")
     ap.add_argument("--batch", type=int, default=BATCH)
     ap.add_argument("--device", type=str, default="cuda", help="cuda or cpu")
     ap.add_argument("--cond-drop", type=float, default=0.0, help="probability of dropping RAM conditioning during training")
