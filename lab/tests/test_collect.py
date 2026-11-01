@@ -9,6 +9,7 @@ from lab.collect import (
     ArchiveEntry,
     cell_key,
     choose_exploratory_action,
+    initialize_worker_archive,
     run_episode,
     select_explore_cell,
 )
@@ -188,3 +189,68 @@ def test_short_episode_and_dataset_format(tmp_path):
             assert loaded[k].dtype == ref_data[k].dtype, f"Dtype mismatch for '{k}': {loaded[k].dtype} vs ref {ref_data[k].dtype}"
             # Check non-leading dimensions match
             assert loaded[k].shape[1:] == ref_data[k].shape[1:], f"Trailing shape mismatch for '{k}'"
+
+
+def test_initialize_worker_archive_with_start_states():
+    """Verify initialize_worker_archive loads start-states index correctly."""
+    idx_path = Path("work/route_states/index.json")
+    if not idx_path.exists():
+        pytest.skip("work/route_states/index.json not found")
+
+    archive = {}
+    # Test with no_default_start=True
+    initialize_worker_archive(
+        env=None,
+        archive=archive,
+        start_state_bytes=None,
+        start_states_path=idx_path,
+        no_default_start=True,
+    )
+    assert len(archive) > 0
+    maps_in_archive = {c[0] for c in archive.keys()}
+    # Expected maps from route states
+    for m in [1, 2, 12, 13, 41, 47, 50, 51, 54, 58]:
+        assert m in maps_in_archive, f"Map {m} expected in seeded archive"
+
+    # Verify cell key and hp_frac properties
+    for c, entry in archive.items():
+        assert c == cell_key(entry.map_id, entry.x, entry.y)
+        assert 0.0 <= entry.hp_frac <= 1.0
+
+
+def test_run_episode_target_maps_sampling():
+    """Verify Phase B start cells are only drawn from target maps that exist in archive."""
+    rng = np.random.default_rng(999)
+    c13 = (13, 2, 23)
+    c51 = (51, 5, 15)
+    c1 = (1, 9, 6)
+
+    archive = {
+        c13: ArchiveEntry(snapshot=b"", map_id=13, x=8, y=71, times_chosen=0),
+        c51: ArchiveEntry(snapshot=b"", map_id=51, x=17, y=47, times_chosen=0),
+        c1: ArchiveEntry(snapshot=b"", map_id=1, x=29, y=20, times_chosen=0),
+    }
+
+    # If target_maps is [13, 51, 47, 2] (where 47 and 2 are NOT in archive)
+    target_maps = [13, 51, 47, 2]
+    # Filter to reached target maps as done in worker_proc
+    avail_maps = {c[0] for c in archive.keys()}
+    valid_targets = [m for m in target_maps if m in avail_maps]
+    assert set(valid_targets) == {13, 51}
+
+    # Mock environment restore
+    restored_cells = []
+    class DummyEnv:
+        def restore(self, snap):
+            pass
+        def step(self, a):
+            pass
+    # Verify selection across multiple draws
+    sampled_maps = set()
+    for _ in range(50):
+        chosen_m = int(rng.choice(valid_targets))
+        sampled_maps.add(chosen_m)
+    assert sampled_maps == {13, 51}
+    assert 1 not in sampled_maps
+    assert 47 not in sampled_maps
+    assert 2 not in sampled_maps

@@ -60,7 +60,12 @@ MAP_ROUTE2_HOUSE = 48
 MAP_ROUTE2_GATE = 49
 MAP_VIRIDIAN_FOREST_SOUTH_GATE = 50
 MAP_VIRIDIAN_FOREST = 51
+MAP_PEWTER_MUSEUM_1F = 52
+MAP_PEWTER_MUSEUM_2F = 53
 MAP_PEWTER_GYM = 54
+MAP_PEWTER_NIDORAN_HOUSE = 55
+MAP_PEWTER_MART = 56
+MAP_PEWTER_SPEECH_HOUSE = 57
 MAP_PEWTER_POKECENTER = 58
 MAP_ROUTE22_GATE = 193
 
@@ -72,10 +77,17 @@ TARGET_MAP_LABELS: Dict[int, str] = {
     MAP_VIRIDIAN_FOREST: "Viridian Forest",
     MAP_VIRIDIAN_FOREST_NORTH_GATE: "Viridian Forest North Gate",
     MAP_PEWTER: "Pewter City",
-    MAP_PEWTER_POKECENTER: "Pewter Pokémon Center",
+    MAP_PEWTER_MUSEUM_1F: "Pewter Museum 1F",
+    MAP_PEWTER_MUSEUM_2F: "Pewter Museum 2F",
     MAP_PEWTER_GYM: "Pewter Gym",
+    MAP_PEWTER_NIDORAN_HOUSE: "Pewter Nidoran House",
+    MAP_PEWTER_MART: "Pewter Mart",
+    MAP_PEWTER_SPEECH_HOUSE: "Pewter Speech House",
+    MAP_PEWTER_POKECENTER: "Pewter Pokémon Center",
     MAP_VIRIDIAN_POKECENTER: "Viridian Pokémon Center",
     MAP_VIRIDIAN_MART: "Viridian Mart",
+    MAP_VIRIDIAN_SCHOOL: "Viridian School",
+    MAP_VIRIDIAN_HOUSE: "Viridian House",
     MAP_ROUTE22_GATE: "Route 22 Gate",
 }
 
@@ -98,6 +110,11 @@ ROUTE_RANK = {
     MAP_VIRIDIAN_FOREST: 5,
     MAP_VIRIDIAN_FOREST_NORTH_GATE: 6,
     MAP_PEWTER: 7,
+    MAP_PEWTER_MUSEUM_1F: 8,
+    MAP_PEWTER_MUSEUM_2F: 8,
+    MAP_PEWTER_NIDORAN_HOUSE: 8,
+    MAP_PEWTER_MART: 8,
+    MAP_PEWTER_SPEECH_HOUSE: 8,
     MAP_PEWTER_POKECENTER: 8,
     MAP_PEWTER_GYM: 9,
 }
@@ -240,69 +257,122 @@ def select_explore_cell(
 def initialize_worker_archive(
     env: PokemonRed,
     archive: Dict[Tuple[int, int, int], ArchiveEntry],
-    start_state_bytes: bytes,
+    start_state_bytes: Optional[bytes] = None,
+    start_states_path: Optional[Path | str] = None,
+    no_default_start: bool = False,
 ) -> None:
-    """Seed the archive with the initial state and a fully-healed state in Viridian City."""
-    # 1. Start state (Viridian Mart exterior)
-    env.restore(start_state_bytes)
-    st0 = extract_game_state(env.pyboy)
-    hp_frac0 = get_party_hp_frac(env)
-    c0 = cell_key(st0.map_id, st0.x, st0.y)
-    archive[c0] = ArchiveEntry(
-        snapshot=env.snapshot(),
-        times_chosen=0,
-        map_id=st0.map_id,
-        x=st0.x,
-        y=st0.y,
-        hp_frac=hp_frac0,
-        first_iter=0,
-        steps=0,
-        visit_count=0,
-        first_episode=0,
-    )
+    """Seed the archive with start states.
 
-    # 2. Heal at Pokémon Center and record full-HP state
-    try:
-        path_to_pc = ["left"] * 10 + ["down"] * 6 + ["right"] * 4 + ["up", "up"]
-        for a in path_to_pc:
-            env.step(a)
-        for _ in range(3):
-            env.step("pass")
-        # Walk up to Nurse Joy counter at (3, 3)
-        for _ in range(4):
-            env.step("up")
-        # Clear dialogue
-        for _ in range(10):
-            env.step("a")
-        # Step down off counter
-        for _ in range(20):
-            _, r = env.step("down")
-            if (r["x"], r["y"]) != (3, 3):
-                break
-            env.step("b")
-        while r["map_id"] == MAP_VIRIDIAN_POKECENTER:
-            _, r = env.step("down")
-        for _ in range(5):
-            _, r = env.step("pass")
+    If start_states_path is given, loads entries from index.json, keys them by (map_id, x // 3, y // 3),
+    computes hp_frac from hp / max_hp, and adds them to archive.
+    If not no_default_start, also adds the default start state and runs the Viridian Pokecenter healing sequence.
+    """
+    if start_states_path is not None:
+        p_idx = Path(start_states_path)
+        if not p_idx.exists():
+            raise FileNotFoundError(f"Start states index not found: {p_idx}")
+        with open(p_idx, "r", encoding="utf-8") as f:
+            entries = json.load(f)
 
-        # Now outside PC at (23, 26) with full HP
-        st_healed = extract_game_state(env.pyboy)
-        hp_healed = get_party_hp_frac(env)
-        c_healed = cell_key(st_healed.map_id, st_healed.x, st_healed.y)
-        archive[c_healed] = ArchiveEntry(
-            snapshot=env.snapshot(),
-            times_chosen=0,
-            map_id=st_healed.map_id,
-            x=st_healed.x,
-            y=st_healed.y,
-            hp_frac=hp_healed,
-            first_iter=0,
-            steps=0,
-            visit_count=0,
-            first_episode=0,
-        )
-    except Exception:
-        pass
+        for entry in entries:
+            f_path = Path(entry["file"])
+            if not f_path.is_absolute() and not f_path.exists():
+                f_path = p_idx.parent / f_path.name
+            if not f_path.exists():
+                f_path = Path.cwd() / entry["file"]
+            if not f_path.exists():
+                continue
+            snapshot_bytes = f_path.read_bytes()
+            m_id = int(entry["map_id"])
+            x_pos = int(entry["x"])
+            y_pos = int(entry["y"])
+            hp = float(entry.get("hp", 0))
+            max_hp = float(entry.get("max_hp", 0))
+            hp_frac = (hp / max_hp) if max_hp > 0 else 1.0
+
+            ck = cell_key(m_id, x_pos, y_pos)
+            if ck not in archive or hp_frac > archive[ck].hp_frac:
+                archive[ck] = ArchiveEntry(
+                    snapshot=snapshot_bytes,
+                    times_chosen=0,
+                    map_id=m_id,
+                    x=x_pos,
+                    y=y_pos,
+                    hp_frac=hp_frac,
+                    first_iter=0,
+                    steps=0,
+                    visit_count=0,
+                    first_episode=0,
+                )
+
+    if not no_default_start and start_state_bytes is not None:
+        # 1. Start state (Viridian Mart exterior)
+        env.restore(start_state_bytes)
+        st0 = extract_game_state(env.pyboy)
+        hp_frac0 = get_party_hp_frac(env)
+        c0 = cell_key(st0.map_id, st0.x, st0.y)
+        if c0 not in archive or hp_frac0 > archive[c0].hp_frac:
+            archive[c0] = ArchiveEntry(
+                snapshot=env.snapshot(),
+                times_chosen=0,
+                map_id=st0.map_id,
+                x=st0.x,
+                y=st0.y,
+                hp_frac=hp_frac0,
+                first_iter=0,
+                steps=0,
+                visit_count=0,
+                first_episode=0,
+            )
+
+        # 2. Heal at Pokémon Center and record full-HP state
+        try:
+            path_to_pc = ["left"] * 10 + ["down"] * 6 + ["right"] * 4 + ["up", "up"]
+            for a in path_to_pc:
+                env.step(a)
+            for _ in range(3):
+                env.step("pass")
+            # Walk up to Nurse Joy counter at (3, 3)
+            for _ in range(4):
+                env.step("up")
+            # Clear dialogue
+            for _ in range(10):
+                env.step("a")
+            # Step down off counter
+            for _ in range(20):
+                _, r = env.step("down")
+                if (r["x"], r["y"]) != (3, 3):
+                    break
+                env.step("b")
+            while r["map_id"] == MAP_VIRIDIAN_POKECENTER:
+                _, r = env.step("down")
+            for _ in range(5):
+                _, r = env.step("pass")
+
+            # Now outside PC at (23, 26) with full HP
+            st_healed = extract_game_state(env.pyboy)
+            hp_healed = get_party_hp_frac(env)
+            c_healed = cell_key(st_healed.map_id, st_healed.x, st_healed.y)
+            if c_healed not in archive or hp_healed > archive[c_healed].hp_frac:
+                archive[c_healed] = ArchiveEntry(
+                    snapshot=env.snapshot(),
+                    times_chosen=0,
+                    map_id=st_healed.map_id,
+                    x=st_healed.x,
+                    y=st_healed.y,
+                    hp_frac=hp_healed,
+                    first_iter=0,
+                    steps=0,
+                    visit_count=0,
+                    first_episode=0,
+                )
+        except Exception:
+            pass
+
+    # Ensure env is loaded with a valid snapshot from the archive
+    if env is not None and archive:
+        first_entry = next(iter(archive.values()))
+        env.restore(first_entry.snapshot)
 
 
 def run_phase_a_explore(
@@ -312,13 +382,15 @@ def run_phase_a_explore(
     worker_id: int,
     explore_cap: int = 400000,
     iter_length: int = 100,
+    target_maps: Optional[List[int]] = None,
 ) -> Dict[str, Any]:
     """Execute Phase A Go-Explore loop until targets are reached or explore_cap steps taken."""
     total_steps = 0
     cur_iter = 0
     maps_first_iter: Dict[int, int] = {}
-    st_init = extract_game_state(env.pyboy)
-    maps_first_iter[st_init.map_id] = 0
+    for entry in archive.values():
+        if entry.map_id not in maps_first_iter:
+            maps_first_iter[entry.map_id] = 0
 
     stop_reason = "explore_cap_reached"
     low_hp_flag = False
@@ -402,16 +474,26 @@ def run_phase_a_explore(
         end_hp_frac = get_party_hp_frac(env)
         low_hp_flag = (end_hp_frac < 0.30)
 
-        # Check stopping targets: Pewter Gym (54) and Pewter Pokémon Center (58)
+        # Check stopping targets
         maps_in_archive = {c[0] for c in archive.keys()}
-        if MAP_PEWTER_GYM in maps_in_archive and MAP_PEWTER_POKECENTER in maps_in_archive:
-            stop_reason = "targets_reached"
-            print(
-                f"[Worker {worker_id}] Phase A SUCCESS: reached both Pewter Gym (54) and "
-                f"Pewter Center (58) in {total_steps:,} steps ({cur_iter} iters)!",
-                flush=True,
-            )
-            break
+        if target_maps is not None:
+            if set(target_maps).issubset(maps_in_archive):
+                stop_reason = "targets_reached"
+                print(
+                    f"[Worker {worker_id}] Phase A SUCCESS: reached all {len(target_maps)} "
+                    f"target maps in {total_steps:,} steps ({cur_iter} iters)!",
+                    flush=True,
+                )
+                break
+        else:
+            if MAP_PEWTER_GYM in maps_in_archive and MAP_PEWTER_POKECENTER in maps_in_archive:
+                stop_reason = "targets_reached"
+                print(
+                    f"[Worker {worker_id}] Phase A SUCCESS: reached both Pewter Gym (54) and "
+                    f"Pewter Center (58) in {total_steps:,} steps ({cur_iter} iters)!",
+                    flush=True,
+                )
+                break
 
     dt_explore = time.perf_counter() - t0_explore
     sps_explore = total_steps / dt_explore if dt_explore > 0 else 0.0
@@ -426,7 +508,6 @@ def run_phase_a_explore(
             best_rank = rank
             furthest_cell_info = (entry.map_id, entry.x, entry.y)
         elif rank == best_rank:
-            # If same rank on forest or route 2, smaller Y is further north
             if entry.y < furthest_cell_info[2]:
                 furthest_cell_info = (entry.map_id, entry.x, entry.y)
 
@@ -435,12 +516,22 @@ def run_phase_a_explore(
         m = c[0]
         cells_per_map[m] = cells_per_map.get(m, 0) + 1
 
+    worker_unreached = [m for m in target_maps if m not in cells_per_map] if target_maps is not None else []
+
     print(
         f"[Worker {worker_id}] Phase A completed ({stop_reason}): {total_steps:,} steps, "
         f"{cur_iter} iters in {dt_explore:.1f}s ({sps_explore:.1f} st/s). "
         f"Archive: {len(archive)} cells across {len(cells_per_map)} maps. "
         f"Furthest cell: {furthest_cell_info}",
         flush=True,
+    )
+    if worker_unreached:
+        print(f"[Worker {worker_id}] Target maps NOT reached in Phase A: {worker_unreached}", flush=True)
+
+    targets_reached_flag = (
+        set(target_maps).issubset(set(cells_per_map.keys()))
+        if target_maps is not None
+        else (MAP_PEWTER_GYM in cells_per_map and MAP_PEWTER_POKECENTER in cells_per_map)
     )
 
     return {
@@ -453,7 +544,8 @@ def run_phase_a_explore(
         "maps_first_iter": {str(k): v for k, v in maps_first_iter.items()},
         "cells_per_map": {str(k): v for k, v in cells_per_map.items()},
         "furthest_cell": list(furthest_cell_info),
-        "targets_reached": (MAP_PEWTER_GYM in maps_in_archive and MAP_PEWTER_POKECENTER in maps_in_archive),
+        "targets_reached": targets_reached_flag,
+        "unreached_targets": worker_unreached,
     }
 
 
@@ -468,15 +560,20 @@ def run_episode(
     """Run a single 1,000-step exploration episode and record transitions in dataset format.
 
     Start cell selection:
-    Uniformly sampled over maps in target_maps, then uniformly sampled over that map's cells in the archive.
+    Uniformly sampled over maps in target_maps (only those reached in Phase A),
+    then uniformly sampled over that map's cells in the archive.
     """
-    if target_maps is None:
-        avail_maps = sorted(list(set(c[0] for c in archive.keys())))
-        filtered = [m for m in avail_maps if m not in EXCLUDED_START_MAPS]
-        target_maps = filtered if filtered else avail_maps
+    avail_maps = {c[0] for c in archive.keys()}
+    if target_maps is not None:
+        valid_targets = [m for m in target_maps if m in avail_maps]
+        if not valid_targets:
+            valid_targets = sorted(list(avail_maps))
+    else:
+        filtered = [m for m in sorted(list(avail_maps)) if m not in EXCLUDED_START_MAPS]
+        valid_targets = filtered if filtered else sorted(list(avail_maps))
 
     # 1. Sample start map uniformly
-    chosen_map = int(rng.choice(target_maps))
+    chosen_map = int(rng.choice(valid_targets))
     map_cells = [c for c in archive.keys() if c[0] == chosen_map]
     if not map_cells:
         map_cells = list(archive.keys())
@@ -622,6 +719,9 @@ def worker_proc(
     out_dir: str,
     save_interval: int,
     result_queue: mp.Queue,
+    start_states_path: Optional[str] = None,
+    no_default_start: bool = False,
+    target_maps: Optional[List[int]] = None,
 ) -> None:
     """Worker process running in CPU parallel: runs Phase A, then Phase B, writes chunks."""
     seed = base_seed + worker_id * 1000
@@ -630,12 +730,22 @@ def worker_proc(
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
-    with open(state_path, "rb") as f:
-        start_state_bytes = f.read()
+    start_state_bytes = None
+    if not no_default_start and state_path:
+        p_state = Path(state_path)
+        if p_state.exists():
+            with open(p_state, "rb") as f:
+                start_state_bytes = f.read()
 
-    env = PokemonRed(rom=rom_path, state=start_state_bytes)
+    env = PokemonRed(rom=rom_path)
     archive: Dict[Tuple[int, int, int], ArchiveEntry] = {}
-    initialize_worker_archive(env, archive, start_state_bytes)
+    initialize_worker_archive(
+        env=env,
+        archive=archive,
+        start_state_bytes=start_state_bytes,
+        start_states_path=start_states_path,
+        no_default_start=no_default_start,
+    )
 
     # ══════════════════════════════════════════════════════════════════════════
     # PHASE A: Explore (unrecorded)
@@ -647,6 +757,7 @@ def worker_proc(
         worker_id=worker_id,
         explore_cap=explore_cap,
         iter_length=100,
+        target_maps=target_maps,
     )
 
     # Save worker's Phase A explore summary to disk
@@ -657,13 +768,23 @@ def worker_proc(
     # PHASE B: Record (1,000 steps per episode)
     # ══════════════════════════════════════════════════════════════════════════
     avail_maps = sorted(list(set(c[0] for c in archive.keys())))
-    target_maps = [m for m in avail_maps if m not in EXCLUDED_START_MAPS]
-    if not target_maps:
-        target_maps = [MAP_VIRIDIAN]
+    if target_maps is not None:
+        phase_b_maps = [m for m in target_maps if m in avail_maps]
+        worker_unreached = [m for m in target_maps if m not in avail_maps]
+        if worker_unreached:
+            print(
+                f"[Worker {worker_id}] Target maps NOT reached in Phase A: {worker_unreached}",
+                flush=True,
+            )
+        if not phase_b_maps:
+            phase_b_maps = avail_maps
+    else:
+        filtered = [m for m in avail_maps if m not in EXCLUDED_START_MAPS]
+        phase_b_maps = filtered if filtered else avail_maps
 
     print(
         f"[Worker {worker_id}] Phase B starting: {num_episodes} episodes over "
-        f"{len(target_maps)} target maps: {target_maps}",
+        f"{len(phase_b_maps)} target maps: {phase_b_maps}",
         flush=True,
     )
 
@@ -685,7 +806,7 @@ def worker_proc(
             rng=rng,
             episode_idx=ep_i,
             episode_length=1000,
-            target_maps=target_maps,
+            target_maps=phase_b_maps,
         )
         dt = time.perf_counter() - t0
         sps = 1000.0 / dt if dt > 0 else 0.0
@@ -833,6 +954,9 @@ def collect(
     explore_cap: int = 400000,
     save_interval: int = 10,
     base_seed: int = 42,
+    start_states_path: Optional[Path | str] = None,
+    no_default_start: bool = False,
+    target_maps: Optional[List[int]] = None,
 ) -> Dict[str, Any]:
     """Main two-phase data collection entrypoint."""
     workers = min(workers, 8)
@@ -853,6 +977,9 @@ def collect(
     print(f"Phase A Cap: {explore_cap:,} exploration steps per worker")
     print(f"Phase B Target: {episodes} recorded episodes (={episodes * 1000:,} steps)")
     print(f"Start State: {state_path}")
+    print(f"Start States Index: {start_states_path}")
+    print(f"No Default Start: {no_default_start}")
+    print(f"Target Maps: {target_maps}")
     print(f"Output Directory: {out_dir.resolve()}")
     print("=" * 80)
 
@@ -869,10 +996,13 @@ def collect(
                 explore_cap,
                 base_seed,
                 str(rom_path),
-                str(state_path),
+                str(state_path) if state_path is not None else "",
                 str(out_dir),
                 save_interval,
                 result_queue,
+                str(start_states_path) if start_states_path is not None else None,
+                no_default_start,
+                target_maps,
             ),
         )
         procs.append(p)
@@ -925,6 +1055,20 @@ def collect(
                 phase_a_first_iter[m_str] = it_val
 
     all_explore_maps = sorted([int(m) for m in phase_a_first_iter.keys()])
+
+    if target_maps is not None:
+        all_unreached_targets = [m for m in target_maps if m not in all_explore_maps]
+        all_reached_targets = [m for m in target_maps if m in all_explore_maps]
+    else:
+        all_unreached_targets = []
+        all_reached_targets = []
+
+    maps_to_report = target_maps if target_maps is not None else list(TARGET_MAP_LABELS.keys())
+    target_maps_status = {
+        TARGET_MAP_LABELS.get(mid, f"Map_{mid}"): (mid in all_explore_maps)
+        for mid in maps_to_report
+    }
+
     explore_report = {
         "steps_per_worker": phase_a_steps_per_worker,
         "stopping_reasons": phase_a_stop_reasons,
@@ -932,16 +1076,10 @@ def collect(
         "first_iter_per_map": phase_a_first_iter,
         "furthest_cells": phase_a_furthest_cells,
         "maps_reached": all_explore_maps,
-        "target_maps_reached": {
-            "Pewter Gym (54)": MAP_PEWTER_GYM in all_explore_maps,
-            "Pewter Pokémon Center (58)": MAP_PEWTER_POKECENTER in all_explore_maps,
-            "Pewter City (2)": MAP_PEWTER in all_explore_maps,
-            "Viridian Forest North Gate (47)": MAP_VIRIDIAN_FOREST_NORTH_GATE in all_explore_maps,
-            "Viridian Forest (51)": MAP_VIRIDIAN_FOREST in all_explore_maps,
-            "Viridian Forest South Gate (50)": MAP_VIRIDIAN_FOREST_SOUTH_GATE in all_explore_maps,
-            "Route 2 (13)": MAP_ROUTE2 in all_explore_maps,
-            "Route 22 (33)": MAP_ROUTE22 in all_explore_maps,
-        },
+        "target_maps_specified": target_maps,
+        "unreached_target_maps": all_unreached_targets,
+        "reached_target_maps": all_reached_targets,
+        "target_maps_reached": target_maps_status,
     }
     explore_path = out_dir / "explore.json"
     explore_path.write_text(json.dumps(explore_report, indent=2))
@@ -996,9 +1134,12 @@ def collect(
         "total_wall_time_s": round(total_wall_time, 2),
         "steps_per_second": round(overall_sps, 1),
         "maps_reached": all_recorded_maps,
+        "target_maps_specified": target_maps,
+        "unreached_target_maps": all_unreached_targets,
+        "reached_target_maps": all_reached_targets,
         "target_maps_reached": {
-            name: (mid in all_recorded_maps)
-            for mid, name in TARGET_MAP_LABELS.items()
+            TARGET_MAP_LABELS.get(mid, f"Map_{mid}"): (mid in all_recorded_maps)
+            for mid in maps_to_report
         },
     }
 
@@ -1009,13 +1150,18 @@ def collect(
     print("\n" + "=" * 80)
     print("PHASE A EXPLORATION COVERAGE (Merged)")
     print("=" * 80)
-    for m_id, name in TARGET_MAP_LABELS.items():
+    for m_id in maps_to_report:
         k = str(m_id)
+        name = TARGET_MAP_LABELS.get(m_id, f"Map_{m_id}")
         reached = m_id in all_explore_maps
         cells = phase_a_cells_per_map.get(k, 0)
         first_it = phase_a_first_iter.get(k, "N/A")
         status = "REACHED" if reached else "NOT REACHED"
         print(f"  [{status:<11}] Map {m_id:2d} ({name:<30}): {cells:4d} cells | First Iter: {first_it}")
+    if target_maps is not None:
+        print(f"\nTarget Maps Summary ({len(target_maps)} total):")
+        print(f"  Reached     ({len(all_reached_targets)}): {all_reached_targets}")
+        print(f"  NOT REACHED ({len(all_unreached_targets)}): {all_unreached_targets}")
     print("\nStopping reasons per worker:")
     for w_id, reason in phase_a_stop_reasons.items():
         fc = phase_a_furthest_cells[w_id]
@@ -1028,8 +1174,9 @@ def collect(
     print(f"Disk Used: {total_disk_mb:.1f} MB (across {len(chunk_files)} files)")
     print(f"Battle Fraction: {battle_fraction:.3f} | Blackouts: {total_blackouts}")
     print("\nTarget Map Recorded Steps:")
-    for m_id, name in TARGET_MAP_LABELS.items():
+    for m_id in maps_to_report:
         k = str(m_id)
+        name = TARGET_MAP_LABELS.get(m_id, f"Map_{m_id}")
         reached = m_id in all_recorded_maps
         steps = merged_steps_per_map.get(k, 0)
         cells = merged_cells_per_map.get(k, 0)
@@ -1051,11 +1198,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--save-interval", type=int, default=10, help="Episodes per .npz chunk (default: 10)")
     parser.add_argument("--out", "--out-dir", dest="out_dir", type=Path, default=Path("work/collect_v2"), help="Output directory")
     parser.add_argument("--seed", type=int, default=42, help="Base random seed")
+    parser.add_argument("--start-states", type=Path, default=None, help="Path to index.json containing initial states")
+    parser.add_argument("--no-default-start", action="store_true", help="Do not seed archive with the default start state")
+    parser.add_argument("--target-maps", type=int, nargs="*", default=None, help="Target map IDs for Phase B start cell sampling")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    target_maps = args.target_maps if (args.target_maps is not None and len(args.target_maps) > 0) else None
     collect(
         rom_path=args.rom,
         state_path=args.state,
@@ -1065,6 +1216,9 @@ def main() -> None:
         explore_cap=args.explore_cap,
         save_interval=args.save_interval,
         base_seed=args.seed,
+        start_states_path=args.start_states,
+        no_default_start=args.no_default_start,
+        target_maps=target_maps,
     )
 
 
