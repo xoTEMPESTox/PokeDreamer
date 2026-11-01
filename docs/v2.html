@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/style.css?v=1.3" />
+  <link rel="stylesheet" href="assets/style.css?v=1.4" />
   <script>
     (function() {
       const theme = localStorage.getItem('theme') || 'light';
@@ -157,6 +157,26 @@ else:                  # imagination mode
 latent = concat([h_t, s_t])  # (B, 512 + 1024 = 1536)</code></pre>
       </div>
 
+      <div class="code-block" style="margin: 20px 0;">
+        <div class="code-header"><span class="code-title">src/models.py (lines 153-169)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>        # 1. Deterministic update
+        gru_input = torch.cat([prev_s, action], dim=-1)
+        h = self.gru_cell(gru_input, prev_h)
+
+        # 2. Prior distribution prediction
+        prior_logits = self.prior_net(h)
+        
+        # 3. Posterior distribution prediction (if real observations are provided)
+        if embed is not None:
+            post_logits = self.post_net(torch.cat([h, embed], dim=-1))
+            # Sample from posterior during training
+            s = self.sample_stochastic(post_logits, use_gumbel=use_gumbel, hard=True, temp=temp)
+        else:
+            post_logits = prior_logits.clone()
+            # Sample from prior during generation/imagination
+            s = self.sample_stochastic(prior_logits, use_gumbel=use_gumbel, hard=True, temp=temp)</code></pre>
+      </div>
+
       <h2 id="prior-posterior">Prior vs. Posterior</h2>
       <p>
         The RSSM has two distributions over the stochastic state <code>s_t</code>:
@@ -244,6 +264,23 @@ sigmoid → output in [0, 1]</code></pre>
         <div class="callout-title">KL Balancing Rationale</div>
         Standard ELBO pushes the posterior toward the prior. KL balancing (α=0.8) directs most gradient signal toward improving the prior - which is what we care about for imagination. The posterior gets lighter updates (α=0.2).
       </div>
+
+      <div class="code-block" style="margin: 20px 0;">
+        <div class="code-header"><span class="code-title">scripts/train_rssm.py (lines 206-218)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>            # KL loss with KL-balancing
+            prior_logits_res = prior_logits.reshape(B, T, 32, 32)
+            post_logits_res = post_logits.reshape(B, T, 32, 32)
+            
+            post_dist = torch.distributions.Categorical(logits=post_logits_res)
+            prior_dist = torch.distributions.Categorical(logits=prior_logits_res)
+            
+            post_dist_sg = torch.distributions.Categorical(logits=post_logits_res.detach())
+            prior_dist_sg = torch.distributions.Categorical(logits=prior_logits_res.detach())
+            
+            kl_prior = torch.distributions.kl_divergence(post_dist_sg, prior_dist).sum(dim=-1).mean()
+            kl_post = torch.distributions.kl_divergence(post_dist, prior_dist_sg).sum(dim=-1).mean()
+            kl_loss = 0.8 * kl_prior + 0.2 * kl_post</code></pre>
+      </div>
       <h3>Training Configuration</h3>
       <div class="code-block">
         <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
@@ -307,6 +344,13 @@ sigmoid → output in [0, 1]</code></pre>
         Reconstruction grids are saved during training to <code>checkpoints/rssm_v2/</code> - each grid shows a row of real Game Boy frames alongside their RSSM reconstructions. The best epoch produces visually recognizable reconstructions of the overworld, buildings, and UI elements at native 160×144 resolution.
       </p>
 
+      <figure class="glass-card">
+        <img src="assets/v2/rssm_reconstruction_epoch1.png" alt="v2 reconstructions after epoch 1: real frames and ghosted average reconstructions" class="img-pixelated" loading="lazy" />
+        <figcaption>
+          v2 reconstructions after epoch 1: real frames (left) and ghosted average reconstructions (right), the sign of the collapsed latent.
+        </figcaption>
+      </figure>
+
       <h2 id="imagination">Imagination Demo</h2>
       <p>
         The v2 demo video generates frames <em>purely from the RSSM prior</em> - starting from one seed frame, the model imagines the visual consequences of each action autoregressively without any additional emulator access.
@@ -320,6 +364,13 @@ python scripts/generate_demo_video_v2.py \
     --out-video checkpoints/rssm_v2/side_by_side_demo_v2.mp4</code></pre>
       </div>
       <p>The output MP4 shows left panel (real emulator stepping actions) vs. right panel (RSSM prior imagination of the same action sequence).</p>
+
+      <figure class="glass-card">
+        <img src="assets/v2/rssm_imagination_vs_real.gif" alt="v2 discrete RSSM: real emulator vs imagined future" class="img-pixelated" loading="lazy" />
+        <figcaption>
+          v2 discrete RSSM: real emulator (left) vs imagined future (right). Imagined frames lose structure within a few steps (posterior collapse).
+        </figcaption>
+      </figure>
 
       <h2 id="hyperparams">Hyperparameter Reference</h2>
       <div class="code-block">

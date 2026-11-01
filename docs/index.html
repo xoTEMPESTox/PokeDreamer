@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/style.css?v=1.3" />
+  <link rel="stylesheet" href="assets/style.css?v=1.4" />
   <script>
     (function() {
       const theme = localStorage.getItem('theme') || 'light';
@@ -89,6 +89,12 @@
           View on GitHub
         </a>
       </div>
+      <figure class="glass-card hero-media">
+        <img src="assets/v3/agent_trained_in_imagination.gif" alt="v3: a policy trained only inside the diffusion world model, playing the real game" class="img-pixelated" />
+        <figcaption>
+          v3: a policy trained only inside the diffusion world model, playing the real game (one episode; 100/100 successes, median 28 presses).
+        </figcaption>
+      </figure>
       <!-- Stats bar -->
       <div class="hero-stats">
         <div class="stat-item">
@@ -221,6 +227,66 @@
             <a href="v3.html" class="timeline-link">Full v3 Documentation →</a>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Imagination across versions Section -->
+  <section class="section" id="imagination-versions">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Imagination across versions</h2>
+      </div>
+
+      <!-- Across versions strip -->
+      <figure class="glass-card">
+        <img src="assets/home/imagination_across_versions.png" alt="Imagined frames across versions, each next to the real emulator: v1 blurs, v2 ghosts, v3 stays sharp (its content can still drift; see v3)." class="img-pixelated" loading="lazy" />
+        <figcaption>
+          Imagined frames across versions, each next to the real emulator: v1 blurs, v2 ghosts, v3 stays sharp (its content can still drift; see v3).
+        </figcaption>
+      </figure>
+
+      <!-- v3 loop diagram -->
+      <div class="v3-loop-diagram glass-card">
+        <div class="v3-loop-container">
+          <div class="v3-loop-node">
+            <div class="v3-loop-node-title">Real frames (4) + buttons</div>
+          </div>
+          <div class="v3-loop-arrow">→</div>
+          <div class="v3-loop-node">
+            <div class="v3-loop-node-title">Diffusion world model</div>
+            <div class="v3-loop-node-desc">(imagines next frames)</div>
+          </div>
+          <div class="v3-loop-arrow">→</div>
+          <div class="v3-loop-node">
+            <div class="v3-loop-node-title">Imagined rollouts</div>
+            <div class="v3-loop-node-desc">(10 steps)</div>
+          </div>
+          <div class="v3-loop-arrow">→</div>
+          <div class="v3-loop-node">
+            <div class="v3-loop-node-title">Actor-critic policy</div>
+            <div class="v3-loop-node-desc">(trained only in imagination)</div>
+          </div>
+          <div class="v3-loop-arrow">→</div>
+          <div class="v3-loop-node">
+            <div class="v3-loop-node-title">Real game</div>
+            <div class="v3-loop-node-desc">(zero-shot test)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- v3 EDM denoiser snippet -->
+      <div class="code-block" style="margin: 20px 0;">
+        <div class="code-header"><span class="code-title">v3 diffusion world model: EDM-preconditioned denoiser (lab/dwm/model.py)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>    def raw(self, x_noisy, sigma, ctx, actions, aug_bucket):
+        """Network output F and EDM scalings; x_noisy (B,1,H,W), sigma (B,), ctx (B,CTX,H,W), actions (B,CTX)."""
+        s = sigma[:, None, None, None]
+        c_in = 1 / (s ** 2 + SIGMA_DATA ** 2).sqrt()
+        c_skip = SIGMA_DATA ** 2 / (s ** 2 + SIGMA_DATA ** 2)
+        c_out = s * SIGMA_DATA / (s ** 2 + SIGMA_DATA ** 2).sqrt()
+        cond = self.noise_emb(sigma.log() / 4) + self.act_emb(actions).flatten(1) + self.aug_emb(aug_bucket)
+        out = self.unet(torch.cat([x_noisy * c_in, ctx], 1), self.cond_mlp(cond))
+        return out, c_skip, c_out</code></pre>
       </div>
     </div>
   </section>

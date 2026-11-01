@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/style.css?v=1.3" />
+  <link rel="stylesheet" href="assets/style.css?v=1.4" />
   <script>
     (function() {
       const theme = localStorage.getItem('theme') || 'light';
@@ -135,6 +135,32 @@
         <li><strong>Loss</strong>: ELBO = Reconstruction (MSE) + β × KL divergence</li>
         <li><strong>β</strong>: 1.0 (standard VAE)</li>
       </ul>
+
+      <div class="code-block" style="margin: 20px 0;">
+        <div class="code-header"><span class="code-title">v1/src/vae.py (lines 30-51)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>    def encode(self, x: torch.Tensor) -&gt; tuple[torch.Tensor, torch.Tensor]:
+        """
+        Encode the input image tensor to latents.
+        x: (B, 3, 36, 40) normalized to [0, 1]
+        Returns:
+            mu: (B, latent_dim)
+            logvar: (B, latent_dim)
+        """
+        h = F.relu(self.enc_conv1(x))
+        h = F.relu(self.enc_conv2(h))
+        h = F.relu(self.enc_conv3(h))
+        h = h.reshape(h.size(0), -1)
+        
+        mu = self.fc_mu(h)
+        logvar = self.fc_logvar(h)
+        return mu, logvar
+
+    def reparameterize(self, mu: torch.Tensor, logvar: torch.Tensor) -&gt; torch.Tensor:
+        """Reparameterization trick: sample z = mu + std * epsilon."""
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + eps * std</code></pre>
+      </div>
       <h3>Training Configuration</h3>
       <div class="code-block">
         <div class="code-header"><span class="code-lang">text</span></div>
@@ -145,6 +171,13 @@ beta (KL):     1.0
 lr:            1e-3
 batch_size:    128</code></pre>
       </div>
+
+      <figure class="glass-card">
+        <img src="assets/v1/vae_reconstructions.png" alt="Real 40x36 frames from held-out episodes and their v1 VAE reconstructions from the 32-dim latent" class="img-pixelated" loading="lazy" />
+        <figcaption>
+          Real 40x36 frames from held-out episodes (top) and their v1 VAE reconstructions from the 32-dim latent (bottom).
+        </figcaption>
+      </figure>
 
       <h2 id="dynamics">GRU Dynamics Model</h2>
       <p>
@@ -158,6 +191,20 @@ batch_size:    128</code></pre>
         <div class="callout-title">Why Scheduled Sampling Matters</div>
         Without scheduled sampling (pure teacher forcing), compounding errors cause the dynamics model to drift rapidly - exceeding 10 tiles of position error after 29 imagined steps. With scheduled sampling, this drift stays roughly flat, between 3.71 and 4.38 tiles.
       </div>
+
+      <div class="code-block" style="margin: 20px 0;">
+        <div class="code-header"><span class="code-title">v1/scripts/train_dynamics.py (lines 130-140)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>    for epoch in range(1, args.epochs + 1):
+        # Calculate teacher forcing ratio
+        if args.no_scheduled_sampling:
+            tf_ratio = 1.0
+        else:
+            # Linear decay to min ratio
+            if epoch &lt;= args.decay_epochs:
+                tf_ratio = 1.0 - (1.0 - args.min_teacher_forcing) * (epoch - 1) / (args.decay_epochs - 1 + 1e-8)
+            else:
+                tf_ratio = args.min_teacher_forcing</code></pre>
+      </div>
       <h3>Architecture Details</h3>
       <ul>
         <li><strong>Input</strong>: concat(z_t ∈ ℝ³², action_embedding ∈ ℝ¹⁶) = ℝ⁴⁸</li>
@@ -166,6 +213,29 @@ batch_size:    128</code></pre>
         <li><strong>Sequence length</strong>: 30 steps (BPTT rollout)</li>
         <li><strong>Scheduled sampling</strong>: Linear decay over 15 epochs to 20% teacher forcing</li>
       </ul>
+
+      <div class="code-block" style="margin: 20px 0;">
+        <div class="code-header"><span class="code-title">v1/src/dynamics.py (lines 82-94)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>            # Concatenate latent state and action embedding
+            gru_input = torch.cat([current_z, act_t], dim=-1)
+            
+            # Recurrent step
+            hidden = self.gru(gru_input, hidden)
+            
+            # Predict next latent state z_{t+1} and reward
+            pred_next_z = self.fc_next_z(hidden)
+            pred_reward = self.fc_reward(hidden).squeeze(-1)
+            
+            predicted_z_list.append(pred_next_z)
+            predicted_reward_list.append(pred_reward)</code></pre>
+      </div>
+
+      <figure class="glass-card">
+        <img src="assets/v1/imagination_vs_real.gif" alt="v1 imagination vs the real emulator from the same start" class="img-pixelated" loading="lazy" />
+        <figcaption>
+          v1 imagination vs the real emulator from the same start: the 40x36 VAE + GRU model loses detail quickly.
+        </figcaption>
+      </figure>
 
       <h2 id="probes">RAM State Probes</h2>
       <p>
@@ -201,6 +271,13 @@ Execute first action of best sequence via frozen PPO</code></pre>
       <p>
         The evaluation function is deliberately simple: minimize Manhattan distance to a target tile/map. The contribution is the world model + imagination capability, not the sophistication of the planner.
       </p>
+
+      <figure class="glass-card">
+        <img src="assets/v1/planner_navigation.gif" alt="v1 MPC planner: real emulator and best imagined lookahead" class="img-pixelated" loading="lazy" />
+        <figcaption>
+          v1 MPC planner: the real emulator (left) and the best imagined lookahead (right) at each decision.
+        </figcaption>
+      </figure>
 
       <h2 id="results-vae">Results: VAE Training</h2>
       <div class="table-wrapper">
