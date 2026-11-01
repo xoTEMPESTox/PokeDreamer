@@ -29,7 +29,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from lab.agent.mpc import DIRECTIONS, greedy_action
+from lab.agent.mpc import CTX, DIRECTIONS, greedy_action, learned_action
 from lab.agent.tasks import _PALLET_DETOURS
 from lab.env import ROM_PATH, PokemonRed
 from src.game_state import screen_capture
@@ -198,6 +198,52 @@ def plan(
 
 
 # ── System 1 Skills v0 ────────────────────────────────────────────────────────
+def load_policy(name: str):
+    """Imagination-trained navigation policy from work/agent_rl/<name>/policy.pt, or None if missing."""
+    path = Path("work/agent_rl") / name / "policy.pt"
+    if not path.exists():
+        return None
+    import torch
+    from lab.agent.imagine_rl import Policy
+    net = Policy().eval()
+    net.load_state_dict(torch.load(path, map_location="cpu", weights_only=True)["policy"])
+    return net
+
+
+def navigate_learned(env: PokemonRed, net, target_map: int, budget: int = 500) -> dict[str, Any]:
+    """System 1 learned skill: an imagination-trained policy acting on the last 4 screen frames (the context
+    is filled with B presses, counted), with the same battle reflex as `navigate`."""
+    presses, frames = 0, []
+    for _ in range(CTX):
+        frame, ram = env.step(5)  # B: no effect in the overworld
+        frames.append(frame)
+        presses += 1
+    battles_started = battles_won = blackouts = 0
+    events: list[dict[str, Any]] = []
+    while ram["map_id"] != target_map and presses < budget:
+        if ram["in_battle"]:
+            b_start, battle_map = presses, ram["map_id"]
+            battles_started += 1
+            while ram["in_battle"] and presses < budget:
+                frame, ram = env.step(4)  # A
+                frames.append(frame)
+                presses += 1
+            st_after = party_status(env)
+            won = ram["map_id"] == battle_map and st_after["hp"] > 0
+            battles_won += int(won)
+            blackouts += int(not won)
+            events.append({"type": "battle_won" if won else "blackout", "presses": presses - b_start,
+                           "level": st_after["level"], "hp": st_after["hp"], "map": ram["map_id"]})
+            if not won:
+                break
+            continue
+        frame, ram = env.step(learned_action(net, frames, "cpu"))
+        frames = (frames + [frame])[-CTX:]
+        presses += 1
+    return {"presses": presses, "success": ram["map_id"] == target_map, "events": events,
+            "battles_started": battles_started, "battles_won": battles_won, "blackouts": blackouts}
+
+
 def navigate(
     env: PokemonRed,
     exits: dict[int, list[Tuple[int, int]]],
@@ -579,11 +625,17 @@ def run_agent(
     state_path: str | Path = "saves/starter_pallet.state",
     work_dir: str | Path = "work/system12",
     heal_threshold: float = 0.35,
+    nav: str = "greedy",
 ) -> dict[str, Any]:
-    """Execute one full System 1 / System 2 run from starter save state."""
+    """Execute one full System 1 / System 2 run from starter save state. nav="learned" uses the imagination-trained
+    policies (work/agent_rl/route1, work/agent_rl/viridian) for Pallet->Route 1 and Route 1->Viridian, greedy otherwise."""
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(seed)
+    nav_nets = {k: load_policy(k) for k in ("route1", "viridian")} if nav == "learned" else {}
+    if nav == "learned":
+        import torch
+        torch.manual_seed(seed)
 
     timeline: list[dict[str, Any]] = []
     gif_frames: list[Image.Image] = []
@@ -662,9 +714,13 @@ def run_agent(
                 if status["map_id"] == MAP_ROUTE1:
                     skill_name = "navigate_north_to_viridian"
                     exits = {MAP_ROUTE1: ROUTE1_NORTH_WAYPOINTS, **DETOUR_EXITS}
-                    skill_result = navigate(
-                        env, exits, target_map=MAP_VIRIDIAN, budget=min(600, remaining_budget), rng=rng
-                    )
+                    if nav_nets.get("viridian") is not None:
+                        skill_name += "_learned"
+                        skill_result = navigate_learned(env, nav_nets["viridian"], MAP_VIRIDIAN, budget=min(600, remaining_budget))
+                    else:
+                        skill_result = navigate(
+                            env, exits, target_map=MAP_VIRIDIAN, budget=min(600, remaining_budget), rng=rng
+                        )
                 elif status["map_id"] in (MAP_VIRIDIAN, MAP_VIRIDIAN_POKECENTER):
                     skill_name = "heal"
                     total_heals_done += 1
@@ -674,9 +730,13 @@ def run_agent(
                 elif status["map_id"] == MAP_PALLET:
                     skill_name = "navigate_pallet_to_route1"
                     exits = {MAP_PALLET: [(10, 0), (11, 0)], **DETOUR_EXITS}
-                    skill_result = navigate(
-                        env, exits, target_map=MAP_ROUTE1, budget=min(200, remaining_budget), rng=rng
-                    )
+                    if nav_nets.get("route1") is not None:
+                        skill_name += "_learned"
+                        skill_result = navigate_learned(env, nav_nets["route1"], MAP_ROUTE1, budget=min(200, remaining_budget))
+                    else:
+                        skill_result = navigate(
+                            env, exits, target_map=MAP_ROUTE1, budget=min(200, remaining_budget), rng=rng
+                        )
                 elif status["map_id"] in DETOUR_EXITS:
                     skill_name = "navigate_detour_exit"
                     skill_result = navigate(
@@ -687,9 +747,13 @@ def run_agent(
                 if status["map_id"] == MAP_PALLET:
                     skill_name = "navigate_pallet_to_route1"
                     exits = {MAP_PALLET: [(10, 0), (11, 0)], **DETOUR_EXITS}
-                    skill_result = navigate(
-                        env, exits, target_map=MAP_ROUTE1, budget=min(200, remaining_budget), rng=rng
-                    )
+                    if nav_nets.get("route1") is not None:
+                        skill_name += "_learned"
+                        skill_result = navigate_learned(env, nav_nets["route1"], MAP_ROUTE1, budget=min(200, remaining_budget))
+                    else:
+                        skill_result = navigate(
+                            env, exits, target_map=MAP_ROUTE1, budget=min(200, remaining_budget), rng=rng
+                        )
                 elif status["map_id"] == MAP_VIRIDIAN:
                     skill_name = "navigate_viridian_to_route1"
                     exits = {MAP_VIRIDIAN: VIRIDIAN_TO_ROUTE1_WAYPOINTS, **DETOUR_EXITS}
@@ -784,6 +848,7 @@ def main():
     parser.add_argument("--state", type=str, default="saves/starter_pallet.state", help="Path to starter state.")
     parser.add_argument("--work-dir", type=str, default="work/system12", help="Directory for output files.")
     parser.add_argument("--heal-threshold", type=float, default=0.35, help="System 2: heal when HP fraction drops below this.")
+    parser.add_argument("--nav", choices=["greedy", "learned"], default="greedy", help="System 1 navigation: greedy or imagination-trained policies.")
     args = parser.parse_args()
 
     work_dir = Path(args.work_dir)
@@ -800,6 +865,7 @@ def main():
             state_path=args.state,
             work_dir=work_dir,
             heal_threshold=args.heal_threshold,
+            nav=args.nav,
         )
         all_metrics.append(m)
 
@@ -812,6 +878,7 @@ def main():
             "target_level": args.target_level,
             "budget": args.budget,
             "heal_threshold": args.heal_threshold,
+            "nav": args.nav,
             "goals_reached": sum(1 for m in all_metrics if m["goal_reached"]),
             "avg_levels_gained": round(float(np.mean([m["levels_gained"] for m in all_metrics])), 2),
             "avg_presses_used": round(float(np.mean([m["presses_used"] for m in all_metrics])), 2),

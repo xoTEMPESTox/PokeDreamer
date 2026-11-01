@@ -134,7 +134,8 @@ def main():
     by_map = [starts[data["map_ids"][starts + CTX - 1] == m] for m in train_maps]
     log(f"task {args.task}; start contexts per map: " + ", ".join(f"{m}: {len(b)}" for m, b in zip(train_maps, by_map)))
     while elapsed < args.minutes * 60:
-        s = torch.from_numpy(np.concatenate([rng.choice(b, BATCH // len(by_map)) for b in by_map])).to(dev)
+        counts = [BATCH // len(by_map) + (i < BATCH % len(by_map)) for i in range(len(by_map))]  # sums to BATCH
+        s = torch.from_numpy(np.concatenate([rng.choice(b, c) for b, c in zip(by_map, counts)])).to(dev)
         ctx = to_float(frames[s[:, None] + ar])                       # (B, CTX, H, W)
         past = acts[s[:, None] + ar[:-1]]                             # actions between the context frames
         last_i = (s + CTX - 1).cpu().numpy()
