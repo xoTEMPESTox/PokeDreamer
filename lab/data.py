@@ -1,8 +1,11 @@
 """Build the 72x80 greyscale cache, the episode-level splits and dataset statistics.
 
-Usage: python -m lab.data   (from the repo root)
+Usage: python -m lab.data         (from the repo root)
+       python -m lab.data --ext   (collected new-area data: work/collect_v2, work/collect_v3)
 Writes work/cache_72x80.npz, work/splits.json, work/dataset_stats.md
+(--ext: work/cache_ext_72x80.npz, work/splits_ext.json; load(extended=True) appends it to the HF data)
 """
+import argparse
 import collections
 import glob
 import json
@@ -14,6 +17,9 @@ import numpy as np
 SRC = "work/hf/dataset/transitions_*.npz"
 CACHE = Path("work/cache_72x80.npz")
 SPLITS = Path("work/splits.json")
+EXT_SRC = ["work/collect_v2/transitions_*.npz", "work/collect_v3/transitions_*.npz"]
+EXT_CACHE = Path("work/cache_ext_72x80.npz")
+EXT_SPLITS = Path("work/splits_ext.json")
 H, W = 72, 80          # exact 2x downsample of 144x160 keeps the 8-px tile grid (4 px per tile)
 OOD_START_MAP = 0      # hold out every episode that starts in Pallet Town
 SEED = 0
@@ -28,8 +34,8 @@ def to_small(obs):
     return out
 
 
-def build_cache():
-    files = sorted(glob.glob(SRC))
+def build_cache(files=None, out=CACHE):
+    files = sorted(glob.glob(SRC)) if files is None else files
     frames, ram = [], collections.defaultdict(list)
     for f in files:
         d = np.load(f)
@@ -39,7 +45,7 @@ def build_cache():
     data = {k: np.concatenate(v) for k, v in ram.items()}
     data["frames"] = np.concatenate(frames)
     data["episode_id"] = np.cumsum(data["episode_starts"]) - 1
-    np.savez(CACHE, **data)
+    np.savez(out, **data)
     return data
 
 
@@ -85,11 +91,43 @@ def stats(data, splits):
     print("\n".join(lines))
 
 
-def load():
+def make_ext_splits(data):
+    """Collected episodes: a random 10% held out as test_ext (fixed seed), the rest train."""
+    eps = np.unique(data["episode_id"])
+    rng = np.random.default_rng(SEED)
+    test = sorted(int(e) for e in rng.choice(eps, size=round(0.1 * len(eps)), replace=False))
+    splits = {"seed": SEED, "sources": EXT_SRC, "train": [int(e) for e in eps if e not in set(test)], "test": test}
+    EXT_SPLITS.write_text(json.dumps(splits))
+    return splits
+
+
+def merge(base, base_splits, ext, ext_splits):
+    """HF data followed by the collected episodes (IDs offset); HF splits unchanged, collected train episodes
+    join train, collected test episodes become test_ext."""
+    off = int(base["episode_id"].max()) + 1
+    data = {k: np.concatenate([base[k], ext[k] + (off if k == "episode_id" else 0)]) for k in base if k in ext}
+    splits = dict(base_splits, train=base_splits["train"] + [e + off for e in ext_splits["train"]],
+                  test_ext=[e + off for e in ext_splits["test"]])
+    return data, splits
+
+
+def load(extended=False):
     d = np.load(CACHE)
-    return {k: d[k] for k in d.files}, json.loads(SPLITS.read_text())
+    data, splits = {k: d[k] for k in d.files}, json.loads(SPLITS.read_text())
+    if extended:
+        e = np.load(EXT_CACHE)
+        data, splits = merge(data, splits, {k: e[k] for k in e.files}, json.loads(EXT_SPLITS.read_text()))
+    return data, splits
 
 
 if __name__ == "__main__":
-    data = build_cache()
-    stats(data, make_splits(data))
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ext", action="store_true", help="build the collected-data cache and splits instead")
+    if ap.parse_args().ext:
+        files = sorted(f for pattern in EXT_SRC for f in glob.glob(pattern))
+        ext = build_cache(files, EXT_CACHE)
+        sp = make_ext_splits(ext)
+        print(f"{len(files)} files, {len(ext['frames'])} steps, {len(sp['train'])} train / {len(sp['test'])} test episodes")
+    else:
+        data = build_cache()
+        stats(data, make_splits(data))

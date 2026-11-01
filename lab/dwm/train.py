@@ -102,6 +102,8 @@ def main():
     ap.add_argument("--max-steps", type=int, default=0, help="also stop at this step (0 = no limit)")
     ap.add_argument("--no-ctx-aug", action="store_true", help="ablation: train without context-noise augmentation")
     ap.add_argument("--batch", type=int, default=BATCH)
+    ap.add_argument("--data", choices=["base", "ext"], default="base", help="ext: HF + collected new-area data")
+    ap.add_argument("--init-from", default=None, help="start from this checkpoint's weights (fresh optimizer, step 0)")
     args = ap.parse_args()
     torch.set_num_threads(4)
     run = Path("work/runs") / args.name
@@ -115,7 +117,7 @@ def main():
         logf.flush()
 
     guard = GpuGuard(log)
-    data, splits = load()
+    data, splits = load(extended=args.data == "ext")
     dev = "cuda"
     frames = torch.from_numpy(data["frames"]).to(dev)
     actions = torch.from_numpy(data["actions"]).to(dev)
@@ -135,9 +137,14 @@ def main():
         opt.load_state_dict(state["opt"])
         step, elapsed = state["step"], state["elapsed"]
         log(f"resumed at step {step}, {elapsed / 60:.1f} min trained")
+    elif args.init_from:
+        state = torch.load(args.init_from, map_location=dev, weights_only=True)
+        model.load_state_dict(state["model"])
+        ema.load_state_dict(state["ema"])
+        log(f"initialized weights from {args.init_from} (step reset to 0, fresh optimizer)")
     log(f"params {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M, train windows {len(train_starts)}, "
         f"batch {args.batch}, lr {LR}, budget {args.minutes} min, max steps {args.max_steps or '-'}, "
-        f"context-noise aug {'OFF' if args.no_ctx_aug else 'on'}")
+        f"context-noise aug {'OFF' if args.no_ctx_aug else 'on'}, data {args.data}")
 
     def save():
         tmp = run / "ckpt.tmp"

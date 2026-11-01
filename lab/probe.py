@@ -132,15 +132,16 @@ def evaluate_split(probe: FrameProbe, split_frames: np.ndarray, split_map: np.nd
     }
 
 
-def train_probe():
-    """Train FrameProbe on CPU with 8 threads and evaluate on test splits."""
+def train_probe(extended=False):
+    """Train FrameProbe on CPU with 8 threads and evaluate on test splits. extended: HF + collected new-area data
+    (lab.data.load(extended=True)), written to work/probe_ext so work/probe (used by all earlier evals) stays."""
     torch.set_num_threads(8)
-    work_dir = Path("work/probe")
+    work_dir = Path("work/probe_ext" if extended else "work/probe")
     work_dir.mkdir(parents=True, exist_ok=True)
     log_file = work_dir / "train.log"
 
     print("Loading dataset...")
-    data, splits = load()
+    data, splits = load(extended=extended)
 
     train_mask = np.isin(data["episode_id"], splits["train"])
     train_indices = np.where(train_mask)[0]
@@ -284,6 +285,8 @@ def train_probe():
         "test_id": test_id_indices,
         "test_ood": test_ood_indices,
     }
+    if "test_ext" in splits:
+        eval_splits["test_ext"] = np.where(np.isin(data["episode_id"], splits["test_ext"]))[0]
 
     metrics = {
         "cpu_training_time_seconds": round(total_train_time, 2),
@@ -321,4 +324,7 @@ def train_probe():
 
 
 if __name__ == "__main__":
-    train_probe()
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data", choices=["base", "ext"], default="base", help="ext: HF + collected new-area data")
+    train_probe(extended=ap.parse_args().data == "ext")
