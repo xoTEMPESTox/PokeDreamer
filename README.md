@@ -4,7 +4,9 @@
 [![Hugging Face Datasets](https://img.shields.io/badge/🤗%20HuggingFace-Dataset%20Repo-green)](https://huggingface.co/datasets/xxxTEMPESTxxx/PokeDreamer)
 [![GitHub](https://img.shields.io/badge/GitHub-xoTEMPESTox%2FPokeDreamer-black?logo=github)](https://github.com/xoTEMPESTox/PokeDreamer)
 
-An experimental research project applying **Dreamer-style model-based reinforcement learning** to play Pokémon Red on a Game Boy emulator (PyBoy). Built from scratch, iterating from a simple VAE + GRU dynamics model (v1) to a discrete Recurrent State-Space Model (RSSM) trained on native-resolution pixels (v2), with a roadmap toward a full dual-agent SOTA system (v3).
+An experimental research project applying **Dreamer-style model-based reinforcement learning** to play Pokémon Red on a Game Boy emulator (PyBoy). Built from scratch, iterating from a simple VAE + GRU dynamics model (v1) to a discrete Recurrent State-Space Model (RSSM) trained on native-resolution pixels (v2), to **v3 (in progress): a DIAMOND-style diffusion world model with an agent trained entirely in its imagination**, on the way to a dual System 1 / System 2 agent.
+
+> **v3 status (2026-11-01):** Phase 1 is done. A policy trained only inside the diffusion world model leaves the house in the real game in **100/100** episodes (median 28 presses, shortest route ≈22) from the screen alone. Imagination is scored against game RAM, which shows where the model still fails (map identity over long horizons). System 2, longer tasks and the RAM-conditioned model are still in progress. Details: [`v3.md`](v3.md).
 <img width="1672" height="941" alt="ChatGPT Image Jun 23, 2026, 03_46_13 PM" src="https://github.com/user-attachments/assets/b5ca9f10-a6a8-4159-a582-2e26978b34c9" />
 
 ---
@@ -13,12 +15,13 @@ An experimental research project applying **Dreamer-style model-based reinforcem
 
 - [PokéWorld v1: VAE + GRU MPC Planner](#-pokeworld-v1-continuous-latents--mpc-planner)
 - [PokéWorld v2: Discrete RSSM World Model](#-pokeworld-v2-discrete-rssm-world-model)
+- [PokéWorld v3: Diffusion World Model + System 1 (in progress)](#-pokéworld-v3-diffusion-world-model--system-1-in-progress)
 - [Key Findings & Metrics](#-key-findings--metrics)
 - [Demo Videos](#-demo-videos)
 - [Hugging Face Repositories](#-hugging-face-repositories)
 - [Repository Structure](#-repository-structure)
 - [Installation & Setup](#-installation--setup)
-- [v3 Roadmap (Planned)](#-v3-roadmap-planned)
+- [v3 Roadmap (Remaining Work)](#-v3-roadmap-remaining-work)
 
 ---
 
@@ -99,6 +102,32 @@ Training was run for **4 epochs** (50 min/epoch on RTX GPU) using batch size 64,
 
 ---
 
+## 🌀 PokéWorld v3: Diffusion World Model + System 1 (in progress)
+
+**Status: In progress (Phase 1 done)**  [`lab/`](lab/), full write-up in [`v3.md`](v3.md)
+
+| Component | Description |
+|---|---|
+| **World model** | DIAMOND-style EDM diffusion U-Net (16.7M params), next 72×80 frame from the last 4 frames + buttons; trained 2 h on one RTX 4090 |
+| **Evaluation** | RAM-grounded: a frame probe reads map/tile off imagined frames, scored against game RAM on held-out episodes |
+| **Real-game harness** | PyBoy wrapper reproducing the recorded data pixel-exactly |
+| **System 1** | Actor-critic trained **only on imagined rollouts**, tested zero-shot in the real game |
+
+### v3 Key Results (measured)
+| Policy (real game: bedroom → Pallet Town) | Success | Median presses |
+|---|---|---|
+| **RL trained purely in imagination** (screen only at test time) | **100 / 100** | **28** |
+| Planning inside the world model | 21 / 21 | 27 |
+| Greedy rule with privileged RAM coordinates | 195 / 200 | 36 |
+| Random | 0 / 200 | n/a |
+
+- Imagined frames stay sharp for 32+ steps (≈13 s of play; v1/v2 degraded after 2-5), but by RAM position the model is worse than "nothing moves" beyond ~8 steps: it loses track of **which map** it is in (2% → 41% wrong map over 32 steps). Pixel metrics alone would have hidden this.
+- A planner first **exploited** the model's hallucinated warps (pressing into a wall for 60 steps); safeguards fixed it.
+- Ablation: context-noise augmentation is not what fixed the old collapse; the diffusion recipe is.
+- Limits: one short task, a reward with hand-given exit tiles at training time, single seeds. See [`v3.md`](v3.md#what-is-not-done-yet).
+
+---
+
 ## 🎬 Demo Videos
 
 ### v1: MPC Planner Navigation Demo
@@ -134,7 +163,7 @@ All models, checkpoints, and datasets are backed up on Hugging Face:
 PokeDreamer/
 ├── README.md                   # This file
 ├── v2.md                       # v2 implementation plan
-├── v3.md                       # v3 SOTA roadmap (planned)
+├── v3.md                       # v3 status, results and remaining work (in progress)
 ├── environment.yml             # Conda environment spec
 │
 ├── v1/                         # Archived v1: VAE + GRU MPC
@@ -148,7 +177,16 @@ PokeDreamer/
 │   ├── scripts/                # v2 training & demo scripts
 │   └── checkpoints/            # v2 RSSM weights + demo video
 │
-├── src/                        # Active source (currently v2)
+├── lab/                        # v3 (in progress)
+│   ├── data.py                 # 72×80 cache + episode-level splits
+│   ├── dwm/                    # diffusion world model, training, RAM-grounded eval, hybrid model
+│   ├── agent/                  # planner (MPC) and RL trained in imagination
+│   ├── env.py                  # PyBoy harness matching the recorded data
+│   ├── probe.py, upsampler.py  # frame -> RAM probe; 72×80 -> native display upsampler
+│   ├── play.py                 # play inside the world model
+│   └── tests/                  # pytest suite
+│
+├── src/                        # v2 source
 │   ├── models.py               # Encoder, Decoder, RSSMCell, predictors
 │   ├── dataset.py              # PokémonDataset loader
 │   ├── game_state.py           # PyBoy screen capture + RAM extraction
@@ -210,9 +248,9 @@ PokeDreamer/
 
 ---
 
-## 🚀 v3 Roadmap (Planned)
- 
-See [`v3.md`](v3.md) for the full technical roadmap. High-level vision:
+## 🚀 v3 Roadmap (Remaining Work)
+
+v3 is **in progress**: Phase 1 (diffusion world model, RAM-grounded evaluation, System 1 trained in imagination) is done; the work below continues within v3. Status per item and how to reproduce Phase 1: [`v3.md`](v3.md). The original vision:
  
 ### Long-Term Reference Point
  
@@ -229,12 +267,12 @@ The eventual goal this roadmap is working toward is something architecturally cl
 - Sub-goal queue injected as conditioning token into System 1 policy
 - Replanning triggered on progress stalls (500+ steps without story flag advance)
 ### v3 Target Metrics
-| Metric | v2 Achieved | v3 Target |
-|---|---|---|
-| Badges (no human intervention) | 0 (policy not trained) | ≥ 2 |
-| Pokédex species caught | N/A | ≥ 10 |
-| 50-step imagination drift | ~5–8 tiles (est.) | < 5 tiles |
-| World model size | ~650MB | < 200MB |
+| Metric | v2 Achieved | v3 so far (2026-11-01) | v3 Target |
+|---|---|---|---|
+| Badges (no human intervention) | 0 (policy not trained) | 0 (first navigation task solved) | ≥ 2 |
+| Pokédex species caught | N/A | n/a | ≥ 10 |
+| Imagination drift | ~5–8 tiles (est.) | 3.1 tiles at 8 steps, 9.5 at 32 (measured vs RAM) | < 5 tiles at 50 steps |
+| World model size | ~650MB | 67 MB (16.7M params, fp32) | < 200MB |
  
 ---
 

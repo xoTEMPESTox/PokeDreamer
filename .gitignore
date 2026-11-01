@@ -49,3 +49,6 @@ external/
 saves/
 scratch/
 data/
+
+# v3 working data: caches, checkpoints, runs, plots (large; not tracked)
+work/

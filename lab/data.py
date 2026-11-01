@@ -1,7 +1,7 @@
 """Build the 72x80 greyscale cache, the episode-level splits and dataset statistics.
 
 Usage: python -m lab.data   (from the repo root)
-Writes work/cache_72x80.npz, work/splits.json, agent_notes/results/dataset_stats.md
+Writes work/cache_72x80.npz, work/splits.json, work/dataset_stats.md
 """
 import collections
 import glob
@@ -80,8 +80,8 @@ def stats(data, splits):
         mask = np.isin(ep, splits[name])
         cnt = collections.Counter(data["map_ids"][mask].tolist())
         lines.append(f"\n{name} map distribution: " + ", ".join(f"{m}: {c / mask.sum():.3f}" for m, c in cnt.most_common()))
-    Path("agent_notes/results").mkdir(parents=True, exist_ok=True)
-    Path("agent_notes/results/dataset_stats.md").write_text("\n".join(lines) + "\n")
+    Path("work").mkdir(parents=True, exist_ok=True)
+    Path("work/dataset_stats.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
 
 

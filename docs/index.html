@@ -32,7 +32,7 @@
         <li><a href="index.html" class="nav-link active">Home</a></li>
         <li><a href="v1.html" class="nav-link">v1 - VAE+GRU</a></li>
         <li><a href="v2.html" class="nav-link">v2 - RSSM</a></li>
-        <li><a href="v3.html" class="nav-link">v3 - Roadmap</a></li>
+        <li><a href="v3.html" class="nav-link">v3 - In progress</a></li>
         <li><a href="api.html" class="nav-link">Code Reference</a></li>
         <li><a href="https://priyanshusah.com/projects/pokedreamer-rl" target="_blank" class="nav-link">Case Study</a></li>
         <li><a href="https://github.com/xoTEMPESTox/PokeDreamer" target="_blank" class="nav-link nav-cta">
@@ -208,17 +208,17 @@
           </div>
           <div class="timeline-content glass-card">
             <div class="timeline-header">
-              <span class="version-badge v3-badge">In Planning 🚀</span>
-              <h3>Dual-Agent SOTA System</h3>
+              <span class="version-badge v3-badge">In Progress: Phase 1 Done 🚀</span>
+              <h3>Diffusion World Model + Imagination RL</h3>
             </div>
-            <p>The vision: System 1 (a PPO/GRPO actor trained inside RSSM imagination) directed by System 2 (a multimodal LLM strategic planner). The first version where "policy trained inside imagination" becomes the explicit target - approaching DIAMOND-style pixel-fidelity world modeling.</p>
+            <p>v3 is the step this project has been building toward: a DIAMOND-style diffusion world model of Pokémon Red, and an agent whose policy is trained entirely inside that model's imagination and then tested in the real game. Phase 1 is done and measured: an agent trained only inside the world model leaves the house in the real game (100 / 100 real-game episodes, median 28 presses, trained only in imagination).</p>
             <div class="timeline-metrics">
-              <div class="metric"><span class="metric-val">≥2</span><span class="metric-lbl">Target Badges</span></div>
-              <div class="metric"><span class="metric-val">&lt;5 tiles</span><span class="metric-lbl">Imagination Drift</span></div>
-              <div class="metric"><span class="metric-val">&lt;200MB</span><span class="metric-lbl">Target Model Size</span></div>
-              <div class="metric"><span class="metric-val">LLM+RL</span><span class="metric-lbl">Dual Agent</span></div>
+              <div class="metric"><span class="metric-val">100 / 100</span><span class="metric-lbl">Real-Game Success</span></div>
+              <div class="metric"><span class="metric-val">28</span><span class="metric-lbl">Median Presses</span></div>
+              <div class="metric"><span class="metric-val">16.7M</span><span class="metric-lbl">Model Params</span></div>
+              <div class="metric"><span class="metric-val">72×80</span><span class="metric-lbl">Resolution</span></div>
             </div>
-            <a href="v3.html" class="timeline-link">Full v3 Roadmap →</a>
+            <a href="v3.html" class="timeline-link">Full v3 Documentation →</a>
           </div>
         </div>
       </div>
@@ -531,7 +531,7 @@ python scripts/collect_data.py --episodes 20 --out-dir data</code></pre>
               <li><a href="index.html">Home</a></li>
               <li><a href="v1.html">v1 - VAE+GRU</a></li>
               <li><a href="v2.html">v2 - RSSM</a></li>
-              <li><a href="v3.html">v3 - Roadmap</a></li>
+              <li><a href="v3.html">v3 - In progress</a></li>
               <li><a href="api.html">Code Reference</a></li>
             </ul>
           </div>

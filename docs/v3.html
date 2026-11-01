@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PokéDreamer v3 - Dual-Agent Roadmap</title>
-  <meta name="description" content="PokéDreamer v3 Roadmap: System 1 (PPO actor trained in RSSM imagination) + System 2 (Multimodal LLM strategic planner). Full technical roadmap toward DIAMOND-style world modeling." />
+  <title>PokéDreamer v3 (in progress): diffusion world model + System 1 trained in imagination</title>
+  <meta name="description" content="PokéDreamer v3 (in progress): diffusion world model + System 1 trained in imagination. Phase 1 measured: 100 / 100 real-game episodes, median 28 presses, trained only in imagination." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -24,7 +24,7 @@
         <li><a href="index.html" class="nav-link">Home</a></li>
         <li><a href="v1.html" class="nav-link">v1 - VAE+GRU</a></li>
         <li><a href="v2.html" class="nav-link">v2 - RSSM</a></li>
-        <li><a href="v3.html" class="nav-link active">v3 - Roadmap</a></li>
+        <li><a href="v3.html" class="nav-link active">v3 - In progress</a></li>
         <li><a href="api.html" class="nav-link">Code Reference</a></li>
         <li><a href="https://priyanshusah.com/projects/pokedreamer-rl" target="_blank" class="nav-link">Case Study</a></li>
         <li><a href="https://github.com/xoTEMPESTox/PokeDreamer" target="_blank" class="nav-link nav-cta">
@@ -45,17 +45,17 @@
       <div class="breadcrumb">
         <a href="index.html">Home</a>
         <span class="breadcrumb-sep">›</span>
-        <span>v3 - Dual-Agent Roadmap</span>
+        <span>v3 - In progress</span>
       </div>
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-        <span class="version-badge v3-badge">In Planning 🚀</span>
+        <span class="version-badge v3-badge">In Progress: Phase 1 Done 🚀</span>
         <span style="font-size:0.8rem; color:var(--text-muted); font-family:var(--font-mono);">v3.md</span>
       </div>
       <h1 class="page-title">
-        <span style="background: linear-gradient(135deg, #f59e0b, #ef4444, #9d5ff5); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">v3: Dual-Agent</span><br>SOTA System
+        <span style="background: linear-gradient(135deg, #f59e0b, #ef4444, #9d5ff5); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">PokéWorld v3</span><br>Diffusion World Model + System 1
       </h1>
       <p class="page-subtitle">
-        System 1 (PPO actor trained inside RSSM imagination) + System 2 (Multimodal LLM strategic planner). The first version where "policy trained inside imagination" becomes the explicit target - approaching DIAMOND-style pixel-fidelity world modeling.
+        Diffusion world model + System 1 trained in imagination. Policy trained entirely inside the model's imagination and tested in the real game.
       </p>
     </div>
   </div>
@@ -63,231 +63,347 @@
   <div class="docs-layout">
     <aside class="docs-sidebar">
       <nav class="sidebar-nav">
-        <div class="sidebar-title">v3 Roadmap</div>
-        <a href="#vision" class="sidebar-link active">Long-Term Vision</a>
-        <a href="#system1" class="sidebar-link">System 1 - Fast Controller</a>
-        <a href="#system2" class="sidebar-link">System 2 - Strategic Planner</a>
-        <a href="#dual-agent" class="sidebar-link">Dual-Agent Integration</a>
-        <div class="sidebar-title">Technical Plan</div>
-        <a href="#improved-world-model" class="sidebar-link">Improved World Model</a>
-        <a href="#behaviour-cloning" class="sidebar-link">Behaviour Cloning</a>
-        <a href="#imagination-rl" class="sidebar-link">Imagination-Based RL</a>
-        <a href="#reward-design" class="sidebar-link">Reward Design</a>
-        <div class="sidebar-title">Evaluation</div>
-        <a href="#targets" class="sidebar-link">Target Metrics</a>
-        <a href="#risks" class="sidebar-link">Risks &amp; Mitigations</a>
+        <div class="sidebar-title">v3 (In Progress)</div>
+        <a href="#headline" class="sidebar-link active">Headline Results</a>
+        <a href="#diffusion-world-model" class="sidebar-link">1. Diffusion World Model</a>
+        <a href="#ram-eval" class="sidebar-link">2. RAM-Grounded Eval</a>
+        <a href="#real-game" class="sidebar-link">3. Real Game Ground Truth</a>
+        <a href="#ablation" class="sidebar-link">4. Ablation Study</a>
+        <a href="#negative-result" class="sidebar-link">5. Negative Result</a>
+        <div class="sidebar-title">Roadmap &amp; Details</div>
+        <a href="#not-done-yet" class="sidebar-link">What Is Not Done Yet</a>
+        <a href="#reproducing" class="sidebar-link">Reproducing Phase 1</a>
+        <a href="#caveats" class="sidebar-link">Caveats</a>
+        <a href="#original-plan" class="sidebar-link">Original Plan &amp; Status</a>
         <a href="api.html" class="sidebar-link" style="color:var(--accent-light);">→ Code Reference</a>
       </nav>
     </aside>
 
     <main class="docs-content prose">
-      <h2 id="vision">Long-Term Vision</h2>
-      <p>
-        The eventual goal of this roadmap is something architecturally closer to <a href="https://diamond-wm.github.io/" target="_blank">DIAMOND</a> (Diffusion As a Model Of eNvironment Dreams) - a world model where the RL policy is trained entirely inside imagined rollouts, at pixel fidelity good enough that the imagined environment is genuinely playable.
-      </p>
-      <div class="callout callout-info">
-        <div class="callout-title">The Progression</div>
-        v1's continuous latents and v2's discrete RSSM are intentionally scoped well below DIAMOND's bar - they're the steps to learn the concepts (latent dynamics, imagination-based planning, compounding-error mitigation) before attempting anything at that scale. <strong>v3 is the first point where "policy trained inside imagination" becomes the explicit target.</strong>
+      <!-- Status banner (the first thing on the page) -->
+      <div class="callout callout-warn" style="margin-top:0;">
+        <div class="callout-title" style="font-size:1.05rem;">In progress: Phase 1 done</div>
+        <p style="margin-bottom:0;">
+          Phase 1 (world model, real-game evaluation, a System 1 agent trained inside the model) is done and measured. System 2 (the LLM planner), longer tasks and the RAM-conditioned world model continue <strong>within v3</strong>; see <a href="#not-done-yet">What is not done yet</a>. Last updated 2026-11-01.
+        </p>
       </div>
+
       <p>
-        Everything from v1 and v2 was preparation. v3 is where research becomes game-playing: can the agent earn Gym badges, catch Pokémon, and progress through the story - all driven by a policy that has never needed to interact with the real emulator during training?
+        v3 is the step this project has been building toward: a <strong>DIAMOND-style diffusion world model</strong> of Pokémon Red, and an agent whose policy is trained <strong>entirely inside that model's imagination</strong> and then tested in the real game. It also introduces a measurement method: Pokémon Red's RAM gives exact ground truth (map, tile position, battle state), so imagination can be scored in game units (tiles, maps), not just pixels.
       </p>
 
-      <h2 id="system1">System 1 - Fast Reactive Controller</h2>
       <p>
-        System 1 is a neural network policy <code>π(a_t | h_t, s_t)</code> - an <em>Actor</em> conditioned on the RSSM latent state. It executes actions at emulator speed and is responsible for low-level reactive control.
+        <strong>Units:</strong> a <em>step</em> is one button press followed by 24 Game Boy frames (≈0.4 s, the time to walk one tile). 32 steps ≈ 13 s of gameplay. These are not video frames.
       </p>
-      <h3>Behaviour Cloning Warm-Start</h3>
+
+      <h2 id="headline">Headline results (Phase 1, measured)</h2>
       <p>
-        Before RL fine-tuning, the actor is pre-trained on 10–50h of curated human demonstrations via <strong>Behaviour Cloning (BC)</strong>. This gives the policy a reasonable prior over useful action sequences before it starts exploring.
+        <strong>An agent trained only inside the world model leaves the house in the real game.</strong> Task: start in Red's bedroom and reach Pallet Town (bedroom stairs, then the 1st floor, then the front door). Real game (PyBoy), 60-press cap:
       </p>
-      <div class="code-block">
-        <div class="code-header"><span class="code-lang">text</span></div>
-        <pre><code>BC Phase:
-  Input:  (h_t, s_t) ← RSSM latent at time t
-  Target: expert action a_t from human gameplay
-  Loss:   cross-entropy(actor_logits, expert_actions)
-  Data:   10–50h curated human demonstrations</code></pre>
-      </div>
-      <h3>PPO + GRPO RL Fine-tuning</h3>
-      <p>
-        After BC warm-start, the actor is fine-tuned with <strong>PPO</strong> (Proximal Policy Optimization) - and potentially <strong>GRPO</strong> (Group Relative Policy Optimization) - trained entirely inside the RSSM's imagined rollouts.
-      </p>
-      <div class="code-block">
-        <div class="code-header"><span class="code-lang">text</span></div>
-        <pre><code>Imagination Training Loop:
-  1. Sample starting states from replay buffer
-  2. Roll out RSSM prior for H=15 steps using actor π
-  3. Compute rewards from reward_predictor and RAM probes
-  4. Compute λ-returns: V_λ = r_t + γ(1-λ)v(h_{t+1},s_{t+1}) + γλV_{t+1}
-  5. Update Actor via policy gradient on V_λ
-  6. Update Critic via MSE(v(h_t,s_t), V_λ)
-  7. Periodically collect real environment data to refresh world model</code></pre>
-      </div>
-      <h3>Multi-Task Actor-Critic</h3>
-      <p>
-        The actor is conditioned on a <strong>goal embedding</strong> from System 2 - enabling the same policy to pursue different objectives (navigation, battle, exploration) depending on the current macro-goal.
-      </p>
+
       <div class="table-wrapper">
         <table class="data-table">
-          <thead><tr><th>Component</th><th>Architecture</th><th>Description</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Policy</th>
+              <th>Success</th>
+              <th>Presses (median, range)</th>
+              <th>Uses at test time</th>
+            </tr>
+          </thead>
           <tbody>
-            <tr><td><strong>Actor</strong></td><td>MLP(1536+goal_dim → 256 → 256 → 8)</td><td>Policy network outputting action logits</td></tr>
-            <tr><td><strong>Critic</strong></td><td>MLP(1536+goal_dim → 256 → 256 → 1)</td><td>Value function for λ-return targets</td></tr>
+            <tr>
+              <td><strong>RL policy trained purely in imagination</strong></td>
+              <td><strong>100 / 100</strong></td>
+              <td><strong>28</strong> (24-32)</td>
+              <td>the last 4 screen frames only</td>
+            </tr>
+            <tr>
+              <td>Planning inside the world model (MPC)</td>
+              <td>21 / 21</td>
+              <td>27 (23-49)</td>
+              <td>frames + RAM position + exit tiles</td>
+            </tr>
+            <tr>
+              <td>Greedy rule with RAM coordinates</td>
+              <td>195 / 200</td>
+              <td>36 (24-59)</td>
+              <td>RAM position + exit tiles</td>
+            </tr>
+            <tr>
+              <td>Random buttons</td>
+              <td>0 / 200</td>
+              <td>n/a</td>
+              <td>n/a</td>
+            </tr>
           </tbody>
         </table>
       </div>
 
-      <h2 id="system2">System 2 - Slow Strategic Planner</h2>
-      <p>
-        System 2 is a <strong>Multimodal LLM</strong> (Gemini 2.0 Flash or GPT-4o) that receives game screenshots and RAM state JSON, and produces high-level macro goals for System 1.
-      </p>
-      <h3>Interface</h3>
-      <div class="code-block">
-        <div class="code-header"><span class="code-lang">json</span></div>
-        <pre><code>// System 2 Input (per planning call):
-{
-  "screenshot": "&lt;base64 160×144 Game Boy frame&gt;",
-  "state": {
-    "map_name": "Pallet Town",
-    "x": 5, "y": 7,
-    "badges": 0,
-    "party_hp": [45, 0],
-    "in_battle": false,
-    "dialog_open": false,
-    "steps_without_progress": 312
-  },
-  "current_goal": "Reach Viridian City"
-}
+      <figure class="glass-card" style="margin: 24px 0; padding: 16px; overflow: hidden;">
+        <img src="assets/v3/agent_trained_in_imagination.gif" alt="Real game: RL policy trained in imagination leaves the house in 25 presses" style="width: 100%; border-radius: var(--radius-md); display: block;" />
+        <figcaption style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+          Real game: the RL policy leaving the house in 25 presses (one illustrative episode, measured median 28 over 100 episodes).
+        </figcaption>
+      </figure>
 
-// System 2 Output (macro goal):
-{
-  "goal": "Navigate to Route 1 entrance",
-  "goal_embedding": [0.23, -0.14, ...],  // embedded for System 1 conditioning
-  "rationale": "Need to head north to reach Viridian City"
-}</code></pre>
-      </div>
-      <h3>Replanning Trigger</h3>
       <p>
-        System 2 is called when any of these conditions are met:
+        The shortest route is ≈22 presses. The RL policy never interacted with the emulator during training: every training step was imagined by the diffusion model. It is 8 presses faster than the greedy rule (bootstrap 95% CI [-9, -6]) and statistically tied with the planner, at a fraction of the cost.
       </p>
+
+      <div class="callout callout-warn">
+        <div class="callout-title">Honest limits</div>
+        <p style="margin-bottom:0;">
+          One short task; the training reward used hand-given exit tiles (privileged at training time only); a simple heuristic with privileged coordinates nearly solves it; the recorded data that trained the world model came from a PPO agent in the same area. This is a proof of concept for "System 1 trained in a learned simulator", not general play.
+        </p>
+      </div>
+
+      <h2 id="diffusion-world-model">1. Diffusion world model</h2>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <tbody>
+            <tr>
+              <td style="width: 140px;"><strong>Model</strong></td>
+              <td>EDM denoiser U-Net (16.7M params), DIAMOND recipe: 3-step Euler sampling, next frame conditioned on the last 4 frames + 4 button presses</td>
+            </tr>
+            <tr>
+              <td><strong>Observation</strong></td>
+              <td>72×80 greyscale (exact 2× downsample of the 160×144 Game Boy screen; the original is 4-shade grey)</td>
+            </tr>
+            <tr>
+              <td><strong>Data</strong></td>
+              <td>the existing 200 recorded episodes × 1,000 steps (HF dataset). Episode-level splits: 139 train / 16 held-out / 45 held-out start location (Pallet Town)</td>
+            </tr>
+            <tr>
+              <td><strong>Training</strong></td>
+              <td>88.6k steps, batch 64, 120 min on one RTX 4090</td>
+            </tr>
+            <tr>
+              <td><strong>Display</strong></td>
+              <td>a separate 0.7M-param upsampler restores native 144×160 4-shade frames: 99.98% pixel accuracy, 91% of held-out frames pixel-perfect. <strong>Display only; every metric uses the raw 72×80 output.</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <figure class="glass-card" style="margin: 24px 0; padding: 16px; overflow: hidden;">
+        <img src="assets/v3/rollouts_vs_real_upsampled.png" alt="64-step imagined vs real rollouts, upsampled for display" style="width: 100%; border-radius: var(--radius-md); display: block;" />
+        <figcaption style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+          64-step imagined vs real rollouts (upsampled for display; metrics use raw 72x80 output).
+        </figcaption>
+      </figure>
+
+      <p>
+        v1/v2 rollouts degraded after 2-5 steps (v2's latent collapsed). v3 frames stay sharp and coherent for 32+ steps.
+      </p>
+
+      <h2 id="ram-eval">2. RAM-grounded evaluation (held-out episodes)</h2>
+      <p>
+        A CNN probe reads map/tile from a frame (0.40-tile error on real held-out frames), so imagined frames can be scored against the true RAM. 512 windows, 95% CIs by episode-level bootstrap.
+      </p>
+
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>k (steps)</th>
+              <th>1</th>
+              <th>8</th>
+              <th>16</th>
+              <th>32</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Pixel MSE: imagined / copy last frame</strong></td>
+              <td>0.014 / 0.035</td>
+              <td>0.052 / 0.087</td>
+              <td>0.090 / 0.117</td>
+              <td>0.127 / 0.149</td>
+            </tr>
+            <tr>
+              <td><strong>Position error in tiles: imagined / "nothing moves"</strong></td>
+              <td>0.59 / 0.46</td>
+              <td>3.10 / 2.13</td>
+              <td>5.57 / 3.14</td>
+              <td>9.51 / 3.85</td>
+            </tr>
+            <tr>
+              <td><strong>Imagined frame shows the wrong map</strong></td>
+              <td>1.8%</td>
+              <td>12.6%</td>
+              <td>23.1%</td>
+              <td>41.1%</td>
+            </tr>
+            <tr>
+              <td><strong>Position error when the map is right / "nothing moves"</strong></td>
+              <td>0.47 / 0.46</td>
+              <td>1.71 / 2.26</td>
+              <td>2.02 / 3.41</td>
+              <td>5.03 / 4.35</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <figure class="glass-card" style="margin: 24px 0; padding: 16px; overflow: hidden;">
+        <img src="assets/v3/drift_vs_ram.png" alt="Position error vs horizon against RAM" style="width: 100%; border-radius: var(--radius-md); display: block;" />
+        <figcaption style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+          Position error vs horizon against RAM.
+        </figcaption>
+      </figure>
+
+      <p><strong>Findings.</strong></p>
+      <ol>
+        <li><strong>Pixel metrics overstate world-model quality.</strong> By pixel error the model wins at every horizon; by RAM position it loses to "nothing moves" from ~8 steps.</li>
+        <li><strong>The main failure is map identity, not drift within a map.</strong> It "teleports" to other rooms over long horizons (2% → 41% wrong map), because 4 frames of context cannot remember where you are.</li>
+        <li><strong>Short-range dynamics are learned:</strong> when the player moves, the k=1 position error is 0.22 tiles vs 1.00 for "nothing moves".</li>
+      </ol>
+
+      <h2 id="real-game">3. Ground truth from the real game</h2>
+      <p>
+        The emulator harness reproduces the recorded data exactly: frames after 30 random steps are pixel-identical to the dataset (mean absolute difference 0.0000). Pressing each button from 64 real game states, in the emulator and in the model:
+      </p>
+
+      <figure class="glass-card" style="margin: 24px 0; padding: 16px; overflow: hidden;">
+        <img src="assets/v3/controllability_vs_real_game.png" alt="Imagined vs real displacement per button" style="width: 100%; border-radius: var(--radius-md); display: block;" />
+        <figcaption style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+          Imagined vs real displacement per button.
+        </figcaption>
+      </figure>
+
       <ul>
-        <li>A story progress flag advances (new badge, new area reached)</li>
-        <li>System 1 has taken <strong>500+ steps without story progress</strong></li>
-        <li>System 1 requests a goal update explicitly</li>
-        <li>A battle ends (success or failure)</li>
+        <li>One press: imagined position error 0.14-0.30 tiles (left/right/down); "up" is weaker (0.94).</li>
+        <li>After 8 presses, right/down/up displacement matches the real game within CIs; left under-moves.</li>
+        <li><strong>Flaw:</strong> with no button pressed, the real player stays put, but the imagined player drifts ~1 tile per step.</li>
       </ul>
 
-      <h2 id="dual-agent">Dual-Agent Integration</h2>
+      <h2 id="ablation">4. Ablation: what fixed the 2-5 step collapse?</h2>
       <p>
-        The two systems form a hierarchical architecture - System 2 acts as a manager that sets objectives, System 1 acts as a worker that executes them:
+        Same recipe with and without GameNGen-style context-noise augmentation, step-matched at 50,200 steps (single seed). <strong>Augmentation is not what fixed it</strong>: without it the model is equally stable (pixel MSE at k=32: 0.094 vs 0.129 with augmentation) and clearly better on the held-out start location (map accuracy at k=32: 0.73 vs 0.47, non-overlapping CIs). Doubling training time also did not clearly improve the RAM metrics. The stability comes from the diffusion recipe itself; the long-horizon errors point to the memory limit, not under-training.
       </p>
-      <div class="code-block">
-        <div class="code-header"><span class="code-lang">text</span></div>
-        <pre><code>┌─────────────────────────────────────────────────────┐
-│                   SYSTEM 2 (LLM)                    │
-│  Input: screenshot + RAM JSON                        │
-│  Output: macro goal (text + embedding)               │
-│  Speed: ~1–5 calls/min (slow)                        │
-└───────────────────┬─────────────────────────────────┘
-                    │ goal embedding
-                    ▼
-┌─────────────────────────────────────────────────────┐
-│               SYSTEM 1 (Actor-Critic)               │
-│  Input: RSSM latent (h_t, s_t) + goal embedding     │
-│  Output: action logits → sampled action              │
-│  Speed: ~60 Hz (real-time)                           │
-└───────────────────┬─────────────────────────────────┘
-                    │ action
-                    ▼
-              PyBoy Emulator</code></pre>
+
+      <h2 id="negative-result">5. Negative result: the planner exploited the model</h2>
+      <p>
+        The first planner rewarded any imagined map change. In the real game it pressed <strong>left into the bedroom wall for 60 steps</strong>: for those buttons the model imagines teleporting downstairs or outside. Once imagined map changes were credited only next to a real exit tile (and the horizon cut to 4 steps), the same model and task went from 0/1 to 21/21. The RL reward uses the same safeguard. A learned simulator must be queried with protections against its measured hallucinations.
+      </p>
+
+      <figure class="glass-card" style="margin: 24px 0; padding: 16px; overflow: hidden;">
+        <img src="assets/v3/planner_exploits_hallucinated_warp.gif" alt="The first planner pressing into a wall while imagining teleports" style="width: 100%; border-radius: var(--radius-md); display: block;" />
+        <figcaption style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+          The first planner pressing into a wall while imagining teleports; each frame: real screen | 4 imagined next frames.
+        </figcaption>
+      </figure>
+
+      <h2 id="not-done-yet">What is not done yet</h2>
+      <p>
+        v3's goal remains a System 1 + System 2 agent that makes real progress in Pokémon Red. Still to do, <strong>within v3</strong>:
+      </p>
+
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>RAM-conditioned "hybrid" world model (symbolic state dynamics + diffusion renderer) to remove map hallucination</td>
+              <td>built; training/evaluation in progress</td>
+            </tr>
+            <tr>
+              <td>Longer tasks without hand-given exit tiles (e.g. reach Route 1, Viridian City)</td>
+              <td>planned; needs a starter-Pokémon save state</td>
+            </tr>
+            <tr>
+              <td>Multi-task System 1 (navigation, battles, menus) with goal conditioning</td>
+              <td>planned</td>
+            </tr>
+            <tr>
+              <td>System 2: LLM/VLM planner setting sub-goals from screenshots + RAM state</td>
+              <td>planned</td>
+            </tr>
+            <tr>
+              <td>Behaviour-cloning warm start from human play</td>
+              <td>planned</td>
+            </tr>
+            <tr>
+              <td>Original targets: ≥2 badges, ≥10 Pokédex species, 50-step drift &lt; 5 tiles</td>
+              <td class="warn-cell">not reached</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
-      <h2 id="improved-world-model">Improved World Model</h2>
+      <h2 id="reproducing">Reproducing Phase 1</h2>
       <p>
-        v3 requires a more capable world model than v2 to support policy training inside imagination. Key improvements:
+        Code lives in <code>lab/</code>. You need your own legally obtained ROM at <code>Pokemon - Red Version (USA, Europe).gb</code> (not included; SHA-1 <code>ea9bcae617fdf159b045185467ae58b2e4a48b9a</code>).
       </p>
+
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <pre><code>python -m lab.data                                   # 72x80 cache + episode splits from the HF dataset
+python -m lab.dwm.train --name main --minutes 120   # diffusion world model (RTX 4090: ~15 steps/s)
+python -m lab.probe                                  # frame -> RAM probe
+python -m lab.dwm.eval_rollouts --run main           # RAM-grounded evaluation
+python -m lab.env --make-states                      # emulator save states (needs the ROM)
+python -m lab.dwm.real_control --run main            # controllability vs the real game
+python -m lab.agent.imagine_rl --minutes 30          # System 1 trained in imagination
+python -m lab.agent.mpc --policy learned --episodes 100   # zero-shot real-game test
+python -m lab.play --run main                        # play inside the world model (p = screenshot)</code></pre>
+      </div>
+
+      <p>
+        Long jobs checkpoint every 15 minutes and resume; creating the file <code>work/PAUSE</code> pauses training (checkpoint, GPU idle) until it is removed.
+      </p>
+
+      <h2 id="caveats">Caveats</h2>
       <ul>
-        <li><strong>More data</strong>: Scale from ~16k to 100k+ transitions with diverse coverage (all gym routes, battle sequences, buildings)</li>
-        <li><strong>Longer training</strong>: 20–50 epochs vs. 4 epochs in v2</li>
-        <li><strong>More RSSM capacity</strong>: Explore det_dim=1024, larger stochastic space</li>
-        <li><strong>Compression target</strong>: Target &lt;200MB vs. ~650MB current - essential for practical deployment</li>
-        <li><strong>Better KL scheduling</strong>: Free-bit training to prevent posterior collapse</li>
+        <li>One training run per configuration (one seed); 16 in-distribution test episodes, hence wide CIs.</li>
+        <li>The probe that scores imagined frames is trained on the same maps; it is unreliable on the held-out start location (4.8-tile error on real frames there), so those position numbers are reported as inconclusive.</li>
+        <li>All world-model rollouts are open-loop on recorded action sequences of a PPO agent.</li>
       </ul>
 
-      <h2 id="behaviour-cloning">Phase 1: Behaviour Cloning</h2>
-      <p>Detailed plan for the BC warm-start phase:</p>
-      <div class="table-wrapper">
-        <table class="data-table">
-          <thead><tr><th>Step</th><th>Task</th><th>Details</th></tr></thead>
-          <tbody>
-            <tr><td>1</td><td>Collect human demos</td><td>10–50h of expert gameplay covering all major game segments</td></tr>
-            <tr><td>2</td><td>Encode to RSSM latents</td><td>Pass demo frames through encoder + RSSM to get (h_t, s_t) sequences</td></tr>
-            <tr><td>3</td><td>BC training</td><td>Minimize cross-entropy between actor logits and expert actions</td></tr>
-            <tr><td>4</td><td>Validate</td><td>Test actor on PyBoy - should exhibit basic navigation and battle behavior</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <h2 id="imagination-rl">Phase 2: Imagination-Based RL</h2>
-      <p>The core contribution of v3 - training the actor entirely inside imagined rollouts:</p>
-      <div class="table-wrapper">
-        <table class="data-table">
-          <thead><tr><th>Component</th><th>Details</th></tr></thead>
-          <tbody>
-            <tr><td>Rollout horizon</td><td>H = 15 imagination steps per update</td></tr>
-            <tr><td>λ-return discount</td><td>γ = 0.99, λ = 0.95</td></tr>
-            <tr><td>Actor loss</td><td>Policy gradient on λ-returns (PPO clip)</td></tr>
-            <tr><td>Critic loss</td><td>MSE between value estimates and λ-returns</td></tr>
-            <tr><td>World model refresh</td><td>Every N training epochs, collect real transitions and retrain world model</td></tr>
-            <tr><td>Entropy bonus</td><td>Small entropy term to prevent premature policy collapse</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <h2 id="reward-design">Reward Design</h2>
+      <h2 id="original-plan">Original v3 plan (2026-06) and status</h2>
       <p>
-        The reward function must balance multiple objectives for comprehensive game progress. Rewards are predicted by the world model's reward head, with sparse ground-truth signals from RAM at real-environment collection steps.
+        The original plan below is kept for reference; the status column reflects 2026-11-01.
       </p>
-      <div class="table-wrapper">
-        <table class="data-table">
-          <thead><tr><th>Signal</th><th>Type</th><th>Value</th><th>Description</th></tr></thead>
-          <tbody>
-            <tr><td>Δ Badges</td><td>Sparse</td><td>+10.0</td><td>Earning a new Gym badge</td></tr>
-            <tr><td>Δ Pokédex species</td><td>Sparse</td><td>+2.0</td><td>First time catching a species</td></tr>
-            <tr><td>Δ Unique map IDs</td><td>Moderate</td><td>+0.5</td><td>Entering a new map location</td></tr>
-            <tr><td>Battle win</td><td>Moderate</td><td>+1.0</td><td>Successfully winning a battle</td></tr>
-            <tr><td>XP gain</td><td>Dense</td><td>+0.01×Δ</td><td>Small continuous exploration signal</td></tr>
-            <tr><td>HP lost</td><td>Penalty</td><td>-0.05×Δ</td><td>Discourage reckless behavior</td></tr>
-            <tr><td>Stuck penalty</td><td>Penalty</td><td>-0.001</td><td>Per step with no progress signal</td></tr>
-          </tbody>
-        </table>
-      </div>
 
-      <h2 id="targets">Target Metrics</h2>
       <div class="table-wrapper">
         <table class="data-table">
-          <thead><tr><th>Metric</th><th>v2 Achieved</th><th>v3 Target</th><th>Notes</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Original v3 item</th>
+              <th>Status</th>
+            </tr>
+          </thead>
           <tbody>
-            <tr><td>Badges (no human intervention)</td><td>0 (policy not trained)</td><td class="highlight-cell"><strong>≥ 2</strong></td><td>Brock + Misty</td></tr>
-            <tr><td>Pokédex species caught</td><td>N/A</td><td class="highlight-cell"><strong>≥ 10</strong></td><td>Early Routes</td></tr>
-            <tr><td>50-step imagination drift</td><td>~5–8 tiles (est.)</td><td class="highlight-cell"><strong>&lt; 5 tiles</strong></td><td>Better world model</td></tr>
-            <tr><td>World model size</td><td>~650MB</td><td class="highlight-cell"><strong>&lt; 200MB</strong></td><td>Compression required</td></tr>
-            <tr><td>Inference speed</td><td>N/A</td><td class="highlight-cell"><strong>≥ 60 Hz</strong></td><td>Real-time playback</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <h2 id="risks">Risks &amp; Mitigations</h2>
-      <div class="table-wrapper">
-        <table class="data-table">
-          <thead><tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr></thead>
-          <tbody>
-            <tr><td>World model hallucination at long horizons</td><td class="warn-cell">High</td><td>Cap imagination rollout to H=15; refresh world model with real data every N epochs</td></tr>
-            <tr><td>Critic overfitting to imagined rollouts</td><td class="warn-cell">High</td><td>Alternating world-model and policy update phases; use fresh trajectories for each</td></tr>
-            <tr><td>Discrete gradient estimation instability</td><td class="warn-cell">Medium</td><td>Temperature annealing for Gumbel-Softmax; fall back to straight-through if needed</td></tr>
-            <tr><td>LLM System 2 latency bottleneck</td><td>Low</td><td>S2 replanning is infrequent (every 500 steps); use async calls</td></tr>
-            <tr><td>Reward sparsity - no badge for thousands of steps</td><td class="warn-cell">High</td><td>Dense auxiliary rewards (XP gain, map exploration) to maintain training signal</td></tr>
+            <tr>
+              <td>World model at higher fidelity with long imagination</td>
+              <td><strong>done differently</strong>: DIAMOND-style diffusion model instead of RSSM v3; sharp for 32+ steps, state-accurate for less</td>
+            </tr>
+            <tr>
+              <td>Policy trained in imagination</td>
+              <td><strong>done (proof of concept)</strong>: 100/100 on one navigation task</td>
+            </tr>
+            <tr>
+              <td>RAM state in the world model</td>
+              <td>in progress (hybrid model)</td>
+            </tr>
+            <tr>
+              <td>System 1: BC warm start, PPO/GRPO, multi-task reward</td>
+              <td>planned</td>
+            </tr>
+            <tr>
+              <td>System 2: multimodal LLM planner, goal tokens</td>
+              <td>planned</td>
+            </tr>
+            <tr>
+              <td>End-to-end: Pallet Town → Cerulean City, ≥2 badges</td>
+              <td>planned</td>
+            </tr>
           </tbody>
         </table>
       </div>
