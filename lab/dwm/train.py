@@ -22,8 +22,8 @@ from lab.dwm.model import CTX, Denoiser, to_float
 
 BATCH, LR, WD, CLIP, EMA = 64, 2e-4, 1e-2, 1.0, 0.999
 # Speed notes for the next run (measured 2026-11-01 with `python -m lab.bench_speed 64 128 192`, RTX 4090):
-# - Use fused AdamW (add fused=True to the AdamW call in main()): 11.4 -> 15.2 steps/s at batch 64. The main and noaug runs used the default
-#   optimizer, and it stays that way here until the noaug ablation finishes so the pair is matched.
+# - Fused AdamW is the default (since the noaug ablation finished): 11.4 -> 15.2 steps/s at batch 64. The main, main60 and noaug
+#   runs used the non-fused optimizer.
 # - A bigger batch does not train faster: 970 / 941 / 917 samples/s at batch 64 / 128 / 192 with fused AdamW
 #   (peak 5.6 / 9.6 / 13.7 GB). The GPU is already saturated at 64, so spare VRAM is not the bottleneck. Raise
 #   --batch only for less gradient noise, and scale LR with it.
@@ -125,7 +125,7 @@ def main():
 
     model = Denoiser().to(dev)
     ema = copy.deepcopy(model).requires_grad_(False)
-    opt = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WD, eps=1e-8)
+    opt = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WD, eps=1e-8, fused=True)
     step, elapsed = 0, 0.0
     ckpt = run / "ckpt.pt"
     if ckpt.exists():
