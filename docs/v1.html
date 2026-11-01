@@ -156,7 +156,7 @@ batch_size:    128</code></pre>
       </p>
       <div class="callout callout-warn">
         <div class="callout-title">Why Scheduled Sampling Matters</div>
-        Without scheduled sampling (pure teacher forcing), compounding errors cause the dynamics model to drift rapidly - exceeding 10 tiles of position error after 29 imagined steps. With scheduled sampling, this drift stays flat under 3.5 tiles.
+        Without scheduled sampling (pure teacher forcing), compounding errors cause the dynamics model to drift rapidly - exceeding 10 tiles of position error after 29 imagined steps. With scheduled sampling, this drift stays roughly flat, between 3.71 and 4.38 tiles.
       </div>
       <h3>Architecture Details</h3>
       <ul>
@@ -180,7 +180,7 @@ batch_size:    128</code></pre>
       </ul>
       <div class="callout callout-info">
         <div class="callout-title">What This Proves</div>
-        A 98.7% map ID classification accuracy and 1.23-tile coordinate error from a 32-dim continuous latent demonstrates the VAE is capturing rich semantic information about game state - not just pixel statistics.
+        A 97.8% map ID classification accuracy and 1.29-tile (per axis) coordinate error from a 32-dim continuous latent demonstrates the VAE is capturing rich semantic information about game state - not just pixel statistics.
       </div>
 
       <h2 id="planner">MPC Planner</h2>
@@ -209,9 +209,9 @@ Execute first action of best sequence via frozen PPO</code></pre>
             <tr><th>Metric</th><th>Value</th><th>Notes</th></tr>
           </thead>
           <tbody>
-            <tr><td>Train Loss (Total)</td><td class="highlight-cell">1258.41</td><td>Recon: 1227.76, KL: 30.66</td></tr>
-            <tr><td>Val Loss (Total)</td><td class="highlight-cell">1255.95</td><td>Recon: 1225.83, KL: 30.13</td></tr>
-            <tr><td>Epochs</td><td>15</td><td>Converged before 15</td></tr>
+            <tr><td>Train Loss (Total)</td><td class="highlight-cell">1110.31</td><td>Recon: 1082.55, KL: 27.77</td></tr>
+            <tr><td>Val Loss (Total)</td><td class="highlight-cell">1015.87</td><td>Recon: 991.88, KL: 23.99</td></tr>
+            <tr><td>Epochs</td><td>15</td><td>Best validation loss at epoch 15</td></tr>
             <tr><td>Latent Dim</td><td>32</td><td>Continuous Gaussian</td></tr>
           </tbody>
         </table>
@@ -225,9 +225,9 @@ Execute first action of best sequence via frozen PPO</code></pre>
             <tr><th>Task</th><th>Metric</th><th>Value</th></tr>
           </thead>
           <tbody>
-            <tr><td>Map ID Classification</td><td>Validation Accuracy</td><td class="highlight-cell"><strong>98.7%</strong></td></tr>
-            <tr><td>Player Coordinate Decoding</td><td>Manhattan Distance (MAE)</td><td class="highlight-cell"><strong>1.23 tiles</strong></td></tr>
-            <tr><td>Val Loss (Combined)</td><td>Probe loss</td><td>8.3260</td></tr>
+            <tr><td>Map ID Classification</td><td>Held-out Accuracy</td><td class="highlight-cell"><strong>97.8%</strong></td></tr>
+            <tr><td>Player Coordinate Decoding</td><td>Mean Absolute Error (per axis)</td><td class="highlight-cell"><strong>1.29 tiles</strong></td></tr>
+            <tr><td>Val Loss (Combined)</td><td>Probe loss</td><td>6.7365</td></tr>
           </tbody>
         </table>
       </div>
@@ -239,8 +239,8 @@ Execute first action of best sequence via frozen PPO</code></pre>
             <tr><th>Model</th><th>Val AR Loss</th><th>Val TF Loss</th><th>Notes</th></tr>
           </thead>
           <tbody>
-            <tr><td><strong>Scheduled Sampling (Primary)</strong></td><td class="highlight-cell"><strong>0.10314</strong></td><td>0.03675</td><td>20% min TF ratio</td></tr>
-            <tr><td>Pure Teacher Forcing (Ablation)</td><td class="warn-cell">0.72547</td><td>0.01913</td><td>TF=1.0 always</td></tr>
+            <tr><td><strong>Scheduled Sampling (Primary)</strong></td><td class="highlight-cell"><strong>0.12862</strong></td><td>0.04948</td><td>20% min TF ratio</td></tr>
+            <tr><td>Pure Teacher Forcing (Ablation)</td><td class="warn-cell">0.48385</td><td>0.04362</td><td>TF=1.0 always</td></tr>
           </tbody>
         </table>
       </div>
@@ -250,7 +250,7 @@ Execute first action of best sequence via frozen PPO</code></pre>
 
       <h2 id="results-drift">Results: Rollout Drift Analysis</h2>
       <p>
-        This is the key ablation. Over 14,564 validation trajectories of length 29, we compare the scheduled sampling model vs. the pure teacher forcing ablation as both are rolled out autoregressively.
+        This is the key ablation. Over 15,536 held-out trajectories of length 29, we compare the scheduled sampling model vs. the pure teacher forcing ablation as both are rolled out autoregressively.
       </p>
       <div class="table-wrapper">
         <table class="data-table">
@@ -258,18 +258,18 @@ Execute first action of best sequence via frozen PPO</code></pre>
             <tr><th>Step k</th><th>SS Latent MSE</th><th>TF Latent MSE</th><th>SS Tile Error</th><th>TF Tile Error</th><th>Ratio</th></tr>
           </thead>
           <tbody>
-            <tr><td>1</td><td>0.09268</td><td>0.12240</td><td>3.72 tiles</td><td>4.06 tiles</td><td class="improvement">1.09×</td></tr>
-            <tr><td>5</td><td>0.08751</td><td>0.23061</td><td>3.32 tiles</td><td>5.08 tiles</td><td class="improvement">1.53×</td></tr>
-            <tr><td>10</td><td>0.08842</td><td>0.40189</td><td class="highlight-cell">3.30 tiles</td><td class="warn-cell">6.47 tiles</td><td class="improvement">1.96×</td></tr>
-            <tr><td>15</td><td>0.09238</td><td>0.59876</td><td class="highlight-cell">3.33 tiles</td><td class="warn-cell">7.81 tiles</td><td class="improvement">2.35×</td></tr>
-            <tr><td>20</td><td>0.09830</td><td>0.78455</td><td class="highlight-cell">3.36 tiles</td><td class="warn-cell">9.13 tiles</td><td class="improvement">2.72×</td></tr>
-            <tr><td>25</td><td>0.10606</td><td>0.92376</td><td>3.42 tiles</td><td>9.72 tiles</td><td class="improvement">2.84×</td></tr>
-            <tr><td><strong>29</strong></td><td><strong>0.11197</strong></td><td><strong>1.04063</strong></td><td class="highlight-cell"><strong>3.47 tiles</strong></td><td class="warn-cell"><strong>10.44 tiles</strong></td><td class="improvement best-improvement"><strong>3.01×</strong></td></tr>
+            <tr><td>1</td><td>0.10187</td><td>0.13640</td><td>4.38 tiles</td><td>4.34 tiles</td><td class="improvement">0.99×</td></tr>
+            <tr><td>5</td><td>0.11551</td><td>0.25249</td><td>3.81 tiles</td><td>5.11 tiles</td><td class="improvement">1.34×</td></tr>
+            <tr><td>10</td><td>0.13915</td><td>0.46385</td><td class="highlight-cell">3.83 tiles</td><td class="warn-cell">6.98 tiles</td><td class="improvement">1.82×</td></tr>
+            <tr><td>15</td><td>0.15572</td><td>0.69037</td><td class="highlight-cell">3.92 tiles</td><td class="warn-cell">8.94 tiles</td><td class="improvement">2.28×</td></tr>
+            <tr><td>20</td><td>0.17057</td><td>0.87813</td><td class="highlight-cell">4.02 tiles</td><td class="warn-cell">10.36 tiles</td><td class="improvement">2.58×</td></tr>
+            <tr><td>25</td><td>0.18885</td><td>0.99588</td><td>4.17 tiles</td><td>10.81 tiles</td><td class="improvement">2.59×</td></tr>
+            <tr><td><strong>29</strong></td><td><strong>0.20115</strong></td><td><strong>1.06557</strong></td><td class="highlight-cell"><strong>4.25 tiles</strong></td><td class="warn-cell"><strong>11.63 tiles</strong></td><td class="improvement best-improvement"><strong>2.73×</strong></td></tr>
           </tbody>
         </table>
       </div>
       <p>
-        The SS model's tile error remains flat (3.30–3.47 tiles) across all 29 steps. The TF ablation degrades from 4.06 tiles at step 1 to 10.44 tiles at step 29 - a <strong>3× degradation</strong> in imagination quality.
+        The SS model's tile error stays roughly flat (3.71–4.38 tiles) across all 29 steps. The TF ablation degrades from 4.34 tiles at step 1 to 11.63 tiles at step 29 - a <strong>2.7× degradation</strong> in imagination quality.
       </p>
 
       <h2 id="hyperparams">Full Hyperparameter Registry</h2>

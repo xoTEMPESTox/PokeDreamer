@@ -143,13 +143,13 @@ function drawDriftChart(canvas) {
   ctx.scale(dpr, dpr);
 
   const steps = [1, 5, 10, 15, 20, 25, 29];
-  const ss    = [3.72, 3.32, 3.30, 3.33, 3.36, 3.42, 3.47];
-  const tf    = [4.06, 5.08, 6.47, 7.81, 9.13, 9.72, 10.44];
+  const ss    = [4.38, 3.81, 3.83, 3.92, 4.02, 4.17, 4.25];
+  const tf    = [4.34, 5.11, 6.98, 8.94, 10.36, 10.81, 11.63];
 
   const pad = { top: 24, right: 40, bottom: 48, left: 56 };
   const chartW = W - pad.left - pad.right;
   const chartH = H - pad.top - pad.bottom;
-  const maxVal = 11.5;
+  const maxVal = 12.5;
 
   const xScale = i => pad.left + (i / (steps.length - 1)) * chartW;
   const yScale = v => pad.top + chartH - (v / maxVal) * chartH;

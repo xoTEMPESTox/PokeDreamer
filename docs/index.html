@@ -92,12 +92,12 @@
       <!-- Stats bar -->
       <div class="hero-stats">
         <div class="stat-item">
-          <span class="stat-value">98.7%</span>
+          <span class="stat-value">97.8%</span>
           <span class="stat-label">Map ID Accuracy</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
-          <span class="stat-value">1.23</span>
+          <span class="stat-value">1.29</span>
           <span class="stat-label">Tiles Coord Error</span>
         </div>
         <div class="stat-divider"></div>
@@ -175,8 +175,8 @@
             <div class="timeline-metrics">
               <div class="metric"><span class="metric-val">40×36</span><span class="metric-lbl">Resolution</span></div>
               <div class="metric"><span class="metric-val">R³²</span><span class="metric-lbl">Latent Space</span></div>
-              <div class="metric"><span class="metric-val">98.7%</span><span class="metric-lbl">Map Accuracy</span></div>
-              <div class="metric"><span class="metric-val">1.23 tiles</span><span class="metric-lbl">Coord Error</span></div>
+              <div class="metric"><span class="metric-val">97.8%</span><span class="metric-lbl">Map Accuracy</span></div>
+              <div class="metric"><span class="metric-val">1.29 tiles</span><span class="metric-lbl">Coord Error</span></div>
             </div>
             <a href="v1.html" class="timeline-link">Full v1 Documentation →</a>
           </div>
@@ -241,7 +241,7 @@
           v1: Scheduled Sampling vs. Teacher Forcing - Rollout Drift
         </h3>
         <p class="results-desc">
-          Measured over 14,564 validation trajectories of length 29 steps. Scheduled sampling (SS) is critical: the SS model's compounding drift stays flat under 3.5 tiles out to 29 imagined steps, while the pure teacher-forcing (TF) ablation exceeds 10.4 tiles - a <strong>3× degradation</strong>.
+          Measured over 15,536 held-out trajectories of length 29 steps. Scheduled sampling (SS) is critical: the SS model's compounding drift stays roughly flat (3.71–4.38 tiles) out to 29 imagined steps, while the pure teacher-forcing (TF) ablation reaches 11.63 tiles - a <strong>2.7× degradation</strong>.
         </p>
         <div class="table-wrapper">
           <table class="data-table" id="drift-table">
@@ -256,13 +256,13 @@
               </tr>
             </thead>
             <tbody>
-              <tr><td>Step 1</td><td>0.09268</td><td>0.12240</td><td>3.72 tiles</td><td>4.06 tiles</td><td class="improvement">1.09×</td></tr>
-              <tr><td>Step 5</td><td>0.08751</td><td>0.23061</td><td>3.32 tiles</td><td>5.08 tiles</td><td class="improvement">1.53×</td></tr>
-              <tr><td>Step 10</td><td>0.08842</td><td>0.40189</td><td class="highlight-cell">3.30 tiles</td><td class="warn-cell">6.47 tiles</td><td class="improvement">1.96×</td></tr>
-              <tr><td>Step 15</td><td>0.09238</td><td>0.59876</td><td class="highlight-cell">3.33 tiles</td><td class="warn-cell">7.81 tiles</td><td class="improvement">2.35×</td></tr>
-              <tr><td>Step 20</td><td>0.09830</td><td>0.78455</td><td class="highlight-cell">3.36 tiles</td><td class="warn-cell">9.13 tiles</td><td class="improvement">2.72×</td></tr>
-              <tr><td>Step 25</td><td>0.10606</td><td>0.92376</td><td>3.42 tiles</td><td>9.72 tiles</td><td class="improvement">2.84×</td></tr>
-              <tr><td><strong>Step 29</strong></td><td><strong>0.11197</strong></td><td><strong>1.04063</strong></td><td class="highlight-cell"><strong>3.47 tiles</strong></td><td class="warn-cell"><strong>10.44 tiles</strong></td><td class="improvement best-improvement"><strong>3.01×</strong></td></tr>
+              <tr><td>Step 1</td><td>0.10187</td><td>0.13640</td><td>4.38 tiles</td><td>4.34 tiles</td><td class="improvement">0.99×</td></tr>
+              <tr><td>Step 5</td><td>0.11551</td><td>0.25249</td><td>3.81 tiles</td><td>5.11 tiles</td><td class="improvement">1.34×</td></tr>
+              <tr><td>Step 10</td><td>0.13915</td><td>0.46385</td><td class="highlight-cell">3.83 tiles</td><td class="warn-cell">6.98 tiles</td><td class="improvement">1.82×</td></tr>
+              <tr><td>Step 15</td><td>0.15572</td><td>0.69037</td><td class="highlight-cell">3.92 tiles</td><td class="warn-cell">8.94 tiles</td><td class="improvement">2.28×</td></tr>
+              <tr><td>Step 20</td><td>0.17057</td><td>0.87813</td><td class="highlight-cell">4.02 tiles</td><td class="warn-cell">10.36 tiles</td><td class="improvement">2.58×</td></tr>
+              <tr><td>Step 25</td><td>0.18885</td><td>0.99588</td><td>4.17 tiles</td><td>10.81 tiles</td><td class="improvement">2.59×</td></tr>
+              <tr><td><strong>Step 29</strong></td><td><strong>0.20115</strong></td><td><strong>1.06557</strong></td><td class="highlight-cell"><strong>4.25 tiles</strong></td><td class="warn-cell"><strong>11.63 tiles</strong></td><td class="improvement best-improvement"><strong>2.73×</strong></td></tr>
             </tbody>
           </table>
         </div>
@@ -560,6 +560,6 @@ python scripts/collect_data.py --episodes 20 --out-dir data</code></pre>
     </div>
   </footer>
 
-  <script src="assets/main.js"></script>
+  <script src="assets/main.js?v=1.4"></script>
 </body>
 </html>

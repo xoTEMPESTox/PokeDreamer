@@ -41,24 +41,24 @@ An experimental research project applying **Dreamer-style model-based reinforcem
 | **Probe** | Linear + MLP probes for player (x,y) and map_id from frozen latents |
 
 ### v1 Key Results
-- **VAE Reconstruction**: Train/Val Loss ~1258/~1256 (MSE on pixel space)
-- **Map ID Classification**: **98.7% accuracy** from 32-dim latent alone
-- **Coordinate Probe Error**: **1.23 tiles** Manhattan distance (mean absolute error)
-- **Dynamics Model** (Scheduled Sampling): Val AR Loss = **0.10314** vs. Pure TF Ablation = **0.72547**
-- **Imagination Stability**: At 29 steps of free rollout, SS model drifts only **3.47 tiles** vs 10.44 tiles for pure teacher forcing
+- **VAE Reconstruction**: Val Loss ~1016 (BCE + KL per image)
+- **Map ID Classification**: **97.8% accuracy** from 32-dim latent alone (held-out episodes)
+- **Coordinate Probe Error**: **1.29 tiles** mean absolute error per axis
+- **Dynamics Model** (Scheduled Sampling): Val AR Loss = **0.12862** vs. Pure TF Ablation = **0.48385**
+- **Imagination Stability**: At 29 steps of free rollout, SS model drifts **4.25 tiles** vs 11.63 tiles for pure teacher forcing
 
 ### Rollout Drift  Scheduled Sampling vs Teacher Forcing
 
 | Rollout Step | SS Latent MSE | TF Latent MSE | SS Tile Error | TF Tile Error |
 |---|---|---|---|---|
-| Step 1 | 0.09268 | 0.12240 | 3.72 tiles | 4.06 tiles |
-| Step 5 | 0.08751 | 0.23061 | 3.32 tiles | 5.08 tiles |
-| Step 10 | 0.08842 | 0.40189 | **3.30 tiles** | **6.47 tiles** |
-| Step 15 | 0.09238 | 0.59876 | **3.33 tiles** | **7.81 tiles** |
-| Step 20 | 0.09830 | 0.78455 | **3.36 tiles** | **9.13 tiles** |
-| Step 29 | **0.11197** | **1.04063** | **3.47 tiles** | **10.44 tiles** |
+| Step 1 | 0.10187 | 0.13640 | 4.38 tiles | 4.34 tiles |
+| Step 5 | 0.11551 | 0.25249 | 3.81 tiles | 5.11 tiles |
+| Step 10 | 0.13915 | 0.46385 | **3.83 tiles** | **6.98 tiles** |
+| Step 15 | 0.15572 | 0.69037 | **3.92 tiles** | **8.94 tiles** |
+| Step 20 | 0.17057 | 0.87813 | **4.02 tiles** | **10.36 tiles** |
+| Step 29 | **0.20115** | **1.06557** | **4.25 tiles** | **11.63 tiles** |
 
-> **Finding**: Scheduled sampling is critical for imagination stability. The SS model's compounding drift stays flat under 3.5 tiles out to 29 steps, while the pure TF ablation exceeds 10.4 tiles  a 3× degradation.
+> **Finding**: Scheduled sampling is critical for imagination stability. The SS model's compounding drift stays roughly flat (3.71–4.38 tiles) out to 29 steps, while the pure TF ablation reaches 11.63 tiles  a 2.7× degradation.
 
 ---
 
