@@ -168,6 +168,13 @@ class HybridDenoiser(Denoiser):
         self.ram_y_emb = nn.Embedding(80, ram_dim)
         self.ram_battle_emb = nn.Embedding(2, ram_dim)
         self.ram_proj = nn.Linear(ram_dim, cond_dim)
+        self.ram_null = nn.Parameter(torch.zeros(cond_dim))
+
+    def load_state_dict(self, state_dict, strict=True, **kwargs):
+        state_dict = dict(state_dict)
+        if "ram_null" not in state_dict:
+            state_dict["ram_null"] = self.ram_null.data.clone()
+        return super().load_state_dict(state_dict, strict=strict, **kwargs)
 
     def ram_emb(self, ram_target):
         ram = _clean_ram(ram_target, device=self.ram_proj.weight.device, required=("map", "x", "y", "battle"))
@@ -186,16 +193,24 @@ class HybridDenoiser(Denoiser):
         b = x_noisy.shape[0]
         if isinstance(aug_bucket, int):
             aug_bucket = torch.full((b,), aug_bucket, device=x_noisy.device, dtype=torch.long)
+        if isinstance(ram_target, torch.Tensor):
+            r_emb = ram_target
+            if r_emb.ndim == 1:
+                r_emb = r_emb.unsqueeze(0).expand(b, -1)
+        elif ram_target is None:
+            r_emb = self.ram_null.unsqueeze(0).expand(b, -1)
+        else:
+            r_emb = self.ram_emb(ram_target)
         cond = (
             self.noise_emb(sigma.log() / 4)
             + self.act_emb(actions).flatten(1)
-            + self.ram_emb(ram_target)
+            + r_emb
             + self.aug_emb(aug_bucket)
         )
         out = self.unet(torch.cat([x_noisy * c_in, ctx], 1), self.cond_mlp(cond))
         return out, c_skip, c_out
 
-    def loss(self, frames, actions, ram_target, ctx_aug=False):
+    def loss(self, frames, actions, ram_target, ctx_aug=False, cond_drop=0.0):
         """Teacher-forced renderer loss on target frame conditioned on true next RAM."""
         b = frames.shape[0]
         target, ctx = frames[:, -1:], frames[:, :-1]
@@ -204,11 +219,18 @@ class HybridDenoiser(Denoiser):
             ctx = ctx + torch.randn_like(ctx) * (aug * AUG_MAX / (AUG_BUCKETS - 1))[:, None, None, None]
         sigma = (torch.randn(b, device=frames.device) * P_STD + P_MEAN).exp()
         x_noisy = target + torch.randn_like(target) * sigma[:, None, None, None]
-        out, c_skip, c_out = self.raw(x_noisy, sigma, ctx, actions, ram_target, aug)
+        if cond_drop > 0.0:
+            drop_mask = torch.rand(b, device=frames.device) < cond_drop
+            r_emb = self.ram_emb(ram_target)
+            r_null = self.ram_null.unsqueeze(0).expand(b, -1)
+            r_emb = torch.where(drop_mask[:, None], r_null, r_emb)
+        else:
+            r_emb = ram_target
+        out, c_skip, c_out = self.raw(x_noisy, sigma, ctx, actions, r_emb, aug)
         return F.mse_loss(out.float(), ((target - c_skip * x_noisy) / c_out).float())
 
     @torch.no_grad()
-    def sample(self, ctx, actions, ram_target, steps=3, aug_bucket=0):
+    def sample(self, ctx, actions, ram_target, steps=3, aug_bucket=0, guidance=1.0):
         """Sample one frame conditioned on context frames, actions, and predicted target RAM."""
         b = ctx.shape[0]
         aug = torch.full((b,), aug_bucket, device=ctx.device, dtype=torch.long)
@@ -218,14 +240,34 @@ class HybridDenoiser(Denoiser):
         sigmas = (SIGMA_MAX ** (1 / RHO) + i * (SIGMA_MIN ** (1 / RHO) - SIGMA_MAX ** (1 / RHO))) ** RHO
         sigmas = torch.cat([sigmas, sigmas.new_zeros(1)])
         x = torch.randn(b, 1, *ctx.shape[2:], device=ctx.device) * sigmas[0]
+
+        if guidance == 1.0:
+            for s, s_next in zip(sigmas[:-1], sigmas[1:]):
+                out, c_skip, c_out = self.raw(x, s.expand(b), ctx, actions, ram_target, aug)
+                denoised = c_skip * x + c_out * out.float()
+                x = x + (x - denoised) / s * (s_next - s)
+            return x.clamp(-1, 1)
+
+        r_cond = self.ram_emb(ram_target)
+        r_uncond = self.ram_null.unsqueeze(0).expand(b, -1)
+        r_both = torch.cat([r_cond, r_uncond], dim=0)
+        ctx_both = torch.cat([ctx, ctx], dim=0)
+        act_both = torch.cat([actions, actions], dim=0)
+        aug_both = torch.cat([aug, aug], dim=0)
+
         for s, s_next in zip(sigmas[:-1], sigmas[1:]):
-            out, c_skip, c_out = self.raw(x, s.expand(b), ctx, actions, ram_target, aug)
-            denoised = c_skip * x + c_out * out.float()
+            x_both = torch.cat([x, x], dim=0)
+            out_both, c_skip, c_out = self.raw(x_both, s.expand(2 * b), ctx_both, act_both, r_both, aug_both)
+            out_cond, out_uncond = out_both[:b], out_both[b:]
+            out = out_uncond + guidance * (out_cond - out_uncond)
+            c_skip_b = c_skip[:b]
+            c_out_b = c_out[:b]
+            denoised = c_skip_b * x + c_out_b * out.float()
             x = x + (x - denoised) / s * (s_next - s)
         return x.clamp(-1, 1)
 
     @torch.no_grad()
-    def rollout(self, frames_ctx, ram_ctx, actions, steps=3, ram_model=None, aug_bucket=0):
+    def rollout(self, frames_ctx, ram_ctx, actions, steps=3, ram_model=None, aug_bucket=0, guidance=1.0):
         """Open-loop hybrid imagination.
         frames_ctx: (B, CTX, H, W)
         ram_ctx: dict of (B, CTX)
@@ -261,7 +303,10 @@ class HybridDenoiser(Denoiser):
             for key in out_ram:
                 out_ram[key].append(next_ram[key])
 
-            nxt_frame = self.sample(curr_frames[:, -CTX:], act_slice, next_ram, steps=steps, aug_bucket=aug_bucket)
+            if guidance == 1.0:
+                nxt_frame = self.sample(curr_frames[:, -CTX:], act_slice, next_ram, steps=steps, aug_bucket=aug_bucket)
+            else:
+                nxt_frame = self.sample(curr_frames[:, -CTX:], act_slice, next_ram, steps=steps, aug_bucket=aug_bucket, guidance=guidance)
             out_frames.append(nxt_frame)
 
             curr_frames = torch.cat([curr_frames[:, 1:], nxt_frame], dim=1)

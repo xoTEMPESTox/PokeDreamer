@@ -116,6 +116,8 @@ def main():
     ap.add_argument("--no-ctx-aug", action="store_true", default=True, help="train without context-noise augmentation (default)")
     ap.add_argument("--batch", type=int, default=BATCH)
     ap.add_argument("--device", type=str, default="cuda", help="cuda or cpu")
+    ap.add_argument("--cond-drop", type=float, default=0.0, help="probability of dropping RAM conditioning during training")
+    ap.add_argument("--init-from", type=str, default=None, help="path to existing checkpoint to initialize weights from")
     args = ap.parse_args()
 
     torch.set_num_threads(4)
@@ -172,13 +174,23 @@ def main():
         opt.load_state_dict(state["opt"])
         step, elapsed = state["step"], state["elapsed"]
         log(f"resumed at step {step}, {elapsed / 60:.1f} min trained")
+    elif args.init_from:
+        init_path = Path(args.init_from)
+        if not init_path.exists():
+            raise FileNotFoundError(f"init-from checkpoint not found: {init_path}")
+        state = torch.load(init_path, map_location=dev, weights_only=True)
+        model.load_state_dict(state["model"])
+        ema.load_state_dict(state["ema"])
+        ram_model.load_state_dict(state["ram"])
+        log(f"initialized weights from {init_path} (step reset to 0, fresh optimizer)")
 
     p_rend = sum(p.numel() for p in model.parameters()) / 1e6
     p_ram = sum(p.numel() for p in ram_model.parameters()) / 1e6
     log(
         f"params: renderer {p_rend:.2f}M, ram {p_ram:.2f}M (total {p_rend + p_ram:.2f}M), "
         f"train windows {len(train_starts)}, batch {args.batch}, lr {LR}, budget {args.minutes} min, "
-        f"max steps {args.max_steps or '-'}, context-noise aug {'OFF' if args.no_ctx_aug else 'on'}"
+        f"max steps {args.max_steps or '-'}, context-noise aug {'OFF' if args.no_ctx_aug else 'on'}, "
+        f"cond-drop {args.cond_drop}"
     )
 
     def save():
@@ -210,11 +222,11 @@ def main():
 
         if "cuda" in dev:
             with torch.autocast("cuda", torch.bfloat16):
-                loss_rend = model.loss(f, acts, target_ram, ctx_aug=not args.no_ctx_aug)
+                loss_rend = model.loss(f, acts, target_ram, ctx_aug=not args.no_ctx_aug, cond_drop=args.cond_drop)
                 loss_ram = ram_model.loss(ram_ctx, acts, target_ram)
                 loss = loss_rend + loss_ram
         else:
-            loss_rend = model.loss(f, acts, target_ram, ctx_aug=not args.no_ctx_aug)
+            loss_rend = model.loss(f, acts, target_ram, ctx_aug=not args.no_ctx_aug, cond_drop=args.cond_drop)
             loss_ram = ram_model.loss(ram_ctx, acts, target_ram)
             loss = loss_rend + loss_ram
 

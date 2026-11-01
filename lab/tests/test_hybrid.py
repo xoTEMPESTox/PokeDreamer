@@ -1,11 +1,13 @@
 """Unit tests for the hybrid world model (RamDynamics and HybridDenoiser)."""
+from pathlib import Path
+
 import numpy as np
 import pytest
 import torch
 import torch.nn as nn
 
 from lab.dwm.hybrid import HybridDenoiser, RamDynamics, rollout
-from lab.dwm.model import CTX, Denoiser
+from lab.dwm.model import CTX, Denoiser, ResBlock
 
 
 def test_ram_dynamics_output_shapes():
@@ -208,3 +210,137 @@ def test_action_alignment_matches_denoiser():
         assert (d.action_slices[k] == expected_act).all()
         assert (h.action_slices[k] == expected_act).all()
         assert (d.action_slices[k] == h.action_slices[k]).all()
+
+
+def test_guidance_1_reproduces_old_sample_under_fixed_seed():
+    """Verify guidance=1.0 reproduces the old sample exactly under a fixed seed."""
+    from lab.dwm.model import RHO, SIGMA_MAX, SIGMA_MIN
+
+    B = 2
+    model = HybridDenoiser()
+    ctx = torch.randn(B, CTX, 72, 80)
+    actions = torch.randint(0, 8, (B, CTX))
+    ram_target = {
+        "map": torch.randint(0, 256, (B,)),
+        "x": torch.randint(0, 64, (B,)),
+        "y": torch.randint(0, 80, (B,)),
+        "battle": torch.randint(0, 2, (B,)),
+    }
+
+    # Reference execution of the original sample loop without CFG logic
+    steps = 2
+    torch.manual_seed(42)
+    b = ctx.shape[0]
+    aug = torch.full((b,), 0, device=ctx.device, dtype=torch.long)
+    i = torch.arange(steps, device=ctx.device) / max(steps - 1, 1)
+    sigmas = (SIGMA_MAX ** (1 / RHO) + i * (SIGMA_MIN ** (1 / RHO) - SIGMA_MAX ** (1 / RHO))) ** RHO
+    sigmas = torch.cat([sigmas, sigmas.new_zeros(1)])
+    x = torch.randn(b, 1, *ctx.shape[2:], device=ctx.device) * sigmas[0]
+    for s, s_next in zip(sigmas[:-1], sigmas[1:]):
+        out, c_skip, c_out = model.raw(x, s.expand(b), ctx, actions, ram_target, aug)
+        denoised = c_skip * x + c_out * out.float()
+        x = x + (x - denoised) / s * (s_next - s)
+    expected = x.clamp(-1, 1)
+
+    torch.manual_seed(42)
+    sample_guided_1 = model.sample(ctx, actions, ram_target, steps=steps, guidance=1.0)
+
+    assert torch.equal(sample_guided_1, expected)
+
+
+def test_guidance_not_1_runs_and_returns_right_shapes():
+    """Verify guidance != 1.0 runs and returns the right shapes for sample and rollout."""
+    B, K = 2, 3
+    model = HybridDenoiser()
+    ctx = torch.randn(B, CTX, 72, 80)
+    actions = torch.randint(0, 8, (B, CTX))
+    ram_target = {
+        "map": torch.randint(0, 256, (B,)),
+        "x": torch.randint(0, 64, (B,)),
+        "y": torch.randint(0, 80, (B,)),
+        "battle": torch.randint(0, 2, (B,)),
+    }
+
+    sample_out = model.sample(ctx, actions, ram_target, steps=2, guidance=2.0)
+    assert sample_out.shape == (B, 1, 72, 80)
+    assert torch.isfinite(sample_out).all()
+
+    ram_ctx = {
+        "map": torch.randint(0, 256, (B, CTX)),
+        "x": torch.randint(0, 64, (B, CTX)),
+        "y": torch.randint(0, 80, (B, CTX)),
+        "facing": torch.randint(0, 4, (B, CTX)),
+        "battle": torch.randint(0, 2, (B, CTX)),
+    }
+    actions_rollout = torch.randint(0, 8, (B, CTX + K - 1))
+    ram_model = RamDynamics(embed_dim=16, hidden_dim=32)
+
+    frames, pred_ram = model.rollout(ctx, ram_ctx, actions_rollout, steps=1, guidance=2.5, ram_model=ram_model)
+    assert frames.shape == (B, K, 72, 80)
+    assert torch.isfinite(frames).all()
+    assert pred_ram["map"].shape == (B, K)
+
+
+def test_cond_drop_1_makes_loss_independent_of_ram_target():
+    """Verify cond_drop=1.0 makes the loss independent of ram_target under a fixed seed."""
+    B = 2
+    model = HybridDenoiser()
+    # Ensure conditioning affects output when not dropped by giving non-zero weights to conv2 and conv_out
+    with torch.no_grad():
+        model.unet.conv_out.weight.fill_(0.01)
+        for m in model.unet.modules():
+            if isinstance(m, ResBlock):
+                m.conv2.weight.fill_(0.01)
+
+    frames = torch.randn(B, CTX + 1, 72, 80).clamp(-1, 1)
+    actions = torch.randint(0, 8, (B, CTX))
+
+    ram_target_1 = {
+        "map": torch.tensor([1, 2]),
+        "x": torch.tensor([10, 20]),
+        "y": torch.tensor([30, 40]),
+        "battle": torch.tensor([0, 1]),
+    }
+    ram_target_2 = {
+        "map": torch.tensor([50, 99]),
+        "x": torch.tensor([5, 15]),
+        "y": torch.tensor([25, 35]),
+        "battle": torch.tensor([1, 0]),
+    }
+
+    # With cond_drop=1.0, both losses should be identical
+    torch.manual_seed(999)
+    loss1 = model.loss(frames, actions, ram_target_1, ctx_aug=False, cond_drop=1.0)
+
+    torch.manual_seed(999)
+    loss2 = model.loss(frames, actions, ram_target_2, ctx_aug=False, cond_drop=1.0)
+
+    assert torch.allclose(loss1, loss2)
+
+    # Sanity check: with cond_drop=0.0, different ram targets yield different losses
+    torch.manual_seed(999)
+    loss_cond1 = model.loss(frames, actions, ram_target_1, ctx_aug=False, cond_drop=0.0)
+    torch.manual_seed(999)
+    loss_cond2 = model.loss(frames, actions, ram_target_2, ctx_aug=False, cond_drop=0.0)
+    assert not torch.allclose(loss_cond1, loss_cond2)
+
+
+def test_old_format_state_dict_without_null_key_loads():
+    """Verify an old-format state dict (without ram_null key) loads cleanly."""
+    model = HybridDenoiser()
+    sd = model.state_dict()
+    assert "ram_null" in sd
+    del sd["ram_null"]
+
+    new_model = HybridDenoiser()
+    new_model.load_state_dict(sd, strict=True)
+    assert hasattr(new_model, "ram_null")
+    assert torch.allclose(new_model.ram_null, torch.zeros_like(new_model.ram_null))
+
+    # Also verify with the actual checkpoint work/runs/hybrid/ckpt.pt if present
+    ckpt_path = Path("work/runs/hybrid/ckpt.pt")
+    if ckpt_path.exists():
+        state = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+        assert "ram_null" not in state["model"]
+        new_model.load_state_dict(state["model"], strict=True)
+        assert torch.isfinite(new_model.ram_null).all()

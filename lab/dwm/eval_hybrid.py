@@ -39,6 +39,7 @@ def evaluate_split_hybrid(
     aug_bucket: int = 0,
     device: str = "cpu",
     batch: int = 128,
+    guidance: float = 1.0,
 ) -> dict:
     """Run hybrid rollouts and evaluate against RAM ground truth and probe readings."""
     starts = np.asarray(starts)
@@ -82,11 +83,11 @@ def evaluate_split_hybrid(
             if "cuda" in str(device):
                 with torch.autocast("cuda", torch.bfloat16):
                     img_batch, ram_batch = model.rollout(
-                        ctx_tensor, ram_ctx, act_tensor, steps=steps, aug_bucket=aug_bucket, ram_model=ram_model
+                        ctx_tensor, ram_ctx, act_tensor, steps=steps, aug_bucket=aug_bucket, ram_model=ram_model, guidance=guidance
                     )
             else:
                 img_batch, ram_batch = model.rollout(
-                    ctx_tensor, ram_ctx, act_tensor, steps=steps, aug_bucket=aug_bucket, ram_model=ram_model
+                    ctx_tensor, ram_ctx, act_tensor, steps=steps, aug_bucket=aug_bucket, ram_model=ram_model, guidance=guidance
                 )
 
         imagined_list.append(img_batch.cpu().float().numpy())
@@ -323,6 +324,7 @@ def main():
     parser.add_argument("--aug-bucket", type=int, default=0, help="Augmentation bucket")
     parser.add_argument("--device", type=str, default="cuda", help="cuda or cpu")
     parser.add_argument("--batch", type=int, default=128, help="Batch size")
+    parser.add_argument("--guidance", type=float, default=1.0, help="Classifier-free guidance weight for RAM conditioning (default: 1.0)")
     args = parser.parse_args()
 
     dev = args.device
@@ -354,7 +356,7 @@ def main():
     Path("work/plots").mkdir(parents=True, exist_ok=True)
 
     for split_name in splits_to_eval:
-        print(f"\n--- Evaluating hybrid split: {split_name} (K={args.k}, steps={args.steps}) ---")
+        print(f"\n--- Evaluating hybrid split: {split_name} (K={args.k}, steps={args.steps}, guidance={args.guidance}) ---")
         all_starts = windows(data, splits[split_name], CTX + args.k)
         rng = np.random.default_rng(0)
         n = min(len(all_starts), args.n_windows)
@@ -372,6 +374,7 @@ def main():
             aug_bucket=args.aug_bucket,
             device=dev,
             batch=args.batch,
+            guidance=args.guidance,
         )
 
         episode_ids = data["episode_id"][starts]
@@ -413,7 +416,7 @@ def main():
 
         print_compact_table_hybrid(summary, split_name)
 
-        stem = f"{args.run}_{split_name}_hybrid"
+        stem = f"{args.run}_{split_name}_hybrid" if args.guidance == 1.0 else f"{args.run}_{split_name}_hybrid_g{args.guidance}"
         npz_path = Path("work/eval") / f"{stem}.npz"
         json_path = Path("work/eval") / f"{stem}.json"
 
