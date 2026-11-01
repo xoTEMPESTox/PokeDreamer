@@ -123,8 +123,12 @@ def main():
     rng = np.random.default_rng(it)
     ar = torch.arange(CTX, device=dev)
     t_last = time.time()
+    # equal starts per map: the 1st floor is ~1.4% of contexts, and an unbalanced run (to it 220) learned the
+    # bedroom stairs (30/30 real episodes reached the 1st floor) but walked straight back up from there
+    by_map = [starts[data["map_ids"][starts + CTX - 1] == m] for m in EXIT]
+    log("start contexts per map: " + ", ".join(f"{m}: {len(b)}" for m, b in zip(EXIT, by_map)))
     while elapsed < args.minutes * 60:
-        s = torch.from_numpy(rng.choice(starts, BATCH)).to(dev)
+        s = torch.from_numpy(np.concatenate([rng.choice(b, BATCH // len(by_map)) for b in by_map])).to(dev)
         ctx = to_float(frames[s[:, None] + ar])                       # (B, CTX, H, W)
         past = acts[s[:, None] + ar[:-1]]                             # actions between the context frames
         last_i = (s + CTX - 1).cpu().numpy()
