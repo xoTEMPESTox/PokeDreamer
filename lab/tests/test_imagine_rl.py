@@ -35,3 +35,14 @@ def test_battle_ends_rollout_without_penalty_and_multi_exit_tasks():
     r, alive, cont = rewards_from_probe(maps, xs, ys, np.array([0, 0]), np.array([11, 10]), np.array([4, 5]), exits, battle)
     np.testing.assert_allclose(r[0], [1 - STEP_COST] * 3)                     # nearest exit (11, 0): one tile closer per step
     assert r[1, 1] == -STEP_COST and alive[1, 2] == 0 and cont[1, 1] == 0      # battle: ends, no warp bonus or penalty
+
+
+def test_step_clip_bounds_misread_jumps():
+    # bedroom exit (7, 1); the probe misreads step 2 as 6 tiles away, then reads the true tile again
+    maps = np.full((1, 3), 38)
+    xs, ys = np.array([[4, 4, 4]]), np.array([[6, 9, 6]])          # true walk would be (4,6) -> (4,6) -> (4,6)
+    start = (np.array([38]), np.array([4]), np.array([6]))
+    r, _, _ = rewards_from_probe(maps, xs, ys, *start, step_clip=1.0)
+    np.testing.assert_allclose(r[0], [-STEP_COST, -1 - STEP_COST, 1 - STEP_COST])   # +-1 at most per press
+    r0, _, _ = rewards_from_probe(maps, xs, ys, *start)
+    np.testing.assert_allclose(r0[0], [-STEP_COST, -3 - STEP_COST, 3 - STEP_COST])  # unclipped default unchanged

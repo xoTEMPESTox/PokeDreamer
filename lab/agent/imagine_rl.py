@@ -54,9 +54,11 @@ class Policy(nn.Module):
 
 
 def rewards_from_probe(maps, xs, ys, start_map, start_x, start_y, exits=TASKS["leave_house"]["exits"], battle=None,
-                       fields=None):
+                       fields=None, step_clip=None):
     """Per-step reward, alive mask (step belongs to the rollout) and continuation mask (rollout goes on after
-    the step) for imagined trajectories (B, H) starting on start_map at the real tile (start_x, start_y)."""
+    the step) for imagined trajectories (B, H) starting on start_map at the real tile (start_x, start_y).
+    step_clip bounds the per-step progress term: a press moves at most one tile, so a larger change in the
+    probe-read distance is a misread or a hallucinated jump (viridian_geo hit -30 single-step rewards)."""
     b, h = maps.shape
     battle = np.zeros((b, h), bool) if battle is None else np.asarray(battle, bool)
     dist = exit_distance(np.broadcast_to(start_map[:, None], (b, h)), xs, ys, exits, fields)
@@ -67,7 +69,8 @@ def rewards_from_probe(maps, xs, ys, start_map, start_x, start_y, exits=TASKS["l
     for k in range(h):
         prev = dist[:, k - 1] if k else dist0
         left = ~on_map[:, k] & (on_map[:, k - 1] if k else True)
-        r[:, k] = np.where(on_map[:, k], prev - dist[:, k] - STEP_COST, 0.0)
+        progress = prev - dist[:, k] if step_clip is None else np.clip(prev - dist[:, k], -step_clip, step_clip)
+        r[:, k] = np.where(on_map[:, k], progress - STEP_COST, 0.0)
         r[:, k] = np.where(left, np.where(battle[:, k], -STEP_COST, np.where(prev <= 1, WARP_BONUS, -HALLUCINATION_PENALTY)), r[:, k])
         alive[:, k] = on_map[:, k] | left
     return r, alive, on_map.astype(np.float32)
@@ -94,6 +97,7 @@ def main():
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--geodesic", action="store_true",
                     help="reward progress in path distance over the train split's observed moves, not Manhattan")
+    ap.add_argument("--step-clip", type=float, default=None, help="clip per-step progress to +-this many tiles")
     args = ap.parse_args()
     dev = args.device
     out = Path("work/agent_rl") / args.name
@@ -111,7 +115,8 @@ def main():
     last = starts + CTX - 1
     exits = TASKS[args.task]["exits"]
     fields = train_geodesic_fields(exits) if args.geodesic else None
-    log(f"distance to exit: {'geodesic (observed moves, train split)' if args.geodesic else 'Manhattan'}")
+    log(f"distance to exit: {'geodesic (observed moves, train split)' if args.geodesic else 'Manhattan'}; "
+        f"step clip {args.step_clip}")
     train_maps = TASKS[args.task].get("train_maps", list(exits))
     ok = np.isin(data["map_ids"][last], train_maps) & ~data["in_battles"][starts[:, None] + np.arange(CTX)].any(1)
     starts = starts[ok]
@@ -162,7 +167,8 @@ def main():
             p = predict(probe, ((imag + 1) / 2).cpu().numpy().reshape(-1, 72, 80), device=dev)
             battle = p["battle"].reshape(BATCH, H)
             r, alive, cont = rewards_from_probe(p["map_id"].reshape(BATCH, H), p["x"].reshape(BATCH, H),
-                                                p["y"].reshape(BATCH, H), start_map, start_x, start_y, exits, battle, fields)
+                                                p["y"].reshape(BATCH, H), start_map, start_x, start_y, exits, battle, fields,
+                                                args.step_clip)
             _, v_last = policy(ctx)
         obs_t = torch.stack(obs, 1)                                   # (B, H, CTX, 72, 80)
         logits, v = policy(obs_t.flatten(0, 1))
