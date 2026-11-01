@@ -86,7 +86,19 @@ def orthogonal_displacement(dx, dy, d: int):
         raise ValueError(f"Invalid direction d={d}, expected 0, 1, 2, or 3")
 
 
-def real_reference(data: dict, eps, d: int, K: int) -> dict:
+def free_to_move(data: dict, t0, n: int):
+    """True where RAM shows the player's tile changing within steps t0+1..t0+n on the same map, out of battle
+    (rules out open text boxes, where direction buttons do nothing; the dataset has no usable dialog flag)."""
+    t0 = np.asarray(t0)
+    idx = t0[:, None] + np.arange(n + 1)
+    idx = np.minimum(idx, len(data["xs"]) - 1)
+    same = (data["map_ids"][idx] == data["map_ids"][t0][:, None]).all(1) & ~data["in_battles"][idx].any(1)
+    same &= (data["episode_id"][idx] == data["episode_id"][t0][:, None]).all(1)
+    moved = (data["xs"][idx[:, 1:]] != data["xs"][t0][:, None]) | (data["ys"][idx[:, 1:]] != data["ys"][t0][:, None])
+    return same & moved.any(1)
+
+
+def real_reference(data: dict, eps, d: int, K: int, require_move: int = 0) -> dict:
     """Find real windows where direction button d was pressed K times in a row, all overworld,
     and report the commanded-axis displacement from RAM.
 
@@ -126,6 +138,8 @@ def real_reference(data: dict, eps, d: int, K: int) -> dict:
     same_map = (data["map_ids"][map_idx] == map0[:, None]).all(axis=1)
 
     valid_mask = no_battle & same_action & same_map
+    if require_move:
+        valid_mask &= free_to_move(data, w + CTX - 1, require_move)
     matching_starts = w[valid_mask]
     n_matches = len(matching_starts)
 
@@ -153,7 +167,8 @@ def real_reference(data: dict, eps, d: int, K: int) -> dict:
     }
 
 
-def pick_contexts(data: dict, eps, probe, n_contexts: int, seed: int = 0, device: str = "cpu") -> np.ndarray:
+def pick_contexts(data: dict, eps, probe, n_contexts: int, seed: int = 0, device: str = "cpu",
+                  require_move: int = 0) -> np.ndarray:
     """Pick windows of length CTX from the split where all CTX frames are overworld,
     and the probe correctly reads the last context frame's map and position.
     """
@@ -165,6 +180,8 @@ def pick_contexts(data: dict, eps, probe, n_contexts: int, seed: int = 0, device
     idx = cand[:, None] + np.arange(CTX)
     overworld = ~data["in_battles"][idx].any(axis=1)
     cand = cand[overworld]
+    if require_move:
+        cand = cand[free_to_move(data, cand + CTX - 1, require_move)]
     if len(cand) == 0:
         return np.empty((0,), dtype=int)
 
@@ -419,10 +436,11 @@ def print_compact_table(results: dict):
 
 def evaluate_split(model: Denoiser, probe, data: dict, splits: dict,
                    split_name: str, run: str, n_contexts: int, K: int,
-                   steps: int, device: str, seed: int) -> dict:
+                   steps: int, device: str, seed: int, require_move: int = 0) -> dict:
     """Run action-controllability test on one split."""
     eps = splits[split_name]
-    starts = pick_contexts(data, eps, probe, n_contexts=n_contexts, seed=seed, device=device)
+    starts = pick_contexts(data, eps, probe, n_contexts=n_contexts, seed=seed, device=device,
+                           require_move=require_move)
     B = len(starts)
     if B == 0:
         raise RuntimeError(f"No valid contexts found for split {split_name}")
@@ -490,7 +508,7 @@ def evaluate_split(model: Denoiser, probe, data: dict, splits: dict,
         mo_m, mo_lo, mo_hi = bootstrap_ci(moved_opp[:, k_indices], seed=seed)
         v_m, v_lo, v_hi = bootstrap_ci(is_valid[:, k_indices], seed=seed)
 
-        ref = real_reference(data, eps, d, K)
+        ref = real_reference(data, eps, d, K, require_move=require_move)
         ref_mean_by_k = {str(k): float(ref["mean"][k - 1]) if ref["count"] > 0 else 0.0 for k in ks}
 
         # Convert to 1D arrays if scalar (when len(ks) == 1)
@@ -558,7 +576,7 @@ def evaluate_split(model: Denoiser, probe, data: dict, splits: dict,
     }
 
     # Save output artifacts
-    stem = f"{run}_{split_name}_k{K}_s{steps}"
+    stem = f"{run}_{split_name}_k{K}_s{steps}" + (f"_free{require_move}" if require_move else "")
     eval_dir = Path("work/eval")
     plots_dir = Path("work/plots")
     eval_dir.mkdir(parents=True, exist_ok=True)
@@ -584,6 +602,8 @@ def main():
     ap.add_argument("--steps", type=int, default=3)
     ap.add_argument("--device", type=str, default="cuda")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--require-move", type=int, default=0,
+                    help="only contexts (and real references) where RAM shows the player moving within N steps")
     args = ap.parse_args()
 
     data, splits = load()
@@ -605,6 +625,7 @@ def main():
             steps=args.steps,
             device=args.device,
             seed=args.seed,
+            require_move=args.require_move,
         )
 
 

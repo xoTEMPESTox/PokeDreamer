@@ -171,3 +171,18 @@ def test_real_reference_uint8_ram_moving_up():
     res = real_reference(data, eps=[0], d=3, K=K)
     assert res["count"] == 1
     np.testing.assert_array_equal(res["displacements"][0], [1, 2])
+
+
+def test_free_to_move_requires_real_position_change_on_same_map():
+    from lab.dwm.controllability import free_to_move
+    n = 12
+    data = {
+        "xs": np.full(n, 5, dtype=np.uint8), "ys": np.full(n, 5, dtype=np.uint8),
+        "map_ids": np.zeros(n, dtype=np.uint8), "in_battles": np.zeros(n, dtype=bool),
+        "episode_id": np.zeros(n, dtype=int),
+    }
+    data["xs"][3:] = 6          # moves between t=2 and t=3
+    data["map_ids"][9:] = 1     # map change at t=9 does not count as free movement
+    t0 = np.array([0, 2, 4, 6])
+    np.testing.assert_array_equal(free_to_move(data, t0, 2), [False, True, False, False])
+    np.testing.assert_array_equal(free_to_move(data, t0, 4), [True, True, False, False])
