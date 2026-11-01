@@ -350,6 +350,15 @@ def train(minutes: float, device: str = "cpu", batch: int = 32):
                 elapsed_min = (now - t_start) / 60
                 log(f"step {step} loss {mean_loss:.4f} {sps:.1f} steps/s elapsed {elapsed_min:.1f} min")
                 losses = []
+                pause = Path("work/PAUSE")  # same pause switch as lab.dwm.train; paused time is not counted
+                if pause.exists():
+                    save()
+                    log("paused (work/PAUSE exists); GPU idle")
+                    t_pause = time.time()
+                    while pause.exists():
+                        time.sleep(10)
+                    t_start += time.time() - t_pause
+                    log("resumed")
                 t_last = time.time()
 
             if (time.time() - t_ckpt) >= 600:

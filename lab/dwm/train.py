@@ -23,6 +23,7 @@ from lab.dwm.model import CTX, Denoiser, to_float
 BATCH, LR, WD, CLIP, EMA = 64, 2e-4, 1e-2, 1.0, 0.999
 EVAL_EVERY, CKPT_MINUTES, GPU_CHECK_EVERY = 5000, 15, 200
 EVAL_WINDOWS, EVAL_K = 32, 32
+PAUSE = Path("work/PAUSE")  # while this file exists, training checkpoints and idles (time not counted)
 
 
 class GpuGuard:
@@ -170,6 +171,12 @@ def main():
             if now - t_ckpt > CKPT_MINUTES * 60:
                 save()
                 t_ckpt = time.time()
+            if PAUSE.exists():
+                save()
+                log(f"paused ({PAUSE} exists); checkpoint saved, GPU idle")
+                while PAUSE.exists():
+                    time.sleep(10)
+                log("resumed")
             t_last = time.time()
         if step % EVAL_EVERY == 0:
             mse, copy_last = evaluate(ema, frames, actions, eval_starts, run / f"rollout_{step:06d}.png")
