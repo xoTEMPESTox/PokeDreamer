@@ -297,7 +297,9 @@ def train(minutes: float, device: str = "cpu", batch: int = 32):
                 log(f"Could not resume from {ckpt_path}: {e}")
 
         model.train()
-        opt = torch.optim.AdamW(model.parameters(), lr=1e-3)
+        # lr 1e-3 without clipping spiked twice (loss 0.02 -> 1.5) in the first run; clip + cosine decay
+        lr_max = 3e-4
+        opt = torch.optim.AdamW(model.parameters(), lr=lr_max)
 
         def save():
             tmp = ckpt_path.with_suffix(".tmp")
@@ -331,6 +333,10 @@ def train(minutes: float, device: str = "cpu", batch: int = 32):
                 loss = F.cross_entropy(logits, y)
 
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            frac = min((time.time() - t_start) / (minutes * 60), 1.0)
+            for g in opt.param_groups:
+                g["lr"] = lr_max * 0.5 * (1 + np.cos(np.pi * frac))
             opt.step()
 
             step += 1
