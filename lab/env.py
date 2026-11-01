@@ -34,7 +34,9 @@ class PokemonRed:
         if not self.rom_path.exists():
             raise FileNotFoundError(f"ROM not found at {self.rom_path.resolve()}")
 
-        self.pyboy = PyBoy(str(self.rom_path), window="null")
+        # Private in-memory cartridge RAM (Pokemon Red: 32 KiB battery SRAM). By default PyBoy reads and writes
+        # "<rom>.ram" next to the ROM, which races when several emulators start/stop at once ("No data" crash).
+        self.pyboy = PyBoy(str(self.rom_path), window="null", ram_file=io.BytesIO(bytes(32768)))
         if state is not None:
             self.restore(state)
 

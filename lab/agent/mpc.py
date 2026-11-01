@@ -72,6 +72,17 @@ def plan(model, probe, frames, past_actions, ram, rng, n, h, device):
     return int(seqs[best, 0]), imagined01[best]
 
 
+def greedy_action(ram, prev_ram, prev_a, rng):
+    """Model-free control with privileged RAM: step toward the current map's exit; after a press that did not
+    move the player (furniture, wall), try a different random direction."""
+    (ex, ey), x, y = EXIT[ram["map_id"]], ram["x"], ram["y"]
+    toward = [a for a, ok in ((2, ex > x), (1, ex < x), (0, ey > y), (3, ey < y)) if ok]
+    blocked = prev_ram is not None and (prev_ram["map_id"], prev_ram["x"], prev_ram["y"]) == (ram["map_id"], x, y)
+    if blocked:
+        return int(rng.choice([a for a in DIRECTIONS if a != prev_a]))
+    return int(rng.choice(toward)) if toward else int(rng.choice(DIRECTIONS))
+
+
 def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False):
     env = PokemonRed(state="saves/bedroom.state")
     frames, actions, trace, video = [], [], [], []
@@ -81,12 +92,15 @@ def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False
         if i:
             actions.append(B)
     t0 = time.time()
-    success_step = None
+    success_step, prev_ram = None, None
     for t in range(max_steps):
         if policy == "mpc":
             a, dream = plan(model, probe, frames, actions, ram, rng, n, h, device)
+        elif policy == "greedy":
+            a, dream = greedy_action(ram, prev_ram, actions[-1], rng), None
         else:
             a, dream = int(rng.choice(DIRECTIONS)), None
+        prev_ram = ram
         frame, ram = env.step(a)
         frames.append(frame)
         actions.append(a)
@@ -122,7 +136,7 @@ def write_video(video, path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--policy", choices=["mpc", "random"], default="mpc")
+    ap.add_argument("--policy", choices=["mpc", "random", "greedy"], default="mpc")
     ap.add_argument("--run", default="main")
     ap.add_argument("--episodes", type=int, default=20)
     ap.add_argument("--max-steps", type=int, default=60)
@@ -147,14 +161,14 @@ def main():
         if video:
             Path("work/videos").mkdir(parents=True, exist_ok=True)
             write_video(video, f"work/videos/{stem}_ep0.mp4")
-    k = sum(r["success"] for r in results)
-    steps = [r["steps"] for r in results if r["success"]]
-    summary = {"task": "leave_house", "policy": args.policy, "args": vars(args), "episodes": len(results),
-               "successes": k, "success_rate": k / len(results),
-               "median_steps_when_successful": float(np.median(steps)) if steps else None, "results": results}
-    Path("work/agent").mkdir(parents=True, exist_ok=True)
-    with open(f"work/agent/{stem}.json", "w") as fh:
-        json.dump(summary, fh)
+        k = sum(r["success"] for r in results)                # rewritten after every episode: crash-safe
+        steps = [r["steps"] for r in results if r["success"]]
+        summary = {"task": "leave_house", "policy": args.policy, "args": vars(args), "episodes": len(results),
+                   "successes": k, "success_rate": k / len(results),
+                   "median_steps_when_successful": float(np.median(steps)) if steps else None, "results": results}
+        Path("work/agent").mkdir(parents=True, exist_ok=True)
+        with open(f"work/agent/{stem}.json", "w") as fh:
+            json.dump(summary, fh)
     print(f"{stem}: {k}/{len(results)} successes; median steps {summary['median_steps_when_successful']}")
 
 
