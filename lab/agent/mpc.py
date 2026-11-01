@@ -83,7 +83,14 @@ def greedy_action(ram, prev_ram, prev_a, rng):
     return int(rng.choice(toward)) if toward else int(rng.choice(DIRECTIONS))
 
 
-def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False):
+@torch.no_grad()
+def learned_action(net, frames, device):
+    """Sample from the imagination-trained policy given only the last 4 real frames (no RAM, no planning)."""
+    logits, _ = net(to_float(torch.from_numpy(np.stack(frames[-CTX:])).to(device))[None])
+    return int(DIRECTIONS[torch.distributions.Categorical(logits=logits[0]).sample().item()])
+
+
+def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False, net=None):
     env = PokemonRed(state="saves/bedroom.state")
     frames, actions, trace, video = [], [], [], []
     for i in range(CTX):          # fill the context with B presses (no effect in the overworld; 2.7% of training
@@ -98,6 +105,8 @@ def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False
             a, dream = plan(model, probe, frames, actions, ram, rng, n, h, device)
         elif policy == "greedy":
             a, dream = greedy_action(ram, prev_ram, actions[-1], rng), None
+        elif policy == "learned":
+            a, dream = learned_action(net, frames, device), None
         else:
             a, dream = int(rng.choice(DIRECTIONS)), None
         prev_ram = ram
@@ -136,7 +145,8 @@ def write_video(video, path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--policy", choices=["mpc", "random", "greedy"], default="mpc")
+    ap.add_argument("--policy", choices=["mpc", "random", "greedy", "learned"], default="mpc")
+    ap.add_argument("--rl-name", default="leave_house", help="work/agent_rl/<name>/policy.pt for --policy learned")
     ap.add_argument("--run", default="main")
     ap.add_argument("--episodes", type=int, default=20)
     ap.add_argument("--max-steps", type=int, default=60)
@@ -149,12 +159,19 @@ def main():
 
     model = load_world_model(args.run, device=args.device) if args.policy == "mpc" else None
     probe = load_probe(device=args.device) if args.policy == "mpc" else None
+    net = None
+    if args.policy == "learned":
+        from lab.agent.imagine_rl import Policy
+        net = Policy().to(args.device).eval()
+        net.load_state_dict(torch.load(f"work/agent_rl/{args.rl_name}/policy.pt", map_location=args.device,
+                                       weights_only=True)["policy"])
     rng = np.random.default_rng(args.seed)
-    stem = f"leave_house_{args.policy}" + (f"_{args.run}_n{args.n}_h{args.h}" if args.policy == "mpc" else "") + f"_s{args.seed}"
+    tag = {"mpc": f"_{args.run}_n{args.n}_h{args.h}", "learned": f"_{args.rl_name}"}.get(args.policy, "")
+    stem = f"leave_house_{args.policy}{tag}_s{args.seed}"
     results = []
     for ep in range(args.episodes):
         res, video = run_episode(args.policy, model, probe, rng, args.max_steps, args.n, args.h, args.device,
-                                 record=args.video and ep == 0)
+                                 record=args.video and ep == 0, net=net)
         results.append(res)
         print(f"episode {ep}: success {res['success']} steps {res['steps']} final {res['trace'][-1][:3]} "
               f"({res['seconds']} s)", flush=True)
