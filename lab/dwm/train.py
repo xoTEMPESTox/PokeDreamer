@@ -21,6 +21,13 @@ from lab.data import load
 from lab.dwm.model import CTX, Denoiser, to_float
 
 BATCH, LR, WD, CLIP, EMA = 64, 2e-4, 1e-2, 1.0, 0.999
+# Speed notes for the next run (measured 2026-11-01 with `python -m lab.bench_speed 64 128 192`, RTX 4090):
+# - Use fused AdamW (add fused=True to the AdamW call in main()): 11.4 -> 15.2 steps/s at batch 64. The main and noaug runs used the default
+#   optimizer, and it stays that way here until the noaug ablation finishes so the pair is matched.
+# - A bigger batch does not train faster: 970 / 941 / 917 samples/s at batch 64 / 128 / 192 with fused AdamW
+#   (peak 5.6 / 9.6 / 13.7 GB). The GPU is already saturated at 64, so spare VRAM is not the bottleneck. Raise
+#   --batch only for less gradient noise, and scale LR with it.
+# - cudnn.benchmark made no difference (<1%).
 EVAL_EVERY, CKPT_MINUTES, GPU_CHECK_EVERY = 5000, 15, 200
 EVAL_WINDOWS, EVAL_K = 32, 32
 PAUSE = Path("work/PAUSE")  # while this file exists, training checkpoints and idles (time not counted)
@@ -94,6 +101,7 @@ def main():
     ap.add_argument("--minutes", type=float, required=True)
     ap.add_argument("--max-steps", type=int, default=0, help="also stop at this step (0 = no limit)")
     ap.add_argument("--no-ctx-aug", action="store_true", help="ablation: train without context-noise augmentation")
+    ap.add_argument("--batch", type=int, default=BATCH)
     args = ap.parse_args()
     torch.set_num_threads(4)
     run = Path("work/runs") / args.name
@@ -128,7 +136,7 @@ def main():
         step, elapsed = state["step"], state["elapsed"]
         log(f"resumed at step {step}, {elapsed / 60:.1f} min trained")
     log(f"params {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M, train windows {len(train_starts)}, "
-        f"batch {BATCH}, lr {LR}, budget {args.minutes} min, max steps {args.max_steps or '-'}, "
+        f"batch {args.batch}, lr {LR}, budget {args.minutes} min, max steps {args.max_steps or '-'}, "
         f"context-noise aug {'OFF' if args.no_ctx_aug else 'on'}")
 
     def save():
@@ -140,7 +148,7 @@ def main():
     ar = torch.arange(CTX + 1, device=dev)
     t_last, t_ckpt, losses = time.time(), time.time(), []
     while elapsed < args.minutes * 60 and not (args.max_steps and step >= args.max_steps):
-        idx = train_starts[torch.randint(len(train_starts), (BATCH,), device=dev)][:, None] + ar
+        idx = train_starts[torch.randint(len(train_starts), (args.batch,), device=dev)][:, None] + ar
         f = to_float(frames[idx])
         with torch.autocast("cuda", torch.bfloat16):
             loss = model.loss(f, actions[idx][:, :CTX].long(), ctx_aug=not args.no_ctx_aug)
