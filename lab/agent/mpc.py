@@ -24,8 +24,7 @@ from lab.env import PokemonRed
 from lab.eval.metrics import manhattan
 from lab.probe import load_probe, predict
 
-STAGE = {38: 0, 37: 1, 0: 2}            # bedroom -> 1st floor -> Pallet Town
-EXIT = {38: (7, 1), 37: (2, 7)}         # stairs, front door
+EXIT = {38: (7, 1), 37: (2, 7)}         # bedroom stairs, 1st-floor front door (then Pallet Town = success)
 DIRECTIONS = np.array([0, 1, 2, 3])     # down, left, right, up
 B = 5
 
@@ -42,19 +41,24 @@ def sample_sequences(rng, n, h):
     return out
 
 
-def score(maps, xs, ys):
-    """Best progress reached along each imagined trajectory; maps/xs/ys (N, H) probe readings."""
-    stage = np.vectorize(lambda m: STAGE.get(int(m), -1))(maps).astype(float)
-    ex = np.vectorize(lambda m: EXIT.get(int(m), (0, 0))[0])(maps)
-    ey = np.vectorize(lambda m: EXIT.get(int(m), (0, 0))[1])(maps)
-    dist = manhattan(np.stack([xs, ys], -1), np.stack([ex, ey], -1))
-    value = np.where(stage < 0, -1000.0, 100.0 * stage - np.where(stage == 2, 0.0, dist))
-    value -= 0.01 * np.arange(maps.shape[1])          # prefer reaching it sooner
-    return value.max(1)
+def score(maps, xs, ys, cur_map, cur_xy):
+    """Progress toward the current map's exit, over the part of each imagined trajectory (maps/xs/ys (N, H),
+    probe readings) that stays on the current real map. An imagined map change earns credit only right next to
+    the exit tile, where a real warp can happen. The first version rewarded any imagined map change, and the
+    planner pressed into walls chasing warps the model hallucinates (work/videos/leave_house_mpc_naive_scoring_ep0.mp4)."""
+    ex = np.array(EXIT[cur_map])
+    dist = manhattan(np.stack([xs, ys], -1), ex)
+    same = np.cumprod(maps == cur_map, axis=1).astype(bool)
+    value = np.where(same, -dist - 0.01 * np.arange(maps.shape[1]), -np.inf).max(1)
+    first_off = np.argmin(same, axis=1)
+    before = np.where(first_off > 0, dist[np.arange(len(dist)), np.maximum(first_off - 1, 0)],
+                      manhattan(np.array(cur_xy), ex))
+    value = np.where(~same.all(1) & (before <= 1), 10.0, value)
+    return np.where(np.isinf(value), -manhattan(np.array(cur_xy), ex) - 5.0, value)
 
 
 @torch.no_grad()
-def plan(model, probe, frames, past_actions, rng, n, h, device):
+def plan(model, probe, frames, past_actions, ram, rng, n, h, device):
     """Index of the best first button and the imagined frames of the best sequence."""
     seqs = sample_sequences(rng, n, h)
     ctx = to_float(torch.from_numpy(np.stack(frames[-CTX:])).to(device))[None].expand(n, -1, -1, -1)
@@ -63,7 +67,8 @@ def plan(model, probe, frames, past_actions, rng, n, h, device):
         imagined = model.rollout(ctx, acts, steps=3)
     imagined01 = ((imagined.float() + 1) / 2).cpu().numpy()
     p = predict(probe, imagined01.reshape(-1, 72, 80), device=device)
-    best = int(np.argmax(score(p["map_id"].reshape(n, h), p["x"].reshape(n, h), p["y"].reshape(n, h))))
+    best = int(np.argmax(score(p["map_id"].reshape(n, h), p["x"].reshape(n, h), p["y"].reshape(n, h),
+                               ram["map_id"], (ram["x"], ram["y"]))))
     return int(seqs[best, 0]), imagined01[best]
 
 
@@ -79,7 +84,7 @@ def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False
     success_step = None
     for t in range(max_steps):
         if policy == "mpc":
-            a, dream = plan(model, probe, frames, actions, rng, n, h, device)
+            a, dream = plan(model, probe, frames, actions, ram, rng, n, h, device)
         else:
             a, dream = int(rng.choice(DIRECTIONS)), None
         frame, ram = env.step(a)
@@ -121,8 +126,8 @@ def main():
     ap.add_argument("--run", default="main")
     ap.add_argument("--episodes", type=int, default=20)
     ap.add_argument("--max-steps", type=int, default=60)
-    ap.add_argument("--n", type=int, default=128, help="candidate sequences per decision")
-    ap.add_argument("--h", type=int, default=8, help="imagination horizon (steps)")
+    ap.add_argument("--n", type=int, default=64, help="candidate sequences per decision")
+    ap.add_argument("--h", type=int, default=4, help="imagination horizon (steps; position is reliable to ~4)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--video", action="store_true", help="record the first episode")
