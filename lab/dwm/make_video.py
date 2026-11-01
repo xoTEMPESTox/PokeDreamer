@@ -29,6 +29,12 @@ def parse_args():
     parser.add_argument("--device", type=str, default="cuda", help="Device to run on (cuda or cpu)")
     parser.add_argument("--seed", type=int, default=0, help="Random seed for sampling windows")
     parser.add_argument("--out", type=str, default=None, help="Output MP4 file path")
+    parser.add_argument(
+        "--upsample",
+        action=argparse.BooleanOptionalAction,
+        default=Path("work/upsampler/upsampler.pt").exists(),
+        help="Pass frames through neural upsampler (default: on if checkpoint exists)",
+    )
     return parser.parse_args()
 
 
@@ -125,6 +131,14 @@ def main():
     idx_real = chosen[:, None] + (CTX - 1 + np.arange(args.k + 1))
     real_u8 = data["frames"][idx_real]  # shape (n, k + 1, 72, 80)
 
+    if args.upsample:
+        from lab.upsampler import load_upsampler, upsample
+        upsampler_m = load_upsampler("work/upsampler/upsampler.pt", device=dev)
+        real_flat = real_u8.reshape(-1, 72, 80)
+        real_up = upsample(upsampler_m, real_flat, device=dev).reshape(args.n, args.k + 1, 144, 160)
+        pred_flat = pred_u8.reshape(-1, 72, 80)
+        pred_up = upsample(upsampler_m, pred_flat, device=dev).reshape(args.n, args.k, 144, 160)
+
     # 3. Compose video frames t = 0..K
     panel_h, panel_w = 288, 320
     sep_px = 6
@@ -145,6 +159,13 @@ def main():
     y_imag = (header_h + size_imag[1]) // 2
     cv2.putText(header, "imagined", (x_imag, y_imag), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
+    if args.upsample:
+        tag = "upsampled for display"
+        size_tag, _ = cv2.getTextSize(tag, cv2.FONT_HERSHEY_SIMPLEX, 0.38, 1)
+        x_tag = (total_w - size_tag[0]) // 2
+        y_tag = (header_h + size_tag[1]) // 2
+        cv2.putText(header, tag, (x_tag, y_tag), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (200, 200, 200), 1, cv2.LINE_AA)
+
     sep_v = np.zeros((panel_h, sep_px), dtype=np.uint8)
     sep_h = np.zeros((sep_px, total_w), dtype=np.uint8)
 
@@ -152,13 +173,17 @@ def main():
     for t in range(args.k + 1):
         row_images = []
         for i in range(args.n):
-            rf = real_u8[i, t]
-            imf = real_u8[i, 0] if t == 0 else pred_u8[i, t - 1]
+            if args.upsample:
+                rf = real_up[i, t]
+                imf = real_up[i, 0] if t == 0 else pred_up[i, t - 1]
+            else:
+                rf = real_u8[i, t]
+                imf = real_u8[i, 0] if t == 0 else pred_u8[i, t - 1]
 
-            rf_4x = cv2.resize(rf, (panel_w, panel_h), interpolation=cv2.INTER_NEAREST)
-            imf_4x = cv2.resize(imf, (panel_w, panel_h), interpolation=cv2.INTER_NEAREST)
+            rf_disp = cv2.resize(rf, (panel_w, panel_h), interpolation=cv2.INTER_NEAREST)
+            imf_disp = cv2.resize(imf, (panel_w, panel_h), interpolation=cv2.INTER_NEAREST)
 
-            row = np.concatenate([rf_4x, sep_v, imf_4x], axis=1)
+            row = np.concatenate([rf_disp, sep_v, imf_disp], axis=1)
             row_images.append(row)
 
         grid_rows = []
@@ -223,13 +248,20 @@ def main():
     cols = sorted(list(set(min(c, args.k) for c in [0, 1, 2, 4, 8, 16, 32, 64])))
     sheet_rows = []
     for i in range(args.n):
-        row_real = np.concatenate([real_u8[i, t] for t in cols], axis=1)
-        row_imag = np.concatenate([real_u8[i, 0] if t == 0 else pred_u8[i, t - 1] for t in cols], axis=1)
+        if args.upsample:
+            row_real = np.concatenate([real_up[i, t] for t in cols], axis=1)
+            row_imag = np.concatenate([real_up[i, 0] if t == 0 else pred_up[i, t - 1] for t in cols], axis=1)
+        else:
+            row_real = np.concatenate([real_u8[i, t] for t in cols], axis=1)
+            row_imag = np.concatenate([real_u8[i, 0] if t == 0 else pred_u8[i, t - 1] for t in cols], axis=1)
         sheet_rows.append(row_real)
         sheet_rows.append(row_imag)
 
     sheet_grid = np.concatenate(sheet_rows, axis=0)
-    sheet_up = cv2.resize(sheet_grid, None, fx=2, fy=2, interpolation=cv2.INTER_NEAREST)
+    if args.upsample:
+        sheet_up = sheet_grid
+    else:
+        sheet_up = cv2.resize(sheet_grid, None, fx=2, fy=2, interpolation=cv2.INTER_NEAREST)
     cv2.imwrite(str(sheet_path), sheet_up)
 
     # 5. Print output paths and frame size
