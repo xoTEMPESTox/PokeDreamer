@@ -26,10 +26,10 @@ _VIRIDIAN_DETOURS = {
 }
 _PEWTER_DETOURS = {
     58: [(3, 7), (4, 7)],                       # Pokecenter (79 transitions: (3,7) 49, (4,7) 30)
-    55: [(2, 7), (3, 7)],                       # Mart (81 transitions: (2,7) 63, (3,7) 18)
-    57: [(2, 7), (3, 7)],                       # House 1 (77 transitions: (2,7) 46, (3,7) 31)
+    55: [(2, 7), (3, 7)],                       # Nidoran House (81 transitions: (2,7) 63, (3,7) 18)
+    57: [(2, 7), (3, 7)],                       # Speech House (77 transitions: (2,7) 46, (3,7) 31)
     52: [(10, 7), (11, 7)],                     # Museum (73 transitions: (10,7) 53, (11,7) 20)
-    56: [(3, 7), (4, 7)],                       # House 2 (70 transitions: (3,7) 38, (4,7) 32)
+    56: [(3, 7), (4, 7)],                       # Mart (70 transitions: (3,7) 38, (4,7) 32)
     13: [(8, 0), (9, 0)],                       # Route 2 north exit to Pewter (97 transitions)
 }
 
