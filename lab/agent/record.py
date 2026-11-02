@@ -8,7 +8,7 @@ import torch
 from PIL import Image, ImageDraw
 
 from lab.agent.imagine_rl import Policy
-from lab.agent.mpc import A, B, CTX, learned_action
+from lab.agent.mpc import A, B, CTX, in_dialog, learned_action
 from lab.agent.tasks import TASKS
 from lab.env import PokemonRed
 from src.game_state import screen_capture
@@ -42,7 +42,7 @@ def main():
         frame, ram = env.step(B)
         frames.append(frame)
     for t in range(args.max_steps):
-        a = A if ram["in_battle"] else learned_action(net, frames, "cpu")
+        a = A if ram["in_battle"] or in_dialog(env.pyboy) else learned_action(net, frames, "cpu")
         shots.append(panel(screen_capture(env.pyboy), f"real game | press {t + 1}: {NAMES[a]}"))
         frame, ram = env.step(a)
         frames.append(frame)

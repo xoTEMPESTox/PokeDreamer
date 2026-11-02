@@ -2,6 +2,7 @@
 from pathlib import Path
 import numpy as np
 
+from lab.agent.mpc import in_dialog
 from lab.agent.route_exits import count_transitions
 from lab.agent.tasks import TASKS
 from lab.env import PokemonRed
@@ -74,3 +75,64 @@ def test_new_tasks_start_maps_have_exits():
         assert "success_map" in spec
         assert "train_maps" in spec
         assert start_map in spec["train_maps"]
+
+
+def test_in_dialog_free_walking():
+    """in_dialog must be False while freely walking across states with no active dialogue or battle."""
+    for state_file in [
+        "saves/bedroom.state",
+        "saves/starter_pallet.state",
+        "work/route_states/seed100_map1.state",
+        "work/route_states/seed100_map50.state",
+        "work/route_states/seed100_map51.state",
+        "work/route_states/seed100_map47.state",
+        "work/route_states/seed100_map2.state",
+    ]:
+        env = PokemonRed(state=state_file)
+        for _ in range(4):
+            env.step(5)  # B press
+        assert not in_dialog(env.pyboy), f"in_dialog unexpectedly True on initial load of {state_file}"
+        for action in [0, 1, 2, 3] * 3:
+            env.step(action)
+            assert not in_dialog(env.pyboy), f"in_dialog unexpectedly True during free walking in {state_file}"
+        env.close()
+
+
+def test_in_dialog_trainer_engagement():
+    """in_dialog must detect trainer engagement in Viridian Forest when wFlags_D733 bit 3 is set."""
+    env = PokemonRed(state="work/route_states/seed100_map51.state")
+    for _ in range(4):
+        env.step(5)
+    env.pyboy.memory[0xD362] = 1   # X = 1
+    env.pyboy.memory[0xD361] = 18  # Y = 18
+    env.pyboy.memory[0xD733] |= 0x08  # wFlags_D733 bit 3: Trainer wants to battle
+    assert in_dialog(env.pyboy), "in_dialog must be True when wFlags_D733 bit 3 is set"
+    env.pyboy.memory[0xD733] &= ~0x08
+    assert not in_dialog(env.pyboy), "in_dialog must be False when trainer flag is cleared"
+    env.close()
+
+
+def test_in_dialog_npc_text():
+    """in_dialog must be True when a text/dialogue box is open (wFontLoaded bit 0) and False once closed."""
+    env = PokemonRed(state="saves/starter_pallet.state")
+    for _ in range(4):
+        env.step(5)
+    # Walk from (12, 12) to (7, 10) facing north at the Pallet Town sign at (7, 9)
+    for _ in range(5):
+        env.step(1)  # Left to x=7
+    for _ in range(2):
+        env.step(3)  # Up to y=10
+    assert not in_dialog(env.pyboy), "in_dialog must be False before reading sign"
+    # Press A to read the sign
+    env.step(4)  # A
+    assert in_dialog(env.pyboy), "in_dialog must be True while sign text box is open"
+    # Press A until text box closes (text scrolls and dismisses)
+    closed = False
+    for _ in range(15):
+        env.step(4)  # A
+        if not in_dialog(env.pyboy):
+            closed = True
+            break
+    assert closed, "in_dialog must return False after sign dialogue is dismissed"
+    env.close()
+

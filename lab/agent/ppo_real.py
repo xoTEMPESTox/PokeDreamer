@@ -45,7 +45,7 @@ from lab.agent.imagine_rl import (
     WARP_BONUS,
     Policy,
 )
-from lab.agent.mpc import DIRECTIONS, A, B, run_episode
+from lab.agent.mpc import DIRECTIONS, A, B, in_dialog, run_episode
 from lab.agent.tasks import TASKS, exit_distance, train_geodesic_fields
 from lab.dwm.model import CTX, to_float
 from lab.env import ROM_PATH, PokemonRed
@@ -181,7 +181,7 @@ class RealEnvWrapper:
         for _ in range(CTX):
             frame, ram = self.env.step(B)
             self.frames.append(frame)
-        while ram["in_battle"]:
+        while ram["in_battle"] or in_dialog(self.env.pyboy):
             frame, ram = self.env.step(A)
             self.frames.append(frame)
             self.frames = self.frames[-CTX:]
@@ -199,7 +199,7 @@ class RealEnvWrapper:
         env_presses = 1
 
         # 2. Battle reflex: while in_battle, press A itself
-        while ram["in_battle"]:
+        while ram["in_battle"] or in_dialog(self.env.pyboy):
             frame, ram = self.env.step(A)
             self.frames.append(frame)
             self.frames = self.frames[-CTX:]

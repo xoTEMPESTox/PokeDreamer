@@ -29,6 +29,12 @@ DIRECTIONS = np.array([0, 1, 2, 3])     # down, left, right, up
 A, B = 4, 5
 
 
+def in_dialog(pyboy) -> bool:
+    """True when a trainer has engaged the player (wFlags_D733 bit 3) or a text/dialog box
+    is open (wFontLoaded 0xCFC4 bit 0). Guaranteed False during normal overworld walking and warps."""
+    return bool((pyboy.memory[0xD733] & 0x08) or (pyboy.memory[0xCFC4] & 0x01))
+
+
 def sample_sequences(rng, n, h):
     """n button sequences of length h made of runs of 1-4 repeats of one direction."""
     out = np.empty((n, h), np.int64)
@@ -108,11 +114,14 @@ def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False
         if i:
             actions.append(B)
     t0 = time.time()
-    success_step, prev_ram, battle_presses = None, None, 0
+    success_step, prev_ram, battle_presses, dialog_presses = None, None, 0, 0
     for t in range(max_steps):
         if ram["in_battle"]:
             a, dream = A, None                   # scripted battle reflex for every policy
             battle_presses += 1
+        elif in_dialog(env.pyboy):
+            a, dream = A, None                   # scripted dialogue reflex for every policy
+            dialog_presses += 1
         elif policy == "mpc":
             a, dream = plan(model, probe, frames, actions, ram, rng, n, h, device, exits)
         elif policy == "greedy":
@@ -133,7 +142,8 @@ def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False
             break
     env.close()
     return {"success": success_step is not None, "steps": success_step, "trace": trace,
-            "battle_presses": battle_presses, "seconds": round(time.time() - t0, 1)}, video
+            "battle_presses": battle_presses, "dialog_presses": dialog_presses,
+            "seconds": round(time.time() - t0, 1)}, video
 
 
 def write_video(video, path):
