@@ -97,12 +97,13 @@ def exit_distance(maps, xs, ys, exits, fields=None):
     return out
 
 
-def geodesic_fields(maps, xs, ys, episodes, exits, size=64):
+def geodesic_fields(maps, xs, ys, episodes, exits, size=80):
     """Per map in `exits`: (size, size) array [y, x] of the fewest one-tile moves to its nearest exit tile, over
     the moves observed in the data (directed, so a ledge only counts downhill). Tiles with no observed path get
     the map's largest distance + 1, so walls and hallucinated positions never look closer than the real route.
     Needed for Route 1: from row 28 the only way north is at x=7, and with Manhattan distance the viridian policy
-    stalled at x 10-15 (0 of the first 72 real episodes)."""
+    stalled at x 10-15 (0 of the first 72 real episodes).
+    size 80 = the probe's y range; Route 2 is 72 tiles tall (with 64, rows 64-71 all read row 63's distance)."""
     from collections import deque
     import numpy as np
     maps, xs, ys, episodes = (np.asarray(a).astype(np.int64) for a in (maps, xs, ys, episodes))

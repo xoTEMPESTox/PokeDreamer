@@ -37,3 +37,11 @@ def test_greedy_follows_the_field():
     ram = {"map_id": 5, "x": 2, "y": 2}
     a = greedy_action(ram, None, 0, np.random.default_rng(0), EXITS, {5: f})
     assert a == 1                                             # left (around the wall), not up into it
+
+
+def test_geodesic_field_covers_tall_maps():
+    """Route 2 is 72 tiles tall: tiles with y >= 64 must get their own path distance, not row 63's."""
+    ys = np.arange(71, 39, -1)                      # walk north from (8, 71) to the exit at (8, 40)
+    maps, xs, eps = np.full(len(ys), 13), np.full(len(ys), 8), np.zeros(len(ys))
+    f = geodesic_fields(maps, xs, ys, eps, {13: [(8, 40)]})[13]
+    assert exit_distance([13, 13], [8, 8], [70, 71], {13: [(8, 40)]}, {13: f}).tolist() == [30, 31]

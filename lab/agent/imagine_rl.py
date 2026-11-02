@@ -121,6 +121,12 @@ def main():
         f"step clip {args.step_clip}")
     train_maps = TASKS[args.task].get("train_maps", list(exits))
     ok = np.isin(data["map_ids"][last], train_maps) & ~data["in_battles"][starts[:, None] + np.arange(CTX)].any(1)
+    if fields is not None:  # only starts with an observed path to the exit (to_pewter: 76% of Route 2 is south of the forest)
+        lm = data["map_ids"][last]
+        top = np.full(len(last), np.inf)
+        for m, f in fields.items():
+            top[lm == m] = f.max()
+        ok &= exit_distance(lm, data["xs"][last], data["ys"][last], exits, fields) < top
     starts = starts[ok]
     log(f"{len(starts)} real start contexts (maps {sorted(set(data['map_ids'][starts + CTX - 1].tolist()))})")
     frames = torch.from_numpy(data["frames"]).to(dev)
