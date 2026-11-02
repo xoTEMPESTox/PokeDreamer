@@ -9,6 +9,7 @@ leave_house: bedroom -> 1st floor -> Pallet Town (no Pokemon needed).
 route1:      Pallet Town -> Route 1, from the scripted starter-Pokemon state (Oak no longer stops you).
 viridian:    Pallet Town -> Route 1 -> Viridian City, through tall grass (wild battles) and ledges.
 to_route2:   Viridian City -> Route 2 south, through Viridian City (detours: Pokecenter, Mart, School, House, Route 22).
+to_gate:     Route 2 south -> Viridian Forest South Gate (detours: Viridian City).
 forest:      Viridian Forest South Gate -> Viridian Forest -> North Gate (detours: Route 2 south).
 to_pewter:   Viridian Forest North Gate -> Route 2 north -> Pewter City (detours: Viridian Forest, South Gate).
 to_gym:      Pewter City entry -> Pewter Gym (detours: Pokecenter, Mart, Houses, Museum, Route 2).
@@ -46,6 +47,13 @@ TASKS = {
         "exits": {1: [(17, 0), (18, 0), (19, 0)], **_VIRIDIAN_DETOURS},
         "success_map": 13,
         "train_maps": [1],
+    },
+    # to_gate: Route 2 south (13) -> South Gate (50). Gate entry at (3, 44) (28 transitions).
+    "to_gate": {
+        "state": "work/route_states/seed100_map13.state",
+        "exits": {13: [(3, 44)], 1: [(17, 0), (18, 0), (19, 0)], **_VIRIDIAN_DETOURS},
+        "success_map": 50,
+        "train_maps": [13],
     },
     # forest: South Gate (50) -> Viridian Forest (51) -> North Gate (47).
     # 50 -> 51 at (5,1) (52 transitions); 51 -> 47 at (1,0) / (2,0) (109 transitions: (1,0) 91, (2,0) 18).

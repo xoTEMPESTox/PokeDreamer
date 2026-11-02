@@ -11,6 +11,11 @@ Architecture:
     * After blackout (respawn at Pokemon Center) -> re-plans smoothly.
 
 - System 1 Skills:
+    * Navigation modes (--nav bfs|learned):
+        - bfs (default): privileged BFS over map layout / collision data read from Game Boy RAM/ROM (nav.py navigate_to).
+        - learned: frames-only policies trained in the diffusion world model (mpc.py learned_action on CPU).
+          Drives travel legs (Route 1 -> Viridian, Viridian -> Route 2, Route 2 -> South Gate, Viridian Forest,
+          Route 2 North -> Pewter, Pewter -> Gym door). Falls back to navigate_to if policy file missing or budget exhausted.
     * navigate_to (nav.py): closed-loop privileged BFS navigation over RAM map blocks.
     * heal_pkmn_center (nav.py): universal Pokemon Center nurse healing and exit.
     * battle_skill (nav.py): move choice (Ember vs Rock/Ground/Bug), menu navigation, switch handling.
@@ -31,6 +36,10 @@ from typing import Any, Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 from PIL import Image
+import torch
+
+from lab.agent.imagine_rl import Policy
+from lab.agent.mpc import in_dialog, learned_action
 
 from lab.agent.nav import (
     MAP_PEWTER_CITY,
@@ -66,6 +75,182 @@ from src.ram_addresses import (
 
 # Route 1 tall grass anchor coordinates
 GRASS_PATCH_TILES = [(13, 30), (14, 30)]
+
+DEFAULT_LEG_POLICIES: dict[str, str] = {
+    "viridian": "work/agent_rl/viridian_geo_clip/policy.pt",
+    "to_route2": "work/agent_rl/to_route2_wm31/policy.pt",
+    "to_gate": "work/agent_rl/to_gate_wm31/policy.pt",
+    "forest": "work/agent_rl/forest_wm31/policy.pt",
+    "to_pewter": "work/agent_rl/to_pewter_wm31/policy.pt",
+    "to_gym": "work/agent_rl/to_gym_wm31/policy.pt",
+}
+
+TRAVEL_LEGS: list[tuple[str, int, list[int]]] = [
+    ("viridian", MAP_VIRIDIAN_CITY, [MAP_VIRIDIAN_CITY]),
+    ("to_route2", MAP_ROUTE_2, [MAP_ROUTE_2]),
+    ("to_gate", MAP_VIRIDIAN_FOREST_SOUTH_GATE, [MAP_VIRIDIAN_FOREST_SOUTH_GATE]),
+    ("forest", MAP_VIRIDIAN_FOREST_NORTH_GATE, [MAP_VIRIDIAN_FOREST, MAP_VIRIDIAN_FOREST_NORTH_GATE]),
+    ("to_pewter", MAP_PEWTER_CITY, [MAP_ROUTE_2, MAP_PEWTER_CITY]),
+]
+
+STAGE_TO_LEG: dict[int, str] = {
+    MAP_VIRIDIAN_CITY: "viridian",
+    MAP_ROUTE_2: "to_route2",
+    MAP_VIRIDIAN_FOREST_SOUTH_GATE: "to_gate",
+    MAP_VIRIDIAN_FOREST_NORTH_GATE: "forest",
+    MAP_PEWTER_CITY: "to_pewter",
+    MAP_PEWTER_GYM: "to_gym",
+}
+
+
+def leg_for_stage(target_map: int) -> str:
+    """Return the policy leg corresponding to a navigation target stage map."""
+    if target_map not in STAGE_TO_LEG:
+        raise ValueError(f"Unknown leg for target stage map {target_map}")
+    return STAGE_TO_LEG[target_map]
+
+
+_POLICY_CACHE: dict[str, Any] = {}
+
+
+def load_leg_policy(path: str | Path, device: str = "cpu") -> Optional[Any]:
+    """Loads a Policy checkpoint on CPU if the file exists, returning None otherwise."""
+    p = Path(path)
+    if not p.is_file():
+        return None
+    p_str = str(p)
+    if p_str in _POLICY_CACHE:
+        return _POLICY_CACHE[p_str]
+    net = Policy().to(device).eval()
+    ckpt = torch.load(p, map_location=device, weights_only=True)
+    net.load_state_dict(ckpt["policy"])
+    _POLICY_CACHE[p_str] = net
+    return net
+
+
+def run_leg(
+    env: PokemonRed,
+    leg: str,
+    target_map: int,
+    policy_path: str | Path,
+    fallback_maps: list[int],
+    budget: int = 1000,
+    policy_net: Optional[Any] = None,
+    device: str = "cpu",
+    fallback_budget: Optional[int] = None,
+) -> dict[str, Any]:
+    """Execute a single navigation leg using learned policy, falling back to navigate_to on failure.
+
+    Loop until RAM map == target_map or budget runs out:
+        - in_battle -> battle_skill(env)
+        - in_dialog(env.pyboy) -> press A
+        - else -> learned_action(net, frames, device)
+    If policy file missing or budget runs out: fall back to navigate_to.
+    Already on target_map (e.g. after a heal trip): reached_by_policy is None, and the leg is not counted as attempted.
+    """
+    cur_map = int(env.observe()[1]["map_id"])
+    if cur_map == target_map:
+        return {
+            "leg": leg,
+            "policy": str(policy_path),
+            "reached_by_policy": None,
+            "policy_presses": 0,
+            "fallback_presses": 0,
+            "battles": 0,
+            "success": True,
+            "blackouts": 0,
+            "moves_used": {},
+            "events": [],
+        }
+
+    net = policy_net
+    if net is None and Path(policy_path).is_file():
+        net = load_leg_policy(policy_path, device=device)
+
+    policy_presses = 0
+    fallback_presses = 0
+    battles = 0
+    blackouts = 0
+    moves_used: dict[str, int] = {}
+    events: list[dict[str, Any]] = []
+
+    # If policy exists, run learned policy loop
+    if net is not None:
+        cur_frame, ram = env.observe()
+        frames = [cur_frame] * 4  # CTX = 4
+
+        while int(ram["map_id"]) != target_map and policy_presses < budget:
+            # Overworld blackout check
+            st_party = party_status(env)
+            if st_party["hp"] == 0 and st_party["party_size"] > 0:
+                blackouts += 1
+                for _ in range(50):
+                    env.step("a")
+                    policy_presses += 1
+                    if party_status(env)["map_id"] in (MAP_VIRIDIAN_POKECENTER, MAP_PEWTER_POKECENTER):
+                        break
+                events.append({"type": "blackout", "map": int(ram["map_id"]), "presses": policy_presses})
+                break
+
+            if ram["in_battle"]:
+                battles += 1
+                b_res = battle_skill(env)
+                p_battle = b_res.get("presses", 0)
+                policy_presses += p_battle
+                for m_k, count in b_res.get("moves_used", {}).items():
+                    moves_used[m_k] = moves_used.get(m_k, 0) + count
+                if b_res.get("blackout", False):
+                    blackouts += 1
+                    events.append({"type": "blackout", "map": int(ram["map_id"]), "presses": policy_presses})
+                    break
+                events.append({"type": "battle_won", "map": int(ram["map_id"]), "moves": b_res.get("moves_used", {})})
+                cur_frame, ram = env.observe()
+                frames.append(cur_frame)
+                continue
+
+            if in_dialog(env.pyboy):
+                frame, ram = env.step("a")
+                policy_presses += 1
+                frames.append(frame)
+            else:
+                a = learned_action(net, frames, device)
+                frame, ram = env.step(a)
+                policy_presses += 1
+                frames.append(frame)
+
+    cur_map = int(env.observe()[1]["map_id"])
+    reached_by_policy = (cur_map == target_map)
+
+    # Fallback to navigate_to if not reached by policy (and no blackout)
+    if not reached_by_policy and blackouts == 0:
+        fb_limit = fallback_budget if fallback_budget is not None else budget
+        for f_map in fallback_maps:
+            cur_map = int(env.observe()[1]["map_id"])
+            if cur_map == f_map or cur_map == target_map:
+                continue
+            r_nav = navigate_to(env, f_map, budget=max(0, fb_limit - fallback_presses))
+            fallback_presses += r_nav["presses"]
+            battles += r_nav.get("battles_started", 0)
+            blackouts += r_nav.get("blackouts", 0)
+            events.extend(r_nav.get("events", []))
+            for m_k, count in r_nav.get("moves_used", {}).items():
+                moves_used[m_k] = moves_used.get(m_k, 0) + count
+            if not r_nav["success"] or r_nav.get("blackouts", 0) > 0:
+                break
+
+    success = (int(env.observe()[1]["map_id"]) == target_map)
+    return {
+        "leg": leg,
+        "policy": str(policy_path),
+        "reached_by_policy": reached_by_policy,
+        "policy_presses": policy_presses,
+        "fallback_presses": fallback_presses,
+        "battles": battles,
+        "success": success,
+        "blackouts": blackouts,
+        "moves_used": moves_used,
+        "events": events,
+    }
 
 
 # ── System 2 Goal Class ──────────────────────────────────────────────────────
@@ -197,7 +382,13 @@ def grind_skill(
     }
 
 
-def travel_to_pewter_skill(env: PokemonRed, budget: int = 4000) -> dict[str, Any]:
+def travel_to_pewter_skill(
+    env: PokemonRed,
+    budget: int = 4000,
+    nav: str = "bfs",
+    leg_policies: Optional[dict[str, str]] = None,
+    run_legs: Optional[list[dict[str, Any]]] = None,
+) -> dict[str, Any]:
     """Navigates the multi-map route from Viridian/Route 1 all the way to Pewter City (map 2)."""
     presses = 0
     battles_won = 0
@@ -206,35 +397,98 @@ def travel_to_pewter_skill(env: PokemonRed, budget: int = 4000) -> dict[str, Any
     moves_used: dict[str, int] = {}
     events: list[dict[str, Any]] = []
 
-    # Sequence of map stages to Pewter City
-    stages = [
-        (MAP_VIRIDIAN_CITY, "Viridian City"),
-        (MAP_ROUTE_2, "Route 2 South"),
-        (MAP_VIRIDIAN_FOREST_SOUTH_GATE, "South Gate"),
-        (MAP_VIRIDIAN_FOREST, "Viridian Forest"),
-        (MAP_VIRIDIAN_FOREST_NORTH_GATE, "North Gate"),
-        (MAP_ROUTE_2, "Route 2 North"),
-        (MAP_PEWTER_CITY, "Pewter City"),
-    ]
+    if nav == "bfs":
+        # Sequence of map stages to Pewter City
+        stages = [
+            (MAP_VIRIDIAN_CITY, "Viridian City"),
+            (MAP_ROUTE_2, "Route 2 South"),
+            (MAP_VIRIDIAN_FOREST_SOUTH_GATE, "South Gate"),
+            (MAP_VIRIDIAN_FOREST, "Viridian Forest"),
+            (MAP_VIRIDIAN_FOREST_NORTH_GATE, "North Gate"),
+            (MAP_ROUTE_2, "Route 2 North"),
+            (MAP_PEWTER_CITY, "Pewter City"),
+        ]
 
-    for next_map, label in stages:
+        for next_map, label in stages:
+            if presses >= budget:
+                break
+            cur_map = int(env.observe()[1]["map_id"])
+            if cur_map == MAP_PEWTER_CITY:
+                break
+            # If already at or past this stage
+            if cur_map == next_map:
+                continue
+
+            r = navigate_to(env, next_map, budget=budget - presses)
+            presses += r["presses"]
+            battles_started += r.get("battles_started", 0)
+            battles_won += r.get("battles_won", 0)
+            blackouts += r.get("blackouts", 0)
+            events.extend(r.get("events", []))
+
+            if r.get("blackouts", 0) > 0 or not r["success"]:
+                return {
+                    "presses": presses,
+                    "success": False,
+                    "battles_won": battles_won,
+                    "battles_started": battles_started,
+                    "blackouts": blackouts,
+                    "moves_used": moves_used,
+                    "events": events,
+                }
+
+        success = (int(env.observe()[1]["map_id"]) == MAP_PEWTER_CITY)
+        return {
+            "presses": presses,
+            "success": success,
+            "battles_won": battles_won,
+            "battles_started": battles_started,
+            "blackouts": blackouts,
+            "moves_used": moves_used,
+            "events": events,
+        }
+
+    # Learned navigation mode
+    travel_legs = TRAVEL_LEGS
+    active_policies = dict(DEFAULT_LEG_POLICIES)
+    if leg_policies:
+        active_policies.update(leg_policies)
+
+    for leg_name, target_map, fallback_maps in travel_legs:
         if presses >= budget:
             break
         cur_map = int(env.observe()[1]["map_id"])
         if cur_map == MAP_PEWTER_CITY:
             break
-        # If already at or past this stage
-        if cur_map == next_map:
-            continue
 
-        r = navigate_to(env, next_map, budget=budget - presses)
-        presses += r["presses"]
-        battles_started += r.get("battles_started", 0)
-        battles_won += r.get("battles_won", 0)
-        blackouts += r.get("blackouts", 0)
-        events.extend(r.get("events", []))
+        pol_path = active_policies.get(leg_name, DEFAULT_LEG_POLICIES.get(leg_name, ""))
+        leg_res = run_leg(
+            env=env,
+            leg=leg_name,
+            target_map=target_map,
+            policy_path=pol_path,
+            fallback_maps=fallback_maps,
+            budget=min(1000, budget - presses),
+        )
+        leg_presses = leg_res["policy_presses"] + leg_res["fallback_presses"]
+        presses += leg_presses
+        battles_started += leg_res["battles"]
+        blackouts += leg_res.get("blackouts", 0)
+        events.extend(leg_res.get("events", []))
+        for m_k, count in leg_res.get("moves_used", {}).items():
+            moves_used[m_k] = moves_used.get(m_k, 0) + count
 
-        if r.get("blackouts", 0) > 0 or not r["success"]:
+        if run_legs is not None:
+            run_legs.append({
+                "leg": leg_res["leg"],
+                "policy": leg_res["policy"],
+                "reached_by_policy": leg_res["reached_by_policy"],
+                "policy_presses": leg_res["policy_presses"],
+                "fallback_presses": leg_res["fallback_presses"],
+                "battles": leg_res["battles"],
+            })
+
+        if leg_res.get("blackouts", 0) > 0 or not leg_res["success"]:
             return {
                 "presses": presses,
                 "success": False,
@@ -257,7 +511,13 @@ def travel_to_pewter_skill(env: PokemonRed, budget: int = 4000) -> dict[str, Any
     }
 
 
-def fight_gym_skill(env: PokemonRed, budget: int = 2500) -> dict[str, Any]:
+def fight_gym_skill(
+    env: PokemonRed,
+    budget: int = 2500,
+    nav: str = "bfs",
+    leg_policies: Optional[dict[str, str]] = None,
+    run_legs: Optional[list[dict[str, Any]]] = None,
+) -> dict[str, Any]:
     """Enters Pewter Gym, defeats Jr. Trainer, defeats Brock, and acquires the Boulder Badge."""
     presses = 0
     battles_won = 0
@@ -269,10 +529,45 @@ def fight_gym_skill(env: PokemonRed, budget: int = 2500) -> dict[str, Any]:
 
     # Step 1: If in Pewter City (2), navigate into Pewter Gym (54)
     if int(env.observe()[1]["map_id"]) == MAP_PEWTER_CITY:
-        r_gym = navigate_to(env, MAP_PEWTER_GYM, budget=budget - presses)
-        presses += r_gym["presses"]
-        if not r_gym["success"]:
-            return {"presses": presses, "success": False, "badge_obtained": False}
+        if nav == "learned":
+            active_policies = dict(DEFAULT_LEG_POLICIES)
+            if leg_policies:
+                active_policies.update(leg_policies)
+            leg = leg_for_stage(MAP_PEWTER_GYM)
+            pol_path = active_policies.get(leg, DEFAULT_LEG_POLICIES[leg])
+            leg_res = run_leg(
+                env=env,
+                leg=leg,
+                target_map=MAP_PEWTER_GYM,
+                policy_path=pol_path,
+                fallback_maps=[MAP_PEWTER_GYM],
+                budget=min(1000, budget - presses),
+            )
+            leg_presses = leg_res["policy_presses"] + leg_res["fallback_presses"]
+            presses += leg_presses
+            battles_started += leg_res["battles"]
+            blackouts += leg_res.get("blackouts", 0)
+            events.extend(leg_res.get("events", []))
+            for m_k, count in leg_res.get("moves_used", {}).items():
+                moves_used[m_k] = moves_used.get(m_k, 0) + count
+
+            if run_legs is not None:
+                run_legs.append({
+                    "leg": leg_res["leg"],
+                    "policy": leg_res["policy"],
+                    "reached_by_policy": leg_res["reached_by_policy"],
+                    "policy_presses": leg_res["policy_presses"],
+                    "fallback_presses": leg_res["fallback_presses"],
+                    "battles": leg_res["battles"],
+                })
+
+            if not leg_res["success"] or leg_res.get("blackouts", 0) > 0:
+                return {"presses": presses, "success": False, "badge_obtained": False}
+        else:
+            r_gym = navigate_to(env, MAP_PEWTER_GYM, budget=budget - presses)
+            presses += r_gym["presses"]
+            if not r_gym["success"]:
+                return {"presses": presses, "success": False, "badge_obtained": False}
 
     if int(env.observe()[1]["map_id"]) != MAP_PEWTER_GYM:
         return {"presses": presses, "success": False, "badge_obtained": False}
@@ -403,6 +698,8 @@ def run_gym_quest(
     work_dir: str | Path = "work/gym",
     traj_dir: str | Path = "work/gym_traj",
     heal_threshold: float = 0.35,
+    nav: str = "bfs",
+    leg_policies: Optional[dict[str, str]] = None,
 ) -> dict[str, Any]:
     """Execute one full Gym Quest run from starter save state to Boulder Badge."""
     work_dir = Path(work_dir)
@@ -413,6 +710,7 @@ def run_gym_quest(
     maps_visited: list[int] = []
     moves_used_total: dict[str, int] = {}
     phase_presses: dict[str, int] = {}
+    run_legs: list[dict[str, Any]] = []
 
     total_presses = 0
     total_battles_started = 0
@@ -546,7 +844,13 @@ def run_gym_quest(
                     moves_used_total[m_k] = moves_used_total.get(m_k, 0) + count
 
             elif goal == "travel_to_pewter":
-                t_res = travel_to_pewter_skill(env, budget=min(4500, budget - total_presses))
+                t_res = travel_to_pewter_skill(
+                    env,
+                    budget=min(4500, budget - total_presses),
+                    nav=nav,
+                    leg_policies=leg_policies,
+                    run_legs=run_legs,
+                )
                 phase_presses["travel_to_pewter"] = phase_presses.get("travel_to_pewter", 0) + (total_presses - p_before)
                 total_battles_started += t_res.get("battles_started", 0)
                 total_battles_won += t_res.get("battles_won", 0)
@@ -557,7 +861,13 @@ def run_gym_quest(
             elif goal == "gym":
                 if level_at_gym is None:
                     level_at_gym = party_status(env)["level"]
-                gym_res = fight_gym_skill(env, budget=min(4000, budget - total_presses))
+                gym_res = fight_gym_skill(
+                    env,
+                    budget=min(4000, budget - total_presses),
+                    nav=nav,
+                    leg_policies=leg_policies,
+                    run_legs=run_legs,
+                )
                 phase_presses["gym"] = phase_presses.get("gym", 0) + (total_presses - p_before)
                 total_battles_started += gym_res.get("battles_started", 0)
                 total_battles_won += gym_res.get("battles_won", 0)
@@ -594,6 +904,8 @@ def run_gym_quest(
             "zero_memory_writes": True,
             "elapsed_seconds": round(time.time() - start_time, 2),
         }
+        if nav == "learned" or run_legs:
+            result["legs"] = run_legs
 
         # Save trajectory if requested
         if save_traj and traj_frames:
@@ -653,10 +965,20 @@ def main() -> None:
     parser.add_argument("--save-traj", action="store_true", help="Record and save full trajectory npz to work/gym_traj/run_seed_<seed>.npz")
     parser.add_argument("--traj-dir", type=str, default="work/gym_traj", help="Directory for output trajectory npz files")
     parser.add_argument("--heal-threshold", type=float, default=0.35, help="HP fraction threshold to trigger healing")
+    parser.add_argument("--nav", choices=["bfs", "learned"], default="bfs", help="Navigation mode (bfs or learned)")
+    parser.add_argument("--leg-policies", type=str, default="", help="Override leg policies (leg=path,...)")
     args = parser.parse_args()
 
     work_dir = Path(args.work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
+
+    policies_override = dict(DEFAULT_LEG_POLICIES)
+    if args.leg_policies:
+        for item in args.leg_policies.split(","):
+            item = item.strip()
+            if "=" in item:
+                k, v = item.split("=", 1)
+                policies_override[k.strip()] = v.strip()
 
     results: list[dict[str, Any]] = []
 
@@ -674,6 +996,8 @@ def main() -> None:
             work_dir=work_dir,
             traj_dir=args.traj_dir,
             heal_threshold=args.heal_threshold,
+            nav=args.nav,
+            leg_policies=policies_override,
         )
         results.append(res)
 
@@ -707,6 +1031,15 @@ def main() -> None:
             for r in results
         ],
     }
+
+    if any("legs" in r for r in results):
+        legs_summary = {}
+        for leg_name in ["viridian", "to_route2", "to_gate", "forest", "to_pewter", "to_gym"]:
+            att = sum(1 for r in results for l in r.get("legs", []) if l["leg"] == leg_name and l["reached_by_policy"] is not None)
+            if att > 0:
+                rec = sum(1 for r in results for l in r.get("legs", []) if l["leg"] == leg_name and l["reached_by_policy"])
+                legs_summary[leg_name] = f"{rec}/{att}"
+        summary["legs"] = legs_summary
 
     summary_file = work_dir / "summary.json"
     with open(summary_file, "w", encoding="utf-8") as f:
