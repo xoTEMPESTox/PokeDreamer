@@ -187,6 +187,10 @@ def evaluate_split(
     map_acc_real[true_battle] = np.nan
     map_acc_nochange[true_battle] = np.nan
 
+    # Wrong-map rate (NaN where true_battle)
+    wrong_map_img = (img_map != true_map).astype(float)
+    wrong_map_img[true_battle] = np.nan
+
     # Battle accuracy
     battle_acc_img = (img_battle == true_battle).astype(float)
     battle_acc_nochange = (battle0[:, None] == true_battle).astype(float)
@@ -230,6 +234,7 @@ def evaluate_split(
         "map_acc_img": map_acc_img,
         "map_acc_real": map_acc_real,
         "map_acc_nochange": map_acc_nochange,
+        "wrong_map_img": wrong_map_img,
         "battle_acc_img": battle_acc_img,
         "battle_acc_nochange": battle_acc_nochange,
         "mse_img": mse_img,
@@ -271,6 +276,7 @@ def summarize(per_window: dict, episode_ids: np.ndarray) -> dict:
         "map_acc_img": per_window["map_acc_img"],
         "map_acc_real": per_window["map_acc_real"],
         "map_acc_nochange": per_window["map_acc_nochange"],
+        "wrong_map_img": per_window.get("wrong_map_img", 1.0 - per_window["map_acc_img"]),
         "battle_acc_img": per_window["battle_acc_img"],
         "battle_acc_nochange": per_window["battle_acc_nochange"],
         "mse_img": per_window["mse_img"],
@@ -379,6 +385,7 @@ def print_compact_table(summary: dict, split_name: str):
         ("pos_err_nochange_moved", "pos_err_nochange (moved)"),
         ("pos_err_real_moved", "pos_err_real (moved)"),
         ("map_acc_img", "map_acc_img"),
+        ("wrong_map_img", "wrong_map_rate"),
         ("map_acc_real", "map_acc_real"),
         ("map_acc_nochange", "map_acc_nochange"),
         ("battle_acc_img", "battle_acc_img"),
@@ -399,7 +406,7 @@ def print_compact_table(summary: dict, split_name: str):
             if np.isnan(m):
                 cell = "nan"
             else:
-                if "acc" in key:
+                if "acc" in key or "wrong_map" in key:
                     cell = f"{m:.3f} [{lo:.3f},{hi:.3f}]"
                 elif "mse" in key:
                     cell = f"{m:.4f} [{lo:.4f},{hi:.4f}]"
@@ -614,10 +621,116 @@ def plot_grid(data: dict, starts: np.ndarray, per_window: dict, K: int, out_path
     cv2.imwrite(str(out_path), full_grid)
 
 
+MAP_NAMES_OVERRIDE = {
+    0: "Pallet Town",
+    1: "Viridian City",
+    2: "Pewter City",
+    12: "Route 1",
+    13: "Route 2",
+    41: "Viridian Pokecenter",
+    42: "Viridian Mart",
+    47: "Forest North Gate",
+    50: "Forest South Gate",
+    51: "Viridian Forest",
+    54: "Pewter Gym",
+    58: "Pewter Pokecenter",
+}
+
+
+def get_map_name(map_id: int) -> str:
+    return MAP_NAMES_OVERRIDE.get(int(map_id), f"Map {map_id}")
+
+
+def summarize_per_map(per_window: dict, episode_ids: np.ndarray, maps=(13, 51, 2, 54)) -> dict:
+    """Compute episode-bootstrap evaluation metrics separately for specified map IDs."""
+    episode_ids = np.asarray(episode_ids)
+    map0 = np.asarray(per_window["map0"])
+    per_map = {}
+
+    for m in maps:
+        mask = (map0 == m)
+        n_win = int(np.sum(mask))
+        m_name = get_map_name(m)
+
+        if n_win == 0:
+            per_map[str(m)] = {
+                "map_id": int(m),
+                "map_name": m_name,
+                "n_windows": 0,
+                "n_episodes": 0,
+                "metrics": {},
+            }
+            continue
+
+        sub_pw = {}
+        for k, v in per_window.items():
+            if isinstance(v, np.ndarray) and len(v) == len(map0):
+                sub_pw[k] = v[mask]
+            else:
+                sub_pw[k] = v
+
+        sub_eps = episode_ids[mask]
+        sub_summary = summarize(sub_pw, sub_eps)
+        sub_summary["map_id"] = int(m)
+        sub_summary["map_name"] = m_name
+        per_map[str(m)] = sub_summary
+
+    return per_map
+
+
+def print_per_map_table(per_map: dict):
+    """Print per-map summary table to stdout."""
+    for map_key, m_info in per_map.items():
+        n_win = m_info["n_windows"]
+        n_ep = m_info["n_episodes"]
+        m_name = m_info.get("map_name", f"Map {map_key}")
+        if n_win == 0:
+            print(f"\n--- PER-MAP EVALUATION: Map {map_key} ({m_name}) | 0 windows ---")
+            continue
+        reported_ks = m_info.get("reported_k", [1, 2, 4, 8, 16, 32])
+        header_ks = "".join(f"{f'k={k}':>20}" for k in reported_ks)
+        tot_w = 32 + 20 * len(reported_ks)
+        print("=" * tot_w)
+        print(f"PER-MAP EVALUATION: Map {map_key} ({m_name}) | windows={n_win} | episodes={n_ep}")
+        print("=" * tot_w)
+        print(f"{'Metric':<32}{header_ks}")
+        print("-" * tot_w)
+
+        map_metrics = [
+            ("wrong_map_img", "wrong_map_rate"),
+            ("pos_err_img", "pos_err_img"),
+            ("pos_err_nochange", "pos_err_nochange"),
+        ]
+        for key, display_name in map_metrics:
+            if key not in m_info.get("metrics", {}):
+                continue
+            row_str = f"{display_name:<32}"
+            for k in reported_ks:
+                k_str = str(k)
+                if k_str in m_info["metrics"][key].get("at_k", {}):
+                    val_info = m_info["metrics"][key]["at_k"][k_str]
+                    m = val_info["mean"]
+                    lo = val_info["lo"]
+                    hi = val_info["hi"]
+                    if np.isnan(m):
+                        cell = "nan"
+                    elif "wrong_map" in key:
+                        cell = f"{m:.3f} [{lo:.3f},{hi:.3f}]"
+                    else:
+                        cell = f"{m:.2f} [{lo:.2f},{hi:.2f}]"
+                else:
+                    cell = "nan"
+                row_str += f"{cell:>20}"
+            print(row_str)
+        print("=" * tot_w)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Evaluate diffusion world model imagined rollouts.")
     parser.add_argument("--run", type=str, default="main", help="Run name in work/runs/<run>")
-    parser.add_argument("--split", type=str, default="both", choices=["test_id", "test_ood", "both"], help="Split to evaluate")
+    parser.add_argument("--data", type=str, default="base", choices=["base", "ext"], help="Dataset to load: base or ext")
+    parser.add_argument("--split", type=str, default="both", choices=["test_id", "test_ood", "both", "test_ext"], help="Split to evaluate")
+    parser.add_argument("--probe", type=str, default=None, help="Path to probe checkpoint")
     parser.add_argument("--k", type=int, default=32, help="Rollout horizon K")
     parser.add_argument("--n-windows", type=int, default=512, help="Number of windows per split")
     parser.add_argument("--steps", type=int, default=3, help="Euler sampler diffusion steps")
@@ -628,7 +741,11 @@ def main():
 
     dev = args.device
     ckpt_path = Path("work/runs") / args.run / "ckpt.pt"
-    probe_path = Path("work/probe/probe.pt")
+    is_ext = (args.data == "ext")
+    if args.probe is not None:
+        probe_path = Path(args.probe)
+    else:
+        probe_path = Path("work/probe_ext/probe.pt") if is_ext else Path("work/probe/probe.pt")
 
     if not ckpt_path.exists():
         raise FileNotFoundError(f"World model checkpoint not found: {ckpt_path}")
@@ -645,10 +762,13 @@ def main():
     print(f"Loading probe from {probe_path} on {dev}...")
     probe = load_probe(str(probe_path), device=dev)
 
-    print("Loading dataset...")
-    data, splits = load()
+    print(f"Loading dataset (data={args.data})...")
+    data, splits = load(extended=is_ext)
 
     splits_to_eval = ["test_id", "test_ood"] if args.split == "both" else [args.split]
+    for s in splits_to_eval:
+        if s not in splits:
+            raise ValueError(f"Split '{s}' not found in splits: {list(splits.keys())}. Did you mean --data ext?")
 
     Path("work/eval").mkdir(parents=True, exist_ok=True)
     Path("work/plots").mkdir(parents=True, exist_ok=True)
@@ -678,7 +798,12 @@ def main():
 
         print_compact_table(summary, split_name)
 
-        stem = f"{args.run}_{split_name}_s{args.steps}_a{args.aug_bucket}"
+        if split_name == "test_ext" or is_ext:
+            per_map = summarize_per_map(per_window, episode_ids, maps=[13, 51, 2, 54])
+            summary["per_map"] = per_map
+            print_per_map_table(per_map)
+
+        stem = f"{args.run}_{split_name}_s{args.steps}_a{args.aug_bucket}" + ("_ext" if args.data == "ext" else "")  # base keeps the old names
 
         # Save per-window arrays in npz
         npz_path = Path("work/eval") / f"{stem}.npz"
@@ -709,6 +834,7 @@ def main():
             "map_acc_img": per_window["map_acc_img"],
             "map_acc_real": per_window["map_acc_real"],
             "map_acc_nochange": per_window["map_acc_nochange"],
+            "wrong_map_img": per_window["wrong_map_img"],
             "battle_acc_img": per_window["battle_acc_img"],
             "battle_acc_nochange": per_window["battle_acc_nochange"],
             "mse_img": per_window["mse_img"],

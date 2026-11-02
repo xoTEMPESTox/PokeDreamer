@@ -69,7 +69,7 @@ TOGGLE_KEYS = {ord("u"), ord("U")}
 SCREENSHOT_KEYS = {ord("p"), ord("P")}
 
 
-def get_overworld_windows(data, split_episodes):
+def get_overworld_windows(data, split_episodes, map_id=None):
     """Find valid start indices for CTX frames entirely within an overworld episode without battles.
     Starts are >= 1 frame into the episode so the action before the first context frame exists."""
     wins = windows(data, split_episodes, CTX + 1) + 1
@@ -77,7 +77,12 @@ def get_overworld_windows(data, split_episodes):
     ar = np.arange(CTX)
     idx_grid = wins[:, None] + ar
     no_battle = (~in_b[idx_grid]).all(axis=1)
-    return wins[no_battle]
+    valid = wins[no_battle]
+    if map_id is not None:
+        maps = data["map_ids"]
+        on_map = (maps[valid[:, None] + ar] == int(map_id)).all(axis=1)
+        valid = valid[on_map]
+    return valid
 
 
 def initial_actions(data, start_idx):
@@ -118,7 +123,9 @@ def main():
     parser = argparse.ArgumentParser(description="Play inside the PokeDreamer world model")
     parser.add_argument("--run", type=str, default="main", help="Run name in work/runs/<run>")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device (cpu or cuda)")
-    parser.add_argument("--split", type=str, default="test_id", help="Split for random context (train, test_id, test_ood)")
+    parser.add_argument("--data", type=str, default="base", choices=["base", "ext"], help="Dataset to load: base or ext")
+    parser.add_argument("--split", type=str, default=None, help="Split for random context (train, test_id, test_ood, test_ext)")
+    parser.add_argument("--start-map", type=int, default=None, help="Start context from this map ID (e.g. 2 for Pewter City, 51 for Viridian Forest)")
     parser.add_argument("--start", type=int, default=None, help="Explicit start frame index (not the first frame of an episode)")
     parser.add_argument("--script", type=str, default=None, help="Scripted button sequence for headless video recording")
     parser.add_argument("--shot", action="store_true", help="Save screenshot on last step in scripted mode")
@@ -147,10 +154,25 @@ def main():
         upsampler = None
         use_upsampler = False
 
-    data, splits = load()
-    valid_starts = get_overworld_windows(data, splits[args.split])
+    is_ext = (args.data == "ext")
+    data, splits = load(extended=is_ext)
+
+    if args.split is not None:
+        split_name = args.split
+    elif is_ext:
+        split_name = "test_ext"
+    else:
+        split_name = "test_id"
+
+    if split_name not in splits:
+        raise ValueError(f"Split '{split_name}' not found. Available: {list(splits.keys())}")
+
+    valid_starts = get_overworld_windows(data, splits[split_name], map_id=args.start_map)
     if len(valid_starts) == 0:
-        raise RuntimeError(f"No valid non-battle overworld windows found in split '{args.split}'")
+        err = f"No valid non-battle overworld windows found in split '{split_name}'"
+        if args.start_map is not None:
+            err += f" for map ID {args.start_map}"
+        raise RuntimeError(err)
 
     rng = np.random.default_rng()
 
@@ -164,7 +186,7 @@ def main():
         return c, a, start_idx
 
     ctx, actions, cur_start = init_context(args.start)
-    print(f"Initialized context from frame {cur_start} (split {args.split})")
+    print(f"Initialized context from frame {cur_start} (split {split_name}, map {data['map_ids'][cur_start]})")
 
     autocast_ctx = torch.autocast("cuda", torch.bfloat16) if dev.type == "cuda" else contextlib.nullcontext()
 

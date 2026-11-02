@@ -50,7 +50,7 @@ from lab.agent.nav import (
     navigate_to,
 )
 from lab.agent.system12 import party_status
-from lab.env import ROM_PATH, PokemonRed
+from lab.env import ROM_PATH, PokemonRed, ACTION_TO_INDEX
 from src.game_state import screen_capture
 from src.ram_addresses import (
     HP_ADDRESSES,
@@ -398,8 +398,10 @@ def run_gym_quest(
     budget: int = 18000,
     seed: int = 100,
     save_gif: bool = False,
+    save_traj: bool = False,
     state_path: str | Path = "saves/pokedex_viridian.state",
     work_dir: str | Path = "work/gym",
+    traj_dir: str | Path = "work/gym_traj",
     heal_threshold: float = 0.35,
 ) -> dict[str, Any]:
     """Execute one full Gym Quest run from starter save state to Boulder Badge."""
@@ -421,6 +423,14 @@ def run_gym_quest(
     level_at_gym: Optional[int] = None
     badge_obtained = False
 
+    traj_frames: list[np.ndarray] = []
+    traj_actions: list[int] = []
+    traj_maps: list[int] = []
+    traj_xs: list[int] = []
+    traj_ys: list[int] = []
+    traj_in_battles: list[bool] = []
+    traj_goals: list[str] = []
+
     current_goal_str = "init"
     start_time = time.time()
 
@@ -437,6 +447,19 @@ def run_gym_quest(
             nonlocal total_presses
             frame, ram_obs = orig_step(action)
             total_presses += 1
+
+            if save_traj:
+                if isinstance(action, (int, np.integer)):
+                    act_idx = int(action)
+                else:
+                    act_idx = ACTION_TO_INDEX.get(str(action).lower(), 7)
+                traj_frames.append(frame)
+                traj_actions.append(act_idx)
+                traj_maps.append(int(ram_obs["map_id"]))
+                traj_xs.append(int(ram_obs["x"]))
+                traj_ys.append(int(ram_obs["y"]))
+                traj_in_battles.append(bool(ram_obs["in_battle"]))
+                traj_goals.append(current_goal_str)
 
             # Map visit tracking
             m_id = int(ram_obs["map_id"])
@@ -466,6 +489,7 @@ def run_gym_quest(
 
         # Initial heal at Viridian PC to set full 25/25 HP and respawn anchor
         if init_st["hp"] < init_st["max_hp"] and init_st["map_id"] == MAP_VIRIDIAN_CITY:
+            current_goal_str = "heal"
             p_before = total_presses
             h_init = heal_pkmn_center(env, budget=500)
             phase_presses["heal"] = phase_presses.get("heal", 0) + (total_presses - p_before)
@@ -571,6 +595,28 @@ def run_gym_quest(
             "elapsed_seconds": round(time.time() - start_time, 2),
         }
 
+        # Save trajectory if requested
+        if save_traj and traj_frames:
+            traj_dir = Path(traj_dir)
+            traj_dir.mkdir(parents=True, exist_ok=True)
+            traj_path = traj_dir / f"run_seed_{seed}.npz"
+            np.savez_compressed(
+                traj_path,
+                frames=np.array(traj_frames, dtype=np.uint8),
+                actions=np.array(traj_actions, dtype=np.uint8),
+                map_ids=np.array(traj_maps, dtype=np.uint8),
+                xs=np.array(traj_xs, dtype=np.uint8),
+                ys=np.array(traj_ys, dtype=np.uint8),
+                in_battles=np.array(traj_in_battles, dtype=bool),
+                goals=np.array(traj_goals, dtype=str),
+                map=np.array(traj_maps, dtype=np.uint8),
+                x=np.array(traj_xs, dtype=np.uint8),
+                y=np.array(traj_ys, dtype=np.uint8),
+                in_battle=np.array(traj_in_battles, dtype=bool),
+                goal=np.array(traj_goals, dtype=str),
+            )
+            print(f"[GymQuest seed={seed}] Saved trajectory ({len(traj_frames)} steps) -> {traj_path}")
+
         # Save single run JSON
         run_file = work_dir / f"run_seed_{seed}.json"
         with open(run_file, "w", encoding="utf-8") as f:
@@ -604,6 +650,8 @@ def main() -> None:
     parser.add_argument("--work-dir", type=str, default="work/gym", help="Directory for output JSONs and GIFs")
     parser.add_argument("--state", type=str, default="saves/pokedex_viridian.state", help="Path to initial save state")
     parser.add_argument("--gif", action="store_true", help="Record and save captioned GIF of run")
+    parser.add_argument("--save-traj", action="store_true", help="Record and save full trajectory npz to work/gym_traj/run_seed_<seed>.npz")
+    parser.add_argument("--traj-dir", type=str, default="work/gym_traj", help="Directory for output trajectory npz files")
     parser.add_argument("--heal-threshold", type=float, default=0.35, help="HP fraction threshold to trigger healing")
     args = parser.parse_args()
 
@@ -621,8 +669,10 @@ def main() -> None:
             budget=args.budget,
             seed=cur_seed,
             save_gif=record_gif_this_run,
+            save_traj=args.save_traj,
             state_path=args.state,
             work_dir=work_dir,
+            traj_dir=args.traj_dir,
             heal_threshold=args.heal_threshold,
         )
         results.append(res)
