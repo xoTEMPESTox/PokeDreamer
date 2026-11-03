@@ -169,7 +169,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--task", choices=sorted(TASKS), default="leave_house")
     ap.add_argument("--policy", choices=["mpc", "random", "greedy", "learned"], default="mpc")
-    ap.add_argument("--rl-name", default="leave_house", help="work/agent_rl/<name>/policy.pt for --policy learned")
+    ap.add_argument("--rl-name", default="leave_house", help="<rl-dir>/<name>/policy.pt for --policy learned")
+    ap.add_argument("--rl-dir", default="work/agent_rl", help="work/ppo_real for the real-game PPO policies "
+                    "(output name gets _ppo_real_, as ppo_real's own eval)")
     ap.add_argument("--run", default="main")
     ap.add_argument("--episodes", type=int, default=20)
     ap.add_argument("--max-steps", type=int, default=60)
@@ -189,11 +191,11 @@ def main():
     if args.policy == "learned":
         from lab.agent.imagine_rl import Policy
         net = Policy().to(args.device).eval()
-        net.load_state_dict(torch.load(f"work/agent_rl/{args.rl_name}/policy.pt", map_location=args.device,
+        net.load_state_dict(torch.load(f"{args.rl_dir}/{args.rl_name}/policy.pt", map_location=args.device,
                                        weights_only=True)["policy"])
     fields = train_geodesic_fields(TASKS[args.task]["exits"], extended=args.data == "ext") if args.geodesic else None
     rng = np.random.default_rng(args.seed)
-    tag = {"mpc": f"_{args.run}_n{args.n}_h{args.h}", "learned": f"_{args.rl_name}"}.get(args.policy, "") + ("_geo" if args.geodesic else "")
+    tag = {"mpc": f"_{args.run}_n{args.n}_h{args.h}", "learned": f"_{'ppo_real_' if Path(args.rl_dir).name == 'ppo_real' else ''}{args.rl_name}"}.get(args.policy, "") + ("_geo" if args.geodesic else "")
     stem = f"{args.task}_{args.policy}{tag}_s{args.seed}" + (f"_from_{Path(args.state).stem}" if args.state else "")
     results = []
     for ep in range(args.episodes):
