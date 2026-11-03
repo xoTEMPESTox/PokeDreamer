@@ -165,10 +165,13 @@ def run_leg(
     If policy file missing or budget runs out: fall back to navigate_to.
     Already on target_map (e.g. after a heal trip): reached_by_policy is None, and the leg is not counted as attempted.
     """
-    cur_map = int(env.observe()[1]["map_id"])
+    _, ram0 = env.observe()
+    cur_map = int(ram0["map_id"])
+    start = [cur_map, int(ram0["x"]), int(ram0["y"])]
     if cur_map == target_map:
         return {
             "leg": leg,
+            "start": start,
             "policy": str(policy_path),
             "reached_by_policy": None,
             "policy_presses": 0,
@@ -263,6 +266,7 @@ def run_leg(
     success = (int(env.observe()[1]["map_id"]) == target_map)
     return {
         "leg": leg,
+        "start": start,
         "policy": str(policy_path),
         "reached_by_policy": reached_by_policy,
         "policy_presses": policy_presses,
@@ -507,6 +511,7 @@ def travel_to_pewter_skill(
         if run_legs is not None:
             run_legs.append({
                 "leg": leg_res["leg"],
+                "start": leg_res["start"],
                 "policy": leg_res["policy"],
                 "reached_by_policy": leg_res["reached_by_policy"],
                 "policy_presses": leg_res["policy_presses"],
@@ -580,6 +585,7 @@ def fight_gym_skill(
             if run_legs is not None:
                 run_legs.append({
                     "leg": leg_res["leg"],
+                    "start": leg_res["start"],
                     "policy": leg_res["policy"],
                     "reached_by_policy": leg_res["reached_by_policy"],
                     "policy_presses": leg_res["policy_presses"],

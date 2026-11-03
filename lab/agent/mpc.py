@@ -103,10 +103,10 @@ def learned_action(net, frames, device):
 
 
 def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False, net=None, task="leave_house",
-                fields=None):
+                fields=None, state=None):
     spec = TASKS[task]
     exits = spec["exits"]
-    env = PokemonRed(state=spec["state"])
+    env = PokemonRed(state=state or spec["state"])
     frames, actions, trace, video = [], [], [], []
     for i in range(CTX):          # fill the context with B presses (no effect in the overworld; 2.7% of training
         frame, ram = env.step(B)  # actions); skips the stale frame right after a state load (red tint in the data)
@@ -180,6 +180,7 @@ def main():
     ap.add_argument("--video", action="store_true", help="record the first episode")
     ap.add_argument("--geodesic", action="store_true", help="greedy: follow path distance over the train split's moves")
     ap.add_argument("--data", choices=["base", "ext"], default="base", help="base or extended dataset for geodesic fields")
+    ap.add_argument("--state", default=None, help="start state instead of the task's (output name gets _from_<state>)")
     args = ap.parse_args()
 
     model = load_world_model(args.run, device=args.device) if args.policy == "mpc" else None
@@ -193,12 +194,12 @@ def main():
     fields = train_geodesic_fields(TASKS[args.task]["exits"], extended=args.data == "ext") if args.geodesic else None
     rng = np.random.default_rng(args.seed)
     tag = {"mpc": f"_{args.run}_n{args.n}_h{args.h}", "learned": f"_{args.rl_name}"}.get(args.policy, "") + ("_geo" if args.geodesic else "")
-    stem = f"{args.task}_{args.policy}{tag}_s{args.seed}"
+    stem = f"{args.task}_{args.policy}{tag}_s{args.seed}" + (f"_from_{Path(args.state).stem}" if args.state else "")
     results = []
     for ep in range(args.episodes):
         res, video = run_episode(args.policy, model, probe, rng, args.max_steps, args.n, args.h, args.device,
                                  record=args.video and ep == 0, net=net, task=args.task,
-                                 fields=fields)
+                                 fields=fields, state=args.state)
         results.append(res)
         print(f"episode {ep}: success {res['success']} steps {res['steps']} final {res['trace'][-1][:3]} "
               f"({res['seconds']} s)", flush=True)
