@@ -109,6 +109,8 @@ Each step, you select exactly one high-level goal from these five:
 
 3. "grind":
    - What it does: Paces in Route 1 tall grass, fights wild battles, levels up starter Pokémon.
+   - Safety stop (how the skill works): it returns as soon as the target level is reached or HP falls below the
+     grind safety stop shown in the state; if HP is already below it, grind does nothing (about 1 press).
    - Preconditions / Routing Constraints:
      * Can ONLY be executed from Viridian City / Route 1 area.
      * System 1 cannot execute grinding from the Pewter area (maps 2, 54, 58), Route 2 (Map 13), or Viridian Forest (maps 47, 50, 51).
@@ -439,6 +441,7 @@ class LLMPlanner:
         self,
         status: dict[str, Any],
         pewter_healed: bool,
+        heal_threshold: float = 0.35,
     ) -> str:
         """Format current RAM status, recent decisions history, and notebook."""
         map_id = status.get("map_id", status.get("map", 0))
@@ -468,6 +471,7 @@ class LLMPlanner:
             f"- Badges: 0x{badges:02X} (Boulder Badge: {'YES' if has_badge else 'NO'})",
             f"- Pewter Center Healed: {'YES' if pewter_healed else 'NO'}",
             f"- Your last chosen grind target level: {target_str}",
+            f"- Grind skill safety stop: HP below {heal_threshold:.0%} of max",
             "",
             "### RECENT DECISIONS (Last ~8)",
         ]
@@ -552,7 +556,7 @@ class LLMPlanner:
         self.total_decisions += 1
         effective_fallback_target = self.target_level if self.target_level is not None else target_level
 
-        user_content = self._build_user_message(status, pewter_healed)
+        user_content = self._build_user_message(status, pewter_healed, heal_threshold)
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_content},

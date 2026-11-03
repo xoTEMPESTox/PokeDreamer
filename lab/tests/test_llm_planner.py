@@ -115,6 +115,15 @@ def test_system_prompt_has_no_rule_thresholds():
     assert "one-way" in SYSTEM_PROMPT
 
 
+def test_grind_safety_stop_is_stated():
+    """The grind skill returns at once when HP is below its safety stop; the planner must be told (a CPU smoke run
+    with gemma4:e4b chose grind 5 times at HP 10/29, 1 press each, until the stall guard stopped it)."""
+    assert "Safety stop" in SYSTEM_PROMPT
+    planner = LLMPlanner(client=FakeOllamaClient({}))
+    msg = planner._build_user_message({"map_id": 12, "level": 10, "hp": 10, "max_hp": 29}, False, heal_threshold=0.35)
+    assert "Grind skill safety stop: HP below 35% of max" in msg
+
+
 def test_prompt_shows_no_target_level_until_llm_chooses():
     """The user message must show none chosen yet until the LLM has chosen one."""
     fake_client = FakeOllamaClient({
