@@ -1077,6 +1077,8 @@ def run_gym_quest(
 
 # ── Batch Runner & CLI ───────────────────────────────────────────────────────
 def main() -> None:
+    # LLM reasons can hold any Unicode (gemma4:26b wrote "≈"); the Windows console/log default (cp1252) crashed a run
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description="PokeDreamer System 1/2 Gym Quest.")
     parser.add_argument("--runs", type=int, default=1, help="Number of evaluation runs")
     parser.add_argument("--seed", type=int, default=100, help="Initial random seed")
