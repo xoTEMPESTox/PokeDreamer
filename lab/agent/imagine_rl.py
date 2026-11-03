@@ -100,6 +100,7 @@ def main():
     ap.add_argument("--geodesic", action="store_true",
                     help="reward progress in path distance over the train split's observed moves, not Manhattan")
     ap.add_argument("--step-clip", type=float, default=None, help="clip per-step progress to +-this many tiles")
+    ap.add_argument("--seed", type=int, default=None, help="seed torch and the start sampling (default: unseeded)")
     args = ap.parse_args()
     dev = args.device
     out = Path("work/agent_rl") / args.name
@@ -134,6 +135,8 @@ def main():
 
     model = load_world_model(args.run, device=dev)
     probe = load_probe(args.probe, device=dev)
+    if args.seed is not None:  # policy init and sampling; GPU kernels are not bit-deterministic
+        torch.manual_seed(args.seed)
     policy = Policy().to(dev)
     opt = torch.optim.Adam(policy.parameters(), lr=3e-4)
     ckpt = out / "policy.pt"
@@ -144,7 +147,7 @@ def main():
         opt.load_state_dict(st["opt"])
         it, elapsed = st["it"], st["elapsed"]
         log(f"resumed at iteration {it}")
-    rng = np.random.default_rng(it)
+    rng = np.random.default_rng(it if args.seed is None else [args.seed, it])
     ar = torch.arange(CTX, device=dev)
     t_last = time.time()
     # equal starts per map: the 1st floor is ~1.4% of contexts, and an unbalanced run (to it 220) learned the
