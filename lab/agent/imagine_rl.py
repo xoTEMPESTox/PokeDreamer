@@ -94,6 +94,8 @@ def main():
     ap.add_argument("--task", choices=sorted(TASKS), default="leave_house")
     ap.add_argument("--name", default="leave_house")
     ap.add_argument("--minutes", type=float, required=True)
+    ap.add_argument("--max-iters", type=int, default=0,
+                    help="also stop at this iteration (0 = no limit): matches runs made at another GPU power limit")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--probe", default="work/probe/probe.pt", help="path to probe checkpoint")
     ap.add_argument("--data", choices=["base", "ext"], default="base", help="base or extended dataset")
@@ -154,7 +156,7 @@ def main():
     # bedroom stairs (30/30 real episodes reached the 1st floor) but walked straight back up from there
     by_map = [starts[data["map_ids"][starts + CTX - 1] == m] for m in train_maps]
     log(f"task {args.task}; start contexts per map: " + ", ".join(f"{m}: {len(b)}" for m, b in zip(train_maps, by_map)))
-    while elapsed < args.minutes * 60:
+    while elapsed < args.minutes * 60 and not (args.max_iters and it >= args.max_iters):
         counts = [BATCH // len(by_map) + (i < BATCH % len(by_map)) for i in range(len(by_map))]  # sums to BATCH
         s = torch.from_numpy(np.concatenate([rng.choice(b, c) for b, c in zip(by_map, counts)])).to(dev)
         ctx = to_float(frames[s[:, None] + ar])                       # (B, CTX, H, W)
