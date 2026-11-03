@@ -18,13 +18,16 @@ from lab.agent.gym_quest import (
     DEFAULT_LEG_POLICIES,
     STAGE_TO_LEG,
     TRAVEL_LEGS,
+    first_travel_leg,
     leg_for_stage,
+    plan_gym,
     run_leg,
     travel_to_pewter_skill,
     fight_gym_skill,
     run_gym_quest,
 )
 from lab.agent.nav import (
+    navigate_to,
     MAP_VIRIDIAN_CITY,
     MAP_ROUTE_2,
     MAP_VIRIDIAN_FOREST_SOUTH_GATE,
@@ -168,6 +171,53 @@ def test_travel_skill_bfs_does_not_call_policy():
         # In bfs mode, run_legs is never populated
         assert len(legs_recorded) == 0
         assert res["presses"] > 0
+
+
+GATE_STATE = Path("work/route_states/seed100_map50.state")
+ROUTE2_STATE = Path("work/route_states/seed100_map13.state")
+TO_GATE_POLICY = Path("work/agent_rl/to_gate_wm31/policy.pt")
+
+
+def test_planner_no_top_up_heal_past_viridian():
+    """Past Viridian (Route 2, the gates, the forest) the top-up heal is skipped: navigate_to cannot route back to
+    the Viridian Pokecenter from there, so the quest pressed one button per planner tick until its budget ran out
+    (work/gym_learned_partial, seeds 100 and 106, stuck on map 50 at HP 35/38)."""
+    for m in (MAP_ROUTE_2, MAP_VIRIDIAN_FOREST_SOUTH_GATE, MAP_VIRIDIAN_FOREST, MAP_VIRIDIAN_FOREST_NORTH_GATE):
+        st = {"level": 14, "hp": 35, "max_hp": 38, "hp_frac": 35 / 38, "map_id": m}
+        assert plan_gym(st, target_level=14) == "travel_to_pewter"
+    st = {"level": 14, "hp": 35, "max_hp": 38, "hp_frac": 35 / 38, "map_id": MAP_VIRIDIAN_CITY}
+    assert plan_gym(st, target_level=14) == "heal"
+
+
+@pytest.mark.skipif(not ROM_PATH.exists() or not ROUTE2_STATE.exists() or not TO_GATE_POLICY.exists(),
+                    reason="ROM, Route 2 state or to_gate policy not available")
+def test_leg_settles_after_reaching_target():
+    """A leg reached by the policy returns with the new map's coordinates loaded (RAM updates x, y a few frames
+    after the map id), so the next leg's BFS fallback can plan. It used to fail at once with 0 presses."""
+    with PokemonRed(state=ROUTE2_STATE) as env:
+        res = run_leg(env, "to_gate", MAP_VIRIDIAN_FOREST_SOUTH_GATE, TO_GATE_POLICY, [MAP_VIRIDIAN_FOREST_SOUTH_GATE])
+        assert res["reached_by_policy"] is True
+        assert navigate_to(env, MAP_VIRIDIAN_FOREST, budget=500)["success"]
+
+
+@pytest.mark.skipif(not ROM_PATH.exists() or not GATE_STATE.exists(), reason="ROM or gate state not available")
+def test_learned_travel_resumes_at_current_leg():
+    """From the forest's south gate, learned travel starts with the forest leg. It used to restart with the
+    viridian leg, spending 1000 presses per call walking nowhere (work/gym_learned_partial, seed 101)."""
+    missing = "work/agent_rl/missing/policy.pt"
+    with PokemonRed(state=GATE_STATE) as env:
+        legs: list[dict[str, Any]] = []
+        res = travel_to_pewter_skill(env, budget=4500, nav="learned",
+                                     leg_policies={leg: missing for leg in DEFAULT_LEG_POLICIES}, run_legs=legs)
+        assert legs[0]["leg"] == "forest"
+        assert res["success"]
+
+
+@pytest.mark.parametrize("map_id,y,leg", [(MAP_ROUTE_2, 60, "to_gate"), (MAP_ROUTE_2, 5, "to_pewter"),
+                                          (MAP_VIRIDIAN_FOREST, 30, "forest"), (MAP_VIRIDIAN_CITY, 10, "viridian")])
+def test_first_travel_leg(map_id, y, leg):
+    """Route 2 is two regions split by the forest: south of it the next leg is to_gate, north of it to_pewter."""
+    assert TRAVEL_LEGS[first_travel_leg(map_id, y)][0] == leg
 
 
 @pytest.mark.skipif(not ROM_PATH.exists() or not SAVE_STATE_PATH.exists(), reason="ROM or save state not available")

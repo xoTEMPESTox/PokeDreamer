@@ -103,6 +103,23 @@ STAGE_TO_LEG: dict[int, str] = {
 }
 
 
+ROUTE2_SOUTH_Y = 43  # Route 2 rows with an observed path to the South Gate: 43-71; to Pewter City: 0-11 (ext train split)
+
+
+def first_travel_leg(map_id: int, y: int) -> int:
+    """Index in TRAVEL_LEGS where learned travel starts, so it resumes mid-route (e.g. after a leg ran out of presses)
+    instead of restarting with the viridian leg. Route 2 is two regions split by the forest, told apart by the row.
+    Anywhere else it is 0 (on Viridian City the viridian leg returns at once)."""
+    names = [leg for leg, _, _ in TRAVEL_LEGS]
+    if map_id == MAP_ROUTE_2:
+        return names.index("to_gate" if y >= ROUTE2_SOUTH_Y else "to_pewter")
+    if map_id in (MAP_VIRIDIAN_FOREST_SOUTH_GATE, MAP_VIRIDIAN_FOREST):
+        return names.index("forest")
+    if map_id == MAP_VIRIDIAN_FOREST_NORTH_GATE:
+        return names.index("to_pewter")
+    return 0
+
+
 def leg_for_stage(target_map: int) -> str:
     """Return the policy leg corresponding to a navigation target stage map."""
     if target_map not in STAGE_TO_LEG:
@@ -218,6 +235,11 @@ def run_leg(
                 policy_presses += 1
                 frames.append(frame)
 
+        if int(ram["map_id"]) == target_map:
+            for _ in range(4):  # settle: RAM updates x, y a few frames after the map id (as navigate_to does)
+                env.step("pass")
+                policy_presses += 1
+
     cur_map = int(env.observe()[1]["map_id"])
     reached_by_policy = (cur_map == target_map)
 
@@ -294,6 +316,9 @@ def plan_gym(
     map_id = status.get("map_id", 0)
 
     in_pewter_area = map_id in (MAP_PEWTER_CITY, MAP_PEWTER_POKECENTER, MAP_PEWTER_GYM)
+    # navigate_to cannot route from here back to the Viridian Pokecenter, so no top-up heal once on the way
+    past_viridian = map_id in (MAP_ROUTE_2, MAP_VIRIDIAN_FOREST_SOUTH_GATE, MAP_VIRIDIAN_FOREST,
+                               MAP_VIRIDIAN_FOREST_NORTH_GATE)
 
     # Healing priority
     if in_pewter_area:
@@ -302,7 +327,7 @@ def plan_gym(
     else:
         if hp_frac < heal_threshold:
             return Goal("heal", f"HP low: {hp}/{max_hp} ({hp_frac:.2f} < {heal_threshold}), healing at Viridian Pokémon Center")
-        elif level >= target_level and hp < max_hp:
+        elif level >= target_level and hp < max_hp and not past_viridian:
             return Goal("heal", f"HP {hp}/{max_hp}, healing at Viridian Pokémon Center before Route 2")
 
     # Level grinding
@@ -454,7 +479,8 @@ def travel_to_pewter_skill(
     if leg_policies:
         active_policies.update(leg_policies)
 
-    for leg_name, target_map, fallback_maps in travel_legs:
+    _, ram = env.observe()
+    for leg_name, target_map, fallback_maps in travel_legs[first_travel_leg(int(ram["map_id"]), int(ram["y"])):]:
         if presses >= budget:
             break
         cur_map = int(env.observe()[1]["map_id"])
