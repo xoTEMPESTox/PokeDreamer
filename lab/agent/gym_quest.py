@@ -854,6 +854,7 @@ def run_gym_quest(
                 break
 
             if planner == "llm":
+                st["presses_used"], st["press_budget"] = total_presses, budget  # the LLM must know the time limit
                 goal_obj = llm_planner(
                     st,
                     target_level=effective_target_level,

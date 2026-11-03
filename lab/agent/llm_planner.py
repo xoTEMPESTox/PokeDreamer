@@ -130,6 +130,8 @@ Each step, you select exactly one high-level goal from these five:
 Important World Mechanics:
 - If your Pokémon faints (blackout), you lose money and respawn at the last visited Pokémon Center where you healed.
 - If you faint before healing at Pewter Pokémon Center, you are sent back to Viridian Pokémon Center.
+- The quest has a fixed budget of button presses (shown in the state, with the presses used so far); the quest
+  fails if the budget runs out before the badge is won.
 Always output valid JSON complying strictly with the requested schema.
 """
 
@@ -472,6 +474,7 @@ class LLMPlanner:
             f"- Pewter Center Healed: {'YES' if pewter_healed else 'NO'}",
             f"- Your last chosen grind target level: {target_str}",
             f"- Grind skill safety stop: HP below {heal_threshold:.0%} of max",
+            f"- Button presses used: {status.get('presses_used', 0)} of the {status.get('press_budget', '?')} budget",
             "",
             "### RECENT DECISIONS (Last ~8)",
         ]

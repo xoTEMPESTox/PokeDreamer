@@ -124,6 +124,16 @@ def test_grind_safety_stop_is_stated():
     assert "Grind skill safety stop: HP below 35% of max" in msg
 
 
+def test_press_budget_is_stated():
+    """The planner must know the quest's press budget: gemma4:26b, never told it, ground towards level 18 and had used
+    14,392 of 18,000 presses still on Route 1 (work/sys2_bakeoff_aborted1)."""
+    assert "budget of button presses" in SYSTEM_PROMPT
+    planner = LLMPlanner(client=FakeOllamaClient({}))
+    msg = planner._build_user_message({"map_id": 12, "level": 15, "hp": 40, "max_hp": 40, "presses_used": 14392,
+                                       "press_budget": 18000}, False)
+    assert "Button presses used: 14392 of the 18000 budget" in msg
+
+
 def test_prompt_shows_no_target_level_until_llm_chooses():
     """The user message must show none chosen yet until the LLM has chosen one."""
     fake_client = FakeOllamaClient({
