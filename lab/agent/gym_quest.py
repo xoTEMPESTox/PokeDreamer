@@ -283,9 +283,10 @@ def run_leg(
 class Goal(str):
     """Goal string with an attached explanation reason."""
 
-    def __new__(cls, goal: str, reason: str = ""):
+    def __new__(cls, goal: str, reason: str = "", target_level: Optional[int] = None):
         obj = super().__new__(cls, goal)
         obj.reason = reason
+        obj.target_level = target_level
         return obj
 
     def __iter__(self):
@@ -732,6 +733,11 @@ def run_gym_quest(
     heal_threshold: float = 0.35,
     nav: str = "bfs",
     leg_policies: Optional[dict[str, str]] = None,
+    planner: str = "rules",
+    llm_model: str = "gemma4:26b",
+    llm_think: bool = True,
+    llm_planner: Optional[Any] = None,
+    max_llm_decisions: int = 60,
 ) -> dict[str, Any]:
     """Execute one full Gym Quest run from starter save state to Boulder Badge."""
     work_dir = Path(work_dir)
@@ -825,17 +831,48 @@ def run_gym_quest(
             phase_presses["heal"] = phase_presses.get("heal", 0) + (total_presses - p_before)
             print(f"[GymQuest seed={seed}] Initial Viridian PC heal: {h_init['hp']}/{h_init['max_hp']} HP")
 
+        effective_target_level = target_level
+        consecutive_stalls = 0
+        stopped_reason: Optional[str] = None
+        if planner == "llm":
+            if llm_planner is None:
+                from lab.agent.llm_planner import LLMPlanner
+                llm_planner = LLMPlanner(model=llm_model, think=llm_think)
+            if hasattr(llm_planner, "warmup"):
+                load_sec = llm_planner.warmup()
+                print(f"[GymQuest seed={seed}] Model {llm_model} warmed up in {load_sec:.2f}s (load_seconds={load_sec})")
+
         while total_presses < budget:
             st = party_status(env)
             badges = int(env.pyboy.memory[WRAM_OBTAINED_BADGES])
             st["badges"] = badges
 
-            goal, reason = plan_gym(
-                st,
-                target_level=target_level,
-                pewter_healed=pewter_healed,
-                heal_threshold=heal_threshold,
-            )
+            # LLM Stall Guard: check decision cap
+            if planner == "llm" and getattr(llm_planner, "total_decisions", 0) >= max_llm_decisions:
+                stopped_reason = "decision_cap"
+                print(f"[GymQuest seed={seed}] Stopped by LLM stall guard: decision_cap ({max_llm_decisions} decisions reached)")
+                break
+
+            if planner == "llm":
+                goal_obj = llm_planner(
+                    st,
+                    target_level=effective_target_level,
+                    pewter_healed=pewter_healed,
+                    heal_threshold=heal_threshold,
+                )
+                goal = str(goal_obj)
+                reason = goal_obj.reason
+                new_target = getattr(goal_obj, "target_level", None)
+                if new_target is not None and new_target != effective_target_level:
+                    print(f"[LLMPlanner] Target level updated from {effective_target_level} to {new_target}")
+                    effective_target_level = new_target
+            else:
+                goal, reason = plan_gym(
+                    st,
+                    target_level=effective_target_level,
+                    pewter_healed=pewter_healed,
+                    heal_threshold=heal_threshold,
+                )
             current_goal_str = str(goal)
             elapsed = round(time.time() - start_time, 2)
 
@@ -849,6 +886,19 @@ def run_gym_quest(
                 "max_hp": st["max_hp"],
                 "map": st["map_id"],
             }
+            if planner == "llm":
+                last_rec = getattr(llm_planner, "last_decision_record", {})
+                log_entry.update({
+                    "source": last_rec.get("source", "llm"),
+                    "latency": last_rec.get("latency", 0.0),
+                    "prompt_tokens": last_rec.get("prompt_tokens", 0),
+                    "eval_tokens": last_rec.get("eval_tokens", 0),
+                    "raw_output": last_rec.get("raw_output"),
+                    "thinking": last_rec.get("thinking", ""),
+                    "rejection_reason": last_rec.get("rejection_reason"),
+                    "target_level": effective_target_level,
+                })
+
             timeline.append(log_entry)
             print(f"[Planner t={elapsed:5.1f}s p={total_presses:5d}] Goal: {goal:<16} | Lv: {st['level']:2d} | HP: {st['hp']:2d}/{st['max_hp']:2d} | Map: {st['map_id']:2d} | {reason}")
 
@@ -867,7 +917,7 @@ def run_gym_quest(
                         pewter_healed = True
 
             elif goal == "grind":
-                g_res = grind_skill(env, target_level=target_level, hp_threshold=heal_threshold, budget=min(3000, budget - total_presses))
+                g_res = grind_skill(env, target_level=effective_target_level, hp_threshold=heal_threshold, budget=min(3000, budget - total_presses))
                 phase_presses["grind"] = phase_presses.get("grind", 0) + (total_presses - p_before)
                 total_battles_started += g_res.get("battles_started", 0)
                 total_battles_won += g_res.get("battles_won", 0)
@@ -911,12 +961,35 @@ def run_gym_quest(
                     badge_obtained = True
                     break
 
+            p_used = total_presses - p_before
             if total_presses == p_before:
                 env.step("pass")
+                p_used = total_presses - p_before
+
+            if planner == "llm":
+                if p_used <= 1:
+                    consecutive_stalls += 1
+                else:
+                    consecutive_stalls = 0
+
+                if hasattr(llm_planner, "record_outcome"):
+                    st_after = party_status(env)
+                    st_after["badges"] = int(env.pyboy.memory[WRAM_OBTAINED_BADGES])
+                    llm_planner.record_outcome(
+                        presses_used=p_used,
+                        status_after=st_after,
+                    )
+
+                if consecutive_stalls >= 5:
+                    stopped_reason = "stalled"
+                    print(f"[GymQuest seed={seed}] Stopped by LLM stall guard: stalled (5 consecutive decisions used <= 1 press)")
+                    break
 
         final_st = party_status(env)
         final_badges = int(env.pyboy.memory[WRAM_OBTAINED_BADGES])
         badge_obtained = bool(final_badges & 0x01)
+        if planner == "llm" and stopped_reason is not None:
+            badge_obtained = False
 
         result = {
             "seed": seed,
@@ -936,6 +1009,23 @@ def run_gym_quest(
             "zero_memory_writes": True,
             "elapsed_seconds": round(time.time() - start_time, 2),
         }
+        if planner == "llm":
+            if stopped_reason is not None:
+                result["stopped_reason"] = stopped_reason
+            result["planner"] = llm_planner.get_stats()
+        else:
+            result["planner"] = {
+                "type": "rules",
+                "model": None,
+                "decisions": len(timeline),
+                "llm_decisions": 0,
+                "hallucinations": {},
+                "fallbacks": 0,
+                "mean_latency": 0.0,
+                "max_latency": 0.0,
+                "total_tokens": 0,
+                "notebook": [],
+            }
         if nav == "learned" or run_legs:
             result["legs"] = run_legs
 
@@ -999,6 +1089,10 @@ def main() -> None:
     parser.add_argument("--heal-threshold", type=float, default=0.35, help="HP fraction threshold to trigger healing")
     parser.add_argument("--nav", choices=["bfs", "learned"], default="bfs", help="Navigation mode (bfs or learned)")
     parser.add_argument("--leg-policies", type=str, default="", help="Override leg policies (leg=path,...)")
+    parser.add_argument("--planner", choices=["rules", "llm"], default="rules", help="System 2 planner type (rules or llm)")
+    parser.add_argument("--llm-model", type=str, default="gemma4:26b", help="Ollama model name for LLM planner")
+    parser.add_argument("--no-think", action="store_true", help="Disable thinking in LLM planner")
+    parser.add_argument("--max-llm-decisions", type=int, default=60, help="Max LLM planner decisions before stopping run")
     args = parser.parse_args()
 
     work_dir = Path(args.work_dir)
@@ -1030,6 +1124,10 @@ def main() -> None:
             heal_threshold=args.heal_threshold,
             nav=args.nav,
             leg_policies=policies_override,
+            planner=args.planner,
+            llm_model=args.llm_model,
+            llm_think=not args.no_think,
+            max_llm_decisions=args.max_llm_decisions,
         )
         results.append(res)
 
@@ -1082,6 +1180,14 @@ def main() -> None:
     print(f"Presses: mean={summary['presses_mean']}, min={summary['presses_min']}, max={summary['presses_max']}")
     print(f"Summary written to: {summary_file}")
     print("=" * 80 + "\n")
+
+    if args.planner == "llm":
+        try:
+            from lab.agent.llm_planner import unload_model
+            unload_model(model=args.llm_model)
+            print(f"[LLMPlanner] Unloaded {args.llm_model} from Ollama.")
+        except Exception as err:
+            print(f"[LLMPlanner] Note: could not unload model {args.llm_model}: {err}")
 
 
 if __name__ == "__main__":
