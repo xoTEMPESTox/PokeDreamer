@@ -136,6 +136,21 @@ def test_route_order_backtrack_no_second_bonus():
     assert best_idx == 1  # no second bonus
 
 
+@pytest.mark.parametrize("task,maps", [("to_route2", [1, 13]), ("to_gate", [13, 50]), ("forest", [50, 51, 47]),
+                                       ("to_pewter", [47, 13, 2]), ("to_gym", [2, 54])])
+def test_route_order_gym_legs(task, maps):
+    """Every forward warp of a gym leg (from an exit tile) earns +WARP_BONUS. Without a TASK_ROUTES entry the route
+    fell back to [0, success_map], so entering the forest from the gate (50 -> 51) cost -HALLUCINATION_PENALTY."""
+    exits = TASKS[task]["exits"]
+    route = TASK_ROUTES.get(task, [0, TASKS[task]["success_map"]])  # as RealEnvWrapper
+    best_idx = route.index(maps[0]) if maps[0] in route else 0
+    for a, b in zip(maps, maps[1:]):
+        x, y = exits[a][0]
+        r, best_idx = compute_reward({"map_id": a, "x": x, "y": y}, {"map_id": b, "x": 0, "y": 0}, exits,
+                                     route=route, best_route_idx=best_idx)
+        assert np.isclose(r, WARP_BONUS), f"{task}: {a} -> {b} gave {r}"
+
+
 def test_post_warp_coordinate_lag_loop_net_negative():
     """Test that the RAM coordinate lag warp loop is strictly net negative with the lag filter."""
     exits = TASKS["route1"]["exits"]

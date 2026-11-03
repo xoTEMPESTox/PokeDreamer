@@ -60,6 +60,11 @@ TASK_ROUTES = {
     "leave_house": [38, 37, 0],
     "route1": [0, 12],
     "viridian": [0, 12, 1],
+    "to_route2": [1, 13],
+    "to_gate": [13, 50],
+    "forest": [50, 51, 47],
+    "to_pewter": [47, 13, 2],
+    "to_gym": [2, 54],
 }
 
 PAUSE = Path("work/PAUSE")
@@ -159,14 +164,15 @@ class RealEnvWrapper:
     - Auto-resets on termination or truncation, returning terminal observation in info.
     """
 
-    def __init__(self, task: str, rom_path: str | Path = ROM_PATH, cap: Optional[int] = None, geodesic: bool = False):
+    def __init__(self, task: str, rom_path: str | Path = ROM_PATH, cap: Optional[int] = None,
+                 fields: Optional[dict] = None):
         self.task = task
         self.spec = TASKS[task]
         self.exits = self.spec["exits"]
         self.success_map = self.spec["success_map"]
         self.route = TASK_ROUTES.get(task, [0, self.success_map])
         self.eval_cap = cap or TASK_CAPS.get(task, 100)
-        self.fields = train_geodesic_fields(self.exits) if geodesic else None  # path distance (lab/agent/tasks.py)
+        self.fields = fields  # path distance (lab/agent/tasks.py train_geodesic_fields), None = Manhattan
         self.env = PokemonRed(rom=rom_path)
         self.state_bytes = Path(self.spec["state"]).read_bytes()
         self.frames: List[np.ndarray] = []
@@ -240,7 +246,7 @@ class RealEnvWrapper:
 
 
 def worker_fn(pipe: mp.connection.Connection, task_name: str, rom_path: str | Path, seed: int,
-              cap: Optional[int] = None, geodesic: bool = False) -> None:
+              cap: Optional[int] = None, fields: Optional[dict] = None) -> None:
     """Multiprocessing worker function running a single PyBoy instance."""
     os.environ["OMP_NUM_THREADS"] = "1"
     os.environ["MKL_NUM_THREADS"] = "1"
@@ -248,7 +254,7 @@ def worker_fn(pipe: mp.connection.Connection, task_name: str, rom_path: str | Pa
     random.seed(seed)
     np.random.seed(seed)
 
-    wrapper = RealEnvWrapper(task=task_name, rom_path=rom_path, cap=cap, geodesic=geodesic)
+    wrapper = RealEnvWrapper(task=task_name, rom_path=rom_path, cap=cap, fields=fields)
     try:
         while True:
             if not pipe.poll(timeout=180.0):
@@ -272,7 +278,7 @@ class VectorEnv:
     """Vectorized environment manager using multiprocessing spawn and Pipes."""
 
     def __init__(self, task: str, num_envs: int, rom_path: str | Path = ROM_PATH, base_seed: int = 0,
-                 cap: Optional[int] = None, geodesic: bool = False):
+                 cap: Optional[int] = None, fields: Optional[dict] = None):
         self.num_envs = num_envs
         self.pipes: List[mp.connection.Connection] = []
         self.procs: List[mp.Process] = []
@@ -280,7 +286,7 @@ class VectorEnv:
         for i in range(num_envs):
             p_conn, c_conn = ctx.Pipe()
             seed = base_seed + i * 1000
-            proc = ctx.Process(target=worker_fn, args=(c_conn, task, rom_path, seed, cap, geodesic), daemon=True)
+            proc = ctx.Process(target=worker_fn, args=(c_conn, task, rom_path, seed, cap, fields), daemon=True)
             proc.start()
             self.pipes.append(p_conn)
             self.procs.append(proc)
@@ -419,8 +425,10 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         log(f"Resumed from {ckpt_path}: update {update}, {total_env_steps} env steps, {elapsed / 60:.1f} min")
 
     log(f"Starting training on {args.task} with {args.envs} envs, device {dev}")
+    # built once here: each worker loading the frame caches itself would need ~4 GB of RAM per emulator with --data ext
+    fields = train_geodesic_fields(TASKS[args.task]["exits"], extended=args.data == "ext") if args.geodesic else None
     vec_env = VectorEnv(task=args.task, num_envs=args.envs, rom_path=args.rom, base_seed=args.seed,
-                        cap=args.cap, geodesic=args.geodesic)
+                        cap=args.cap, fields=fields)
     current_obs = vec_env.reset()
 
     consecutive_95 = 0
@@ -781,6 +789,8 @@ def main():
     ap.add_argument("--name", default=None, help="run name (default: the task); work/ppo_real/<name>")
     ap.add_argument("--cap", type=int, default=None, help="presses per episode (default: TASK_CAPS)")
     ap.add_argument("--geodesic", action="store_true", help="path distance over the train split's moves")
+    ap.add_argument("--data", choices=["base", "ext"], default="base",
+                    help="train split for --geodesic: base, or ext (adds the collected Viridian -> Pewter episodes)")
     args = ap.parse_args()
     args.name = args.name or args.task
 
