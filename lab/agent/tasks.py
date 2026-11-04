@@ -33,6 +33,7 @@ _PEWTER_DETOURS = {
     56: [(3, 7), (4, 7)],                       # Mart (70 transitions: (3,7) 38, (4,7) 32)
     13: [(8, 0), (9, 0)],                       # Route 2 north exit to Pewter (97 transitions)
 }
+GRASS_PATCH_TILES = [(13, 30), (14, 30)]
 
 TASKS = {
     "leave_house": {"state": "saves/bedroom.state", "exits": {38: [(7, 1)], 37: [(2, 7)]}, "success_map": 0},
@@ -77,6 +78,57 @@ TASKS = {
         "exits": {2: [(16, 18)], **_PEWTER_DETOURS},
         "success_map": 54,
         "train_maps": [2],
+    },
+    # leave_viridian_pc: Viridian Pokémon Center (41) -> Viridian City (1). Exit at (3,7) / (4,7) (93 transitions: (3,7) 53, (4,7) 40).
+    "leave_viridian_pc": {
+        "state": "work/route_states/leave_viridian_pc.state",
+        "exits": {41: [(3, 7), (4, 7)]},
+        "success_map": 1,
+        "train_maps": [41],
+    },
+    # to_grass: Viridian City (1) -> Route 1 (12) grass patch.
+    # Viridian south exit (20,35) / (21,35) (133 transitions: (21,35) 72, (20,35) 61); Route 1 target tiles [(13,30), (14,30)].
+    "to_grass": {
+        "state": "work/route_states/to_grass.state",
+        "exits": {
+            1: [(20, 35), (21, 35)],
+            12: GRASS_PATCH_TILES,
+            **{k: v for k, v in _VIRIDIAN_DETOURS.items() if k != 12},
+        },
+        "success_map": 12,
+        "success_tiles": {12: GRASS_PATCH_TILES},
+        "train_maps": [1, 12],
+    },
+    # to_viridian_pc: Route 1 (12) -> Viridian City (1) -> Viridian Pokémon Center (41).
+    # 12 -> 1 at (10,0) / (11,0) (114 transitions: (10,0) 70, (11,0) 44); Pokecenter door at (23,26) (91 transitions).
+    "to_viridian_pc": {
+        "state": "work/route_states/to_viridian_pc.state",
+        "exits": {
+            12: [(10, 0), (11, 0)],
+            1: [(23, 26)],
+            **{k: v for k, v in _VIRIDIAN_DETOURS.items() if k not in (12, 41)},
+        },
+        "success_map": 41,
+        "train_maps": [12, 1],
+    },
+    # to_pewter_pc: Pewter City (2) -> Pewter Pokémon Center (58).
+    # Pokecenter door at (13,26) (64 transitions); Pewter Gym (54) exit at (4,13) / (5,13) (62 transitions: (4,13) 38, (5,13) 24).
+    "to_pewter_pc": {
+        "state": "work/route_states/to_pewter_pc.state",
+        "exits": {
+            2: [(13, 26)],
+            54: [(4, 13), (5, 13)],
+            **{k: v for k, v in _PEWTER_DETOURS.items() if k != 58},
+        },
+        "success_map": 58,
+        "train_maps": [2, 54],  # 54: the quest heals from inside the gym after the Jr. Trainer (6,684 start contexts)
+    },
+    # leave_pewter_pc: Pewter Pokémon Center (58) -> Pewter City (2). Exit at (3,7) / (4,7) (83 transitions: (3,7) 52, (4,7) 31).
+    "leave_pewter_pc": {
+        "state": "work/route_states/leave_pewter_pc.state",
+        "exits": {58: [(3, 7), (4, 7)]},
+        "success_map": 2,
+        "train_maps": [58],
     },
 }
 

@@ -77,11 +77,16 @@ from src.ram_addresses import (
 GRASS_PATCH_TILES = [(13, 30), (14, 30)]
 
 DEFAULT_LEG_POLICIES: dict[str, str] = {
+    "leave_viridian_pc": "work/agent_rl/leave_viridian_pc_wm31_gate_s0/policy.pt",
+    "to_grass": "work/agent_rl/to_grass_wm31_gate_s0/policy.pt",
+    "to_viridian_pc": "work/agent_rl/to_viridian_pc_wm31_gate_s0/policy.pt",
     "viridian": "work/agent_rl/viridian_geo_clip/policy.pt",
     "to_route2": "work/agent_rl/to_route2_wm31/policy.pt",
     "to_gate": "work/agent_rl/to_gate_wm31/policy.pt",
     "forest": "work/agent_rl/forest_wm31/policy.pt",
     "to_pewter": "work/agent_rl/to_pewter_wm31/policy.pt",
+    "to_pewter_pc": "work/agent_rl/to_pewter_pc_wm31_gate_s0/policy.pt",
+    "leave_pewter_pc": "work/agent_rl/leave_pewter_pc_wm31_gate_s0/policy.pt",
     "to_gym": "work/agent_rl/to_gym_wm31/policy.pt",
 }
 
@@ -155,20 +160,27 @@ def run_leg(
     policy_net: Optional[Any] = None,
     device: str = "cpu",
     fallback_budget: Optional[int] = None,
+    target_tiles: Optional[list[tuple[int, int]]] = None,
 ) -> dict[str, Any]:
     """Execute a single navigation leg using learned policy, falling back to navigate_to on failure.
 
-    Loop until RAM map == target_map or budget runs out:
+    Loop until RAM map == target_map (and in target_tiles if specified) or budget runs out:
         - in_battle -> battle_skill(env)
         - in_dialog(env.pyboy) -> press A
         - else -> learned_action(net, frames, device)
     If policy file missing or budget runs out: fall back to navigate_to.
     Already on target_map (e.g. after a heal trip): reached_by_policy is None, and the leg is not counted as attempted.
     """
+    def _is_target(r: dict[str, Any]) -> bool:
+        if int(r["map_id"]) != target_map:
+            return False
+        if target_tiles is not None:
+            return (int(r["x"]), int(r["y"])) in target_tiles
+        return True
+
     _, ram0 = env.observe()
-    cur_map = int(ram0["map_id"])
-    start = [cur_map, int(ram0["x"]), int(ram0["y"])]
-    if cur_map == target_map:
+    start = [int(ram0["map_id"]), int(ram0["x"]), int(ram0["y"])]
+    if _is_target(ram0):
         return {
             "leg": leg,
             "start": start,
@@ -199,7 +211,7 @@ def run_leg(
         cur_frame, ram = env.observe()
         frames = [cur_frame] * 4  # CTX = 4
 
-        while int(ram["map_id"]) != target_map and policy_presses < budget:
+        while not _is_target(ram) and policy_presses < budget:
             # Overworld blackout check
             st_party = party_status(env)
             if st_party["hp"] == 0 and st_party["party_size"] > 0:
@@ -238,20 +250,19 @@ def run_leg(
                 policy_presses += 1
                 frames.append(frame)
 
-        if int(ram["map_id"]) == target_map:
+        if _is_target(ram):
             for _ in range(4):  # settle: RAM updates x, y a few frames after the map id (as navigate_to does)
                 env.step("pass")
                 policy_presses += 1
 
-    cur_map = int(env.observe()[1]["map_id"])
-    reached_by_policy = (cur_map == target_map)
+    reached_by_policy = _is_target(env.observe()[1])
 
     # Fallback to navigate_to if not reached by policy (and no blackout)
     if not reached_by_policy and blackouts == 0:
         fb_limit = fallback_budget if fallback_budget is not None else budget
         for f_map in fallback_maps:
             cur_map = int(env.observe()[1]["map_id"])
-            if cur_map == f_map or cur_map == target_map:
+            if cur_map == f_map or (cur_map == target_map and target_tiles is None):
                 continue
             r_nav = navigate_to(env, f_map, budget=max(0, fb_limit - fallback_presses))
             fallback_presses += r_nav["presses"]
@@ -263,7 +274,18 @@ def run_leg(
             if not r_nav["success"] or r_nav.get("blackouts", 0) > 0:
                 break
 
-    success = (int(env.observe()[1]["map_id"]) == target_map)
+        if target_tiles is not None and blackouts == 0:
+            cur_ram = env.observe()[1]
+            if int(cur_ram["map_id"]) == target_map and (int(cur_ram["x"]), int(cur_ram["y"])) not in target_tiles:
+                r_nav = navigate_to(env, target_map, target_tiles=target_tiles, budget=max(0, fb_limit - fallback_presses))
+                fallback_presses += r_nav["presses"]
+                battles += r_nav.get("battles_started", 0)
+                blackouts += r_nav.get("blackouts", 0)
+                events.extend(r_nav.get("events", []))
+                for m_k, count in r_nav.get("moves_used", {}).items():
+                    moves_used[m_k] = moves_used.get(m_k, 0) + count
+
+    success = _is_target(env.observe()[1])
     return {
         "leg": leg,
         "start": start,
@@ -353,6 +375,9 @@ def grind_skill(
     target_level: int = 15,
     hp_threshold: float = 0.35,
     budget: int = 2500,
+    nav: str = "bfs",
+    leg_policies: Optional[dict[str, str]] = None,
+    run_legs: Optional[list[dict[str, Any]]] = None,
 ) -> dict[str, Any]:
     """Paces back and forth in Route 1 tall grass, fighting wild encounters with battle_skill."""
     presses = 0
@@ -362,18 +387,66 @@ def grind_skill(
     moves_used: dict[str, int] = {}
     events: list[dict[str, Any]] = []
 
-    # Ensure player is on Route 1
-    st = party_status(env)
-    if st["map_id"] != MAP_ROUTE_1:
-        r_nav = navigate_to(env, MAP_ROUTE_1, budget=budget - presses)
-        presses += r_nav["presses"]
-        if not r_nav["success"]:
-            return {"presses": presses, "success": False, "battles_won": 0, "blackouts": 0, "moves_used": moves_used}
+    if nav == "bfs":
+        # Ensure player is on Route 1
+        st = party_status(env)
+        if st["map_id"] != MAP_ROUTE_1:
+            r_nav = navigate_to(env, MAP_ROUTE_1, budget=budget - presses)
+            presses += r_nav["presses"]
+            if not r_nav["success"]:
+                return {"presses": presses, "success": False, "battles_won": 0, "blackouts": 0, "moves_used": moves_used}
 
-    # Walk to tall grass anchor (13, 30)
-    if (env.observe()[1]["x"], env.observe()[1]["y"]) not in GRASS_PATCH_TILES:
-        r_grass = navigate_to(env, MAP_ROUTE_1, target_tiles=[(13, 30), (14, 30)], budget=budget - presses)
-        presses += r_grass["presses"]
+        # Walk to tall grass anchor (13, 30)
+        if (env.observe()[1]["x"], env.observe()[1]["y"]) not in GRASS_PATCH_TILES:
+            r_grass = navigate_to(env, MAP_ROUTE_1, target_tiles=[(13, 30), (14, 30)], budget=budget - presses)
+            presses += r_grass["presses"]
+    else:
+        # Learned navigation mode: trip to grass goes through run_leg with leg to_grass
+        cur_obs = env.observe()[1]
+        if int(cur_obs["map_id"]) != MAP_ROUTE_1 or (int(cur_obs["x"]), int(cur_obs["y"])) not in GRASS_PATCH_TILES:
+            active_policies = dict(DEFAULT_LEG_POLICIES)
+            if leg_policies:
+                active_policies.update(leg_policies)
+            pol_path = active_policies.get("to_grass", DEFAULT_LEG_POLICIES["to_grass"])
+            leg_res = run_leg(
+                env=env,
+                leg="to_grass",
+                target_map=MAP_ROUTE_1,
+                target_tiles=GRASS_PATCH_TILES,
+                policy_path=pol_path,
+                fallback_maps=[MAP_ROUTE_1],
+                budget=min(1000, max(0, budget - presses)),
+            )
+            leg_presses = leg_res["policy_presses"] + leg_res["fallback_presses"]
+            presses += leg_presses
+            battles_started += leg_res["battles"]
+            blackouts += leg_res.get("blackouts", 0)
+            events.extend(leg_res.get("events", []))
+            battles_won += sum(1 for e in leg_res.get("events", []) if e.get("type") == "battle_won")
+            for m_k, count in leg_res.get("moves_used", {}).items():
+                moves_used[m_k] = moves_used.get(m_k, 0) + count
+
+            if run_legs is not None:
+                run_legs.append({
+                    "leg": leg_res["leg"],
+                    "start": leg_res["start"],
+                    "policy": leg_res["policy"],
+                    "reached_by_policy": leg_res["reached_by_policy"],
+                    "policy_presses": leg_res["policy_presses"],
+                    "fallback_presses": leg_res["fallback_presses"],
+                    "battles": leg_res["battles"],
+                })
+
+            if leg_res.get("blackouts", 0) > 0 or not leg_res["success"]:
+                return {
+                    "presses": presses,
+                    "success": False,
+                    "battles_won": battles_won,
+                    "battles_started": battles_started,
+                    "blackouts": blackouts,
+                    "moves_used": moves_used,
+                    "events": events,
+                }
 
     # Pacing loop in tall grass
     while presses < budget:
@@ -406,6 +479,138 @@ def grind_skill(
         "success": battles_won > 0 or party_status(env)["level"] >= target_level,
         "battles_won": battles_won,
         "battles_started": battles_started,
+        "blackouts": blackouts,
+        "moves_used": moves_used,
+        "events": events,
+    }
+
+
+def heal_skill(
+    env: PokemonRed,
+    budget: int = 800,
+    nav: str = "bfs",
+    leg_policies: Optional[dict[str, str]] = None,
+    run_legs: Optional[list[dict[str, Any]]] = None,
+) -> dict[str, Any]:
+    """Heal at the local Pokemon Center (Viridian or Pewter).
+
+    In BFS mode: calls heal_pkmn_center directly (with exit_after=True).
+    In learned mode:
+      - reaches the PC via run_leg ('to_viridian_pc' or 'to_pewter_pc', with
+        a learned 'PC -> city' first if inside the other PC);
+      - heals at Nurse Joy counter via heal_pkmn_center(exit_after=False);
+      - exits PC via run_leg ('leave_viridian_pc' or 'leave_pewter_pc').
+    """
+    if nav == "bfs":
+        return heal_pkmn_center(env, budget=budget, exit_after=True)
+
+    presses = 0
+    battles_started = 0
+    battles_won = 0
+    blackouts = 0
+    moves_used: dict[str, int] = {}
+    events: list[dict[str, Any]] = []
+
+    active_policies = dict(DEFAULT_LEG_POLICIES)
+    if leg_policies:
+        active_policies.update(leg_policies)
+
+    def _execute_leg(leg_name: str, target_map: int, fallback_maps: list[int]) -> bool:
+        nonlocal presses, battles_started, battles_won, blackouts
+        pol_path = active_policies.get(leg_name, DEFAULT_LEG_POLICIES[leg_name])
+        leg_res = run_leg(
+            env=env,
+            leg=leg_name,
+            target_map=target_map,
+            policy_path=pol_path,
+            fallback_maps=fallback_maps,
+            budget=min(1000, max(0, budget - presses)),
+        )
+        leg_presses = leg_res["policy_presses"] + leg_res["fallback_presses"]
+        presses += leg_presses
+        battles_started += leg_res["battles"]
+        blackouts += leg_res.get("blackouts", 0)
+        events.extend(leg_res.get("events", []))
+        battles_won += sum(1 for e in leg_res.get("events", []) if e.get("type") == "battle_won")
+        for m_k, count in leg_res.get("moves_used", {}).items():
+            moves_used[m_k] = moves_used.get(m_k, 0) + count
+
+        if run_legs is not None:
+            run_legs.append({
+                "leg": leg_res["leg"],
+                "start": leg_res["start"],
+                "policy": leg_res["policy"],
+                "reached_by_policy": leg_res["reached_by_policy"],
+                "policy_presses": leg_res["policy_presses"],
+                "fallback_presses": leg_res["fallback_presses"],
+                "battles": leg_res["battles"],
+            })
+        return bool(leg_res["success"])
+
+    _, ram = env.observe()
+    cur_map = int(ram["map_id"])
+    in_pewter = cur_map in (MAP_PEWTER_CITY, MAP_PEWTER_POKECENTER, MAP_PEWTER_GYM)
+    target_pc = MAP_PEWTER_POKECENTER if in_pewter else MAP_VIRIDIAN_POKECENTER
+    target_city = MAP_PEWTER_CITY if in_pewter else MAP_VIRIDIAN_CITY
+    pc_leg = "to_pewter_pc" if in_pewter else "to_viridian_pc"
+    leave_leg = "leave_pewter_pc" if in_pewter else "leave_viridian_pc"
+
+    # Step 1: Reaching the PC
+    # A learned "PC -> city" first if the agent is inside the other building
+    other_pc = MAP_VIRIDIAN_POKECENTER if in_pewter else MAP_PEWTER_POKECENTER
+    other_leave_leg = "leave_viridian_pc" if in_pewter else "leave_pewter_pc"
+    other_city = MAP_VIRIDIAN_CITY if in_pewter else MAP_PEWTER_CITY
+    if cur_map == other_pc:
+        _execute_leg(other_leave_leg, other_city, [other_city])
+        cur_map = int(env.observe()[1]["map_id"])
+
+    if cur_map != target_pc:
+        fallback_maps = [target_pc] if in_pewter else [MAP_VIRIDIAN_CITY, target_pc]
+        _execute_leg(pc_leg, target_pc, fallback_maps)
+        cur_map = int(env.observe()[1]["map_id"])
+
+    # Fall back to BFS for anything unusual
+    if cur_map != target_pc:
+        r_nav = navigate_to(env, target_pc, budget=max(0, budget - presses))
+        presses += r_nav["presses"]
+        cur_map = int(env.observe()[1]["map_id"])
+
+    if cur_map != target_pc:
+        return {
+            "presses": presses,
+            "success": False,
+            "healed": False,
+            "battles_started": battles_started,
+            "battles_won": battles_won,
+            "blackouts": blackouts,
+            "moves_used": moves_used,
+            "events": events,
+        }
+
+    # Step 2: Nurse Joy counter walk + dialogue
+    h_res = heal_pkmn_center(env, budget=max(0, budget - presses), exit_after=False)
+    presses += h_res["presses"]
+    healed = h_res.get("healed", False)
+    final_hp = h_res.get("hp", 0)
+    max_hp = h_res.get("max_hp", 0)
+
+    # Step 3: Leaving PC via run_leg
+    cur_map = int(env.observe()[1]["map_id"])
+    if cur_map == target_pc:
+        _execute_leg(leave_leg, target_city, [target_city])
+        cur_map = int(env.observe()[1]["map_id"])
+        if cur_map != target_city:
+            r_exit = navigate_to(env, target_city, budget=max(0, budget - presses))
+            presses += r_exit["presses"]
+
+    return {
+        "presses": presses,
+        "success": healed,
+        "healed": healed,
+        "hp": final_hp,
+        "max_hp": max_hp,
+        "battles_started": battles_started,
+        "battles_won": battles_won,
         "blackouts": blackouts,
         "moves_used": moves_used,
         "events": events,
@@ -636,9 +841,49 @@ def fight_gym_skill(
     # If HP is depleted after Jr. Trainer, step outside to heal at Pewter PC before Brock
     st_jr = party_status(env)
     if st_jr["hp_frac"] < 0.75:
-        navigate_to(env, MAP_PEWTER_CITY, budget=min(500, budget - presses))
-        heal_pkmn_center(env, budget=min(800, budget - presses))
-        navigate_to(env, MAP_PEWTER_GYM, budget=min(500, budget - presses))
+        if nav == "learned":
+            h_jr = heal_skill(env, budget=min(800, budget - presses), nav=nav, leg_policies=leg_policies, run_legs=run_legs)
+            presses += h_jr["presses"]
+            battles_started += h_jr.get("battles_started", 0)
+            battles_won += h_jr.get("battles_won", 0)
+            blackouts += h_jr.get("blackouts", 0)
+            for m_k, count in h_jr.get("moves_used", {}).items():
+                moves_used[m_k] = moves_used.get(m_k, 0) + count
+            events.extend(h_jr.get("events", []))
+            active_policies = dict(DEFAULT_LEG_POLICIES)
+            if leg_policies:
+                active_policies.update(leg_policies)
+            leg = leg_for_stage(MAP_PEWTER_GYM)
+            pol_path = active_policies.get(leg, DEFAULT_LEG_POLICIES[leg])
+            leg_res = run_leg(
+                env=env,
+                leg=leg,
+                target_map=MAP_PEWTER_GYM,
+                policy_path=pol_path,
+                fallback_maps=[MAP_PEWTER_GYM],
+                budget=min(500, budget - presses),
+            )
+            leg_presses = leg_res["policy_presses"] + leg_res["fallback_presses"]
+            presses += leg_presses
+            battles_started += leg_res["battles"]
+            blackouts += leg_res.get("blackouts", 0)
+            events.extend(leg_res.get("events", []))
+            for m_k, count in leg_res.get("moves_used", {}).items():
+                moves_used[m_k] = moves_used.get(m_k, 0) + count
+            if run_legs is not None:
+                run_legs.append({
+                    "leg": leg_res["leg"],
+                    "start": leg_res["start"],
+                    "policy": leg_res["policy"],
+                    "reached_by_policy": leg_res["reached_by_policy"],
+                    "policy_presses": leg_res["policy_presses"],
+                    "fallback_presses": leg_res["fallback_presses"],
+                    "battles": leg_res["battles"],
+                })
+        else:
+            navigate_to(env, MAP_PEWTER_CITY, budget=min(500, budget - presses))
+            heal_pkmn_center(env, budget=min(800, budget - presses))
+            navigate_to(env, MAP_PEWTER_GYM, budget=min(500, budget - presses))
 
     if int(env.observe()[1]["map_id"]) != MAP_PEWTER_GYM:
         navigate_to(env, MAP_PEWTER_GYM, budget=min(500, budget - presses))
@@ -827,7 +1072,16 @@ def run_gym_quest(
         if init_st["hp"] < init_st["max_hp"] and init_st["map_id"] == MAP_VIRIDIAN_CITY:
             current_goal_str = "heal"
             p_before = total_presses
-            h_init = heal_pkmn_center(env, budget=500)
+            if nav == "learned":
+                h_init = heal_skill(
+                    env,
+                    budget=500,
+                    nav=nav,
+                    leg_policies=leg_policies,
+                    run_legs=run_legs,
+                )
+            else:
+                h_init = heal_pkmn_center(env, budget=500)
             phase_presses["heal"] = phase_presses.get("heal", 0) + (total_presses - p_before)
             print(f"[GymQuest seed={seed}] Initial Viridian PC heal: {h_init['hp']}/{h_init['max_hp']} HP")
 
@@ -911,14 +1165,36 @@ def run_gym_quest(
 
             # Execute System 1 skill corresponding to goal
             if goal == "heal":
-                h_res = heal_pkmn_center(env, budget=min(800, budget - total_presses))
+                if nav == "learned":
+                    h_res = heal_skill(
+                        env,
+                        budget=min(800, budget - total_presses),
+                        nav=nav,
+                        leg_policies=leg_policies,
+                        run_legs=run_legs,
+                    )
+                else:
+                    h_res = heal_pkmn_center(env, budget=min(800, budget - total_presses))
                 phase_presses["heal"] = phase_presses.get("heal", 0) + (total_presses - p_before)
+                total_battles_started += h_res.get("battles_started", 0)
+                total_battles_won += h_res.get("battles_won", 0)
+                total_blackouts += h_res.get("blackouts", 0)
+                for m_k, count in h_res.get("moves_used", {}).items():
+                    moves_used_total[m_k] = moves_used_total.get(m_k, 0) + count
                 if int(env.observe()[1]["map_id"]) in (MAP_PEWTER_CITY, MAP_PEWTER_POKECENTER):
                     if h_res.get("healed", False):
                         pewter_healed = True
 
             elif goal == "grind":
-                g_res = grind_skill(env, target_level=effective_target_level, hp_threshold=heal_threshold, budget=min(3000, budget - total_presses))
+                g_res = grind_skill(
+                    env,
+                    target_level=effective_target_level,
+                    hp_threshold=heal_threshold,
+                    budget=min(3000, budget - total_presses),
+                    nav=nav,
+                    leg_policies=leg_policies,
+                    run_legs=run_legs,
+                )
                 phase_presses["grind"] = phase_presses.get("grind", 0) + (total_presses - p_before)
                 total_battles_started += g_res.get("battles_started", 0)
                 total_battles_won += g_res.get("battles_won", 0)
@@ -1167,7 +1443,19 @@ def main() -> None:
 
     if any("legs" in r for r in results):
         legs_summary = {}
-        for leg_name in ["viridian", "to_route2", "to_gate", "forest", "to_pewter", "to_gym"]:
+        for leg_name in [
+            "leave_viridian_pc",
+            "to_grass",
+            "to_viridian_pc",
+            "viridian",
+            "to_route2",
+            "to_gate",
+            "forest",
+            "to_pewter",
+            "to_pewter_pc",
+            "leave_pewter_pc",
+            "to_gym",
+        ]:
             att = sum(1 for r in results for l in r.get("legs", []) if l["leg"] == leg_name and l["reached_by_policy"] is not None)
             if att > 0:
                 rec = sum(1 for r in results for l in r.get("legs", []) if l["leg"] == leg_name and l["reached_by_policy"])

@@ -468,7 +468,7 @@ def battle_skill(env: PokemonRed, budget: int = 800) -> dict[str, Any]:
 
 
 # ── System 1 Heal Skill (Universal for Viridian & Pewter) ────────────────────
-def heal_pkmn_center(env: PokemonRed, budget: int = 600) -> dict[str, Any]:
+def heal_pkmn_center(env: PokemonRed, budget: int = 600, exit_after: bool = True) -> dict[str, Any]:
     """Universal heal skill for Viridian (map 41) or Pewter (map 58) Pokémon Centers.
 
     Navigates into the local Pokémon Center from anywhere, approaches Nurse Joy at (3, 3),
@@ -533,11 +533,12 @@ def heal_pkmn_center(env: PokemonRed, budget: int = 600) -> dict[str, Any]:
 
     # Step 5: Exit back to overworld city
     exit_map = MAP_VIRIDIAN_CITY if cur_map == MAP_VIRIDIAN_POKECENTER else MAP_PEWTER_CITY
-    r_exit = navigate_to(env, exit_map, budget=budget - presses)
-    presses += r_exit["presses"]
+    if exit_after:
+        r_exit = navigate_to(env, exit_map, budget=budget - presses)
+        presses += r_exit["presses"]
 
     final_hp = (int(mem[HP_ADDRESSES[0]]) << 8) | int(mem[HP_ADDRESSES[0] + 1])
-    success = healed and (final_hp == max_hp) and (int(env.observe()[1]["map_id"]) == exit_map)
+    success = healed and (final_hp == max_hp) and (not exit_after or int(env.observe()[1]["map_id"]) == exit_map)
     return {
         "presses": presses,
         "success": success,

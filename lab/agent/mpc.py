@@ -137,7 +137,8 @@ def run_episode(policy, model, probe, rng, max_steps, n, h, device, record=False
         trace.append([int(ram["map_id"]), int(ram["x"]), int(ram["y"]), a])
         if record:
             video.append((frames[-2], dream, a))
-        if ram["map_id"] == spec["success_map"]:
+        st = spec.get("success_tiles")
+        if ram["map_id"] == spec["success_map"] and (not st or (int(ram["x"]), int(ram["y"])) in [tuple(t) for t in st.get(int(ram["map_id"]), [])]):
             success_step = t + 1
             break
     env.close()
