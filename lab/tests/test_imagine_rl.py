@@ -46,3 +46,35 @@ def test_step_clip_bounds_misread_jumps():
     np.testing.assert_allclose(r[0], [-STEP_COST, -1 - STEP_COST, 1 - STEP_COST])   # +-1 at most per press
     r0, _, _ = rewards_from_probe(maps, xs, ys, *start)
     np.testing.assert_allclose(r0[0], [-STEP_COST, -3 - STEP_COST, 3 - STEP_COST])  # unclipped default unchanged
+
+
+def _ledge_field():
+    # Viridian (map 1) around the to_route2 trap, values from the real ext-train geodesic field [y, x]:
+    # ledge row y=27 (one-way down, (18,27) is only seen mid-jump), walkable gap at x=19; unobserved tiles = max (50)
+    f = np.full((80, 80), 50.0)
+    for (x, y), d in {(18, 25): 25, (18, 26): 26, (19, 26): 27, (18, 27): 31, (19, 27): 28, (18, 28): 30,
+                      (19, 28): 29}.items():
+        f[y, x] = d
+    return {1: [(17, 0), (18, 0), (19, 0)]}, {1: f}
+
+
+def test_ledge_loop_pays_under_step_clip_but_not_under_move_gate():
+    # the real loop of the to_route2 seed-0/1 trap: jump the ledge at (18,26), walk back up through the gap
+    exits, fields = _ledge_field()
+    loop = [(18, 27), (18, 28), (19, 28), (19, 27), (19, 26), (18, 26)]
+    maps, xs, ys = np.ones((1, 6), int), np.array([[x for x, _ in loop]]), np.array([[y for _, y in loop]])
+    start = (np.array([1]), np.array([18]), np.array([26]))
+    r_clip, _, _ = rewards_from_probe(maps, xs, ys, *start, exits, None, fields, step_clip=1.0)
+    assert (r_clip + STEP_COST).sum() > 3.5                      # the bug: a closed loop earns progress
+    r_gate, _, _ = rewards_from_probe(maps, xs, ys, *start, exits, None, fields, move_gate=2)
+    np.testing.assert_allclose((r_gate + STEP_COST).sum(), 0.0)   # potential-based: a closed loop earns nothing
+    np.testing.assert_allclose(r_gate[0, 0] + STEP_COST, -5.0)    # the jump costs its real distance
+
+
+def test_move_gate_rejects_misreads_and_keeps_its_reference():
+    exits, fields = _ledge_field()
+    start = (np.array([1]), np.array([19]), np.array([26]))
+    # (19,26) -> misread far away (19,2) -> misread into an unobserved tile (20,26) -> true (18,26) -> (18,25)
+    xs, ys = np.array([[19, 20, 18, 18]]), np.array([[2, 26, 26, 25]])
+    r, _, _ = rewards_from_probe(np.ones((1, 4), int), xs, ys, *start, exits, None, fields, move_gate=2)
+    np.testing.assert_allclose(r[0] + STEP_COST, [0.0, 0.0, 1.0, 1.0])   # misreads: no progress; then 27->26->25
