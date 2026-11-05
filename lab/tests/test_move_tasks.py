@@ -150,6 +150,20 @@ def test_gym_quest_wiring_fallback():
             assert "leg" in l and "policy_presses" in l and "fallback_presses" in l
         assert int(env.observe()[1]["map_id"]) == MAP_VIRIDIAN_CITY
 
+    # 2b. a policy that wastes its whole budget must not starve the heal (gym_learned_moves_s0, 2026-11-06: to_pewter_pc
+    # used all 800 presses, BFS entered the PC in ~10, then the counter walk got budget 0 and the agent stayed unhealed
+    # on the PC mat)
+    run_legs = []
+    steps = iter([1, 2] * 5000)  # left, right: stays put
+    with PokemonRed(state="work/route_states/to_pewter_pc.state") as env, \
+            patch("lab.agent.gym_quest.load_leg_policy", return_value=object()), \
+            patch("lab.agent.gym_quest.learned_action", side_effect=lambda net, frames, device: next(steps)):
+        h_res = heal_skill(env, budget=800, nav="learned", run_legs=run_legs,
+                           leg_policies={"to_pewter_pc": __file__, "leave_pewter_pc": __file__})
+        assert run_legs[0]["leg"] == "to_pewter_pc" and run_legs[0]["policy_presses"] >= 800
+        assert h_res["healed"], "a wasted policy budget must leave the counter walk its own budget"
+        assert int(env.observe()[1]["map_id"]) == 2, "must leave the Pewter PC"
+
     # 3. grind_skill fallback with missing to_grass policy
     run_legs = []
     with PokemonRed(state="work/route_states/to_grass.state") as env:

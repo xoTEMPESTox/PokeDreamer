@@ -500,6 +500,8 @@ def heal_skill(
         a learned 'PC -> city' first if inside the other PC);
       - heals at Nurse Joy counter via heal_pkmn_center(exit_after=False);
       - exits PC via run_leg ('leave_viridian_pc' or 'leave_pewter_pc').
+    In learned mode each step gets the whole `budget`, not what is left of it: a policy that used its full allowance
+    otherwise left the counter walk 0 presses (gym_learned_moves_s0: unhealed on the Pewter PC mat).
     """
     if nav == "bfs":
         return heal_pkmn_center(env, budget=budget, exit_after=True)
@@ -524,7 +526,7 @@ def heal_skill(
             target_map=target_map,
             policy_path=pol_path,
             fallback_maps=fallback_maps,
-            budget=min(1000, max(0, budget - presses)),
+            budget=budget,
         )
         leg_presses = leg_res["policy_presses"] + leg_res["fallback_presses"]
         presses += leg_presses
@@ -571,7 +573,7 @@ def heal_skill(
 
     # Fall back to BFS for anything unusual
     if cur_map != target_pc:
-        r_nav = navigate_to(env, target_pc, budget=max(0, budget - presses))
+        r_nav = navigate_to(env, target_pc, budget=budget)
         presses += r_nav["presses"]
         cur_map = int(env.observe()[1]["map_id"])
 
@@ -588,7 +590,7 @@ def heal_skill(
         }
 
     # Step 2: Nurse Joy counter walk + dialogue
-    h_res = heal_pkmn_center(env, budget=max(0, budget - presses), exit_after=False)
+    h_res = heal_pkmn_center(env, budget=budget, exit_after=False)
     presses += h_res["presses"]
     healed = h_res.get("healed", False)
     final_hp = h_res.get("hp", 0)
@@ -600,7 +602,7 @@ def heal_skill(
         _execute_leg(leave_leg, target_city, [target_city])
         cur_map = int(env.observe()[1]["map_id"])
         if cur_map != target_city:
-            r_exit = navigate_to(env, target_city, budget=max(0, budget - presses))
+            r_exit = navigate_to(env, target_city, budget=budget)
             presses += r_exit["presses"]
 
     return {
