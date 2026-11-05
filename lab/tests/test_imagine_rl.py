@@ -78,3 +78,35 @@ def test_move_gate_rejects_misreads_and_keeps_its_reference():
     xs, ys = np.array([[19, 20, 18, 18]]), np.array([[2, 26, 26, 25]])
     r, _, _ = rewards_from_probe(np.ones((1, 4), int), xs, ys, *start, exits, None, fields, move_gate=2)
     np.testing.assert_allclose(r[0] + STEP_COST, [0.0, 0.0, 1.0, 1.0])   # misreads: no progress; then 27->26->25
+
+
+def test_warp_dist_0_pays_only_map_changes_from_the_exit_tile():
+    # to_pewter_pc (2026-11-06): the real game enters the Pewter PC only by pressing up on the door (13,26), but wm31
+    # imagines the PC after up beside the door (12,26) in 65% of samples and after down below it (13,27) in 80%
+    # (work/eval/door_warp_wm31.json); the default rule (prev <= 1) pays those +5, so the policies loiter by the door
+    exits = {2: [(13, 26)]}
+    maps = np.array([[2, 58], [2, 58], [2, 58]])
+    xs, ys = np.array([[13, 13], [12, 12], [13, 13]]), np.array([[26, 26], [26, 26], [27, 27]])
+    start = (np.array([2, 2, 2]), np.array([13, 12, 13]), np.array([27, 26, 27]))
+    for gate in (None, 2):
+        r, _, _ = rewards_from_probe(maps, xs, ys, *start, exits, move_gate=gate)
+        np.testing.assert_allclose(r[:, 1], [WARP_BONUS] * 3)                                 # default unchanged
+        r, _, _ = rewards_from_probe(maps, xs, ys, *start, exits, move_gate=gate, warp_dist=0)
+        np.testing.assert_allclose(r[:, 1], [WARP_BONUS, -HALLUCINATION_PENALTY, -HALLUCINATION_PENALTY])
+
+
+def test_merge_centers_treats_a_read_of_the_other_center_as_a_misread():
+    # leave_pewter_pc (2026-11-06): all Pokemon Centers share one interior. wm31 frames after right on the Pewter PC
+    # mat (4,7) are read as the Viridian PC (41) in 82 of 128 samples (work/eval/door_warp_wm31.json); the real game
+    # stays inside, but the default rule paid +5 for it and the policies learned to press right on the mat
+    exits = {58: [(3, 7), (4, 7)]}
+    maps = np.array([[58, 41, 58], [58, 2, 2]])
+    xs, ys = np.array([[4, 5, 4], [4, 4, 4]]), np.array([[7, 7, 7], [7, 8, 8]])
+    start = (np.array([58, 58]), np.array([4, 4]), np.array([6, 6]))
+    for gate in (None, 2):
+        r, alive, _ = rewards_from_probe(maps, xs, ys, *start, exits, move_gate=gate)
+        assert r[0, 1] == WARP_BONUS and alive[0, 2] == 0                    # default: the misread pays as an exit
+        r, alive, _ = rewards_from_probe(maps, xs, ys, *start, exits, move_gate=gate, merge_centers=True)
+        np.testing.assert_allclose(r[0] + STEP_COST, [1, -1, 1])             # still inside: (4,7) -> (5,7) -> (4,7)
+        assert alive[0, 2] == 1
+        assert r[1, 1] == WARP_BONUS                                          # a real exit to Pewter City still pays

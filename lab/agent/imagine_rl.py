@@ -35,6 +35,7 @@ from lab.probe import load_probe, predict
 
 H, BATCH, GAMMA, LAMBDA, ENT = 10, 128, 0.95, 0.9, 0.03
 STEP_COST, WARP_BONUS, HALLUCINATION_PENALTY = 0.05, 5.0, 2.0
+CENTERS = (41, 58)  # Viridian and Pewter Pokemon Centers (lab/agent/nav.py)
 
 
 class Policy(nn.Module):
@@ -54,7 +55,7 @@ class Policy(nn.Module):
 
 
 def rewards_from_probe(maps, xs, ys, start_map, start_x, start_y, exits=TASKS["leave_house"]["exits"], battle=None,
-                       fields=None, step_clip=None, move_gate=None):
+                       fields=None, step_clip=None, move_gate=None, warp_dist=1, merge_centers=False):
     """Per-step reward, alive mask (step belongs to the rollout) and continuation mask (rollout goes on after
     the step) for imagined trajectories (B, H) starting on start_map at the real tile (start_x, start_y).
     step_clip bounds the per-step progress term: a press moves at most one tile, so a larger change in the
@@ -62,9 +63,16 @@ def rewards_from_probe(maps, xs, ys, start_map, start_x, start_y, exits=TASKS["l
     Clipping is not potential-based: a closed loop with one big real drop (a ledge jump, 26 -> 31 -> 30) earns
     +4 (the to_route2 trap, 2026-11-04). move_gate instead accepts a probe-read tile only if it is within
     move_gate tiles (Manhattan) of the last accepted tile and has an observed path to the exit; progress is
-    measured from the last accepted tile and rejected reads earn none, so rewards telescope (as in ppo_real)."""
+    measured from the last accepted tile and rejected reads earn none, so rewards telescope (as in ppo_real).
+    An imagined map change earns WARP_BONUS if it leaves from within warp_dist of the exit, else the hallucination
+    penalty. warp_dist 0 pays only changes from the exit tile itself: wm31 imagines the Pewter PC after presses beside
+    its door that never enter it in the real game (work/eval/door_warp_wm31.json, 2026-11-06). merge_centers reads
+    another Pokemon Center as the start Center: they share one interior, and the probe reads wm31's Pewter PC frames
+    after a right press on the mat as the Viridian PC (same file)."""
     b, h = maps.shape
     battle = np.zeros((b, h), bool) if battle is None else np.asarray(battle, bool)
+    if merge_centers:
+        maps = np.where(np.isin(maps, CENTERS) & np.isin(start_map, CENTERS)[:, None], start_map[:, None], maps)
     dist = exit_distance(np.broadcast_to(start_map[:, None], (b, h)), xs, ys, exits, fields)
     dist0 = exit_distance(start_map, start_x, start_y, exits, fields)
     on_map = np.cumprod((maps == start_map[:, None]) & ~battle, axis=1).astype(bool)
@@ -83,7 +91,7 @@ def rewards_from_probe(maps, xs, ys, start_map, start_x, start_y, exits=TASKS["l
         else:
             progress = prev - dist[:, k] if step_clip is None else np.clip(prev - dist[:, k], -step_clip, step_clip)
         r[:, k] = np.where(on_map[:, k], progress - STEP_COST, 0.0)
-        r[:, k] = np.where(left, np.where(battle[:, k], -STEP_COST, np.where(prev <= 1, WARP_BONUS, -HALLUCINATION_PENALTY)), r[:, k])
+        r[:, k] = np.where(left, np.where(battle[:, k], -STEP_COST, np.where(prev <= warp_dist, WARP_BONUS, -HALLUCINATION_PENALTY)), r[:, k])
         alive[:, k] = on_map[:, k] | left
     return r, alive, on_map.astype(np.float32)
 
@@ -116,6 +124,10 @@ def main():
     ap.add_argument("--step-clip", type=float, default=None, help="clip per-step progress to +-this many tiles")
     ap.add_argument("--move-gate", type=float, default=None,
                     help="instead of --step-clip: count progress only from reads within this many tiles of the last accepted one")
+    ap.add_argument("--warp-dist", type=float, default=1,
+                    help="an imagined map change earns the warp bonus only from within this distance of the exit (0: the exit tile)")
+    ap.add_argument("--merge-centers", action="store_true",
+                    help="read another Pokemon Center as the start Center (one shared interior; the probe confuses them)")
     ap.add_argument("--seed", type=int, default=None, help="seed torch and the start sampling (default: unseeded)")
     args = ap.parse_args()
     if args.step_clip is not None and args.move_gate is not None:
@@ -137,7 +149,7 @@ def main():
     exits = TASKS[args.task]["exits"]
     fields = train_geodesic_fields(exits, extended=args.data == "ext") if args.geodesic else None
     log(f"distance to exit: {'geodesic (observed moves, train split)' if args.geodesic else 'Manhattan'}; "
-        f"step clip {args.step_clip}; move gate {args.move_gate}")
+        f"step clip {args.step_clip}; move gate {args.move_gate}; warp dist {args.warp_dist}; merge centers {args.merge_centers}")
     train_maps = TASKS[args.task].get("train_maps", list(exits))
     ok = np.isin(data["map_ids"][last], train_maps) & ~data["in_battles"][starts[:, None] + np.arange(CTX)].any(1)
     if fields is not None:  # only starts with an observed path to the exit (to_pewter: 76% of Route 2 is south of the forest)
@@ -197,7 +209,7 @@ def main():
             battle = p["battle"].reshape(BATCH, H)
             r, alive, cont = rewards_from_probe(p["map_id"].reshape(BATCH, H), p["x"].reshape(BATCH, H),
                                                 p["y"].reshape(BATCH, H), start_map, start_x, start_y, exits, battle, fields,
-                                                args.step_clip, args.move_gate)
+                                                args.step_clip, args.move_gate, args.warp_dist, args.merge_centers)
             _, v_last = policy(ctx)
         obs_t = torch.stack(obs, 1)                                   # (B, H, CTX, 72, 80)
         logits, v = policy(obs_t.flatten(0, 1))
