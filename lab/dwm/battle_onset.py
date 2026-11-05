@@ -1,10 +1,11 @@
-"""Does the world model imagine wild encounters? Open-loop rollouts from real contexts (held-out test_id
+"""Does the world model imagine wild encounters? Open-loop rollouts from real contexts (held-out
 episodes, chosen map, no battle in the context) driven by the real future actions. Compares how often a battle
 starts within H steps in RAM, in the probe's reading of the real frames, and in the probe's reading of the
 imagined frames (several samples per context: the sampler is deterministic given its initial noise).
 
 Usage: python -m lab.dwm.battle_onset --run main --map 12
-Writes work/eval/battle_onset_<run>_map<map>.json
+       python -m lab.dwm.battle_onset --run wm31 --data ext --map 12
+Writes work/eval/battle_onset_<run>_map<map>[_ext].json
 """
 import argparse
 import json
@@ -26,21 +27,30 @@ def main():
     ap.add_argument("--map", type=int, default=12)
     ap.add_argument("--horizon", type=int, default=10)
     ap.add_argument("--samples", type=int, default=4)
-    ap.add_argument("--split", default="test_id")
+    ap.add_argument("--split", default=None, help="split to evaluate (default: test_ext for ext, test_id for base)")
+    ap.add_argument("--data", choices=["base", "ext"], default="base", help="base or extended dataset")
+    ap.add_argument("--probe", default=None, help="path to probe checkpoint")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--steps", type=int, default=3, help="Euler sampling steps (DIAMOND default 3)")
+    ap.add_argument("--max-windows", type=int, default=0, help="max windows to evaluate (0 = all)")
+    ap.add_argument("--tag", default="", help="optional tag appended to output filename")
     args = ap.parse_args()
     H, dev = args.horizon, args.device
 
-    data, splits = load()
-    starts = windows(data, splits[args.split], CTX + H)
+    split = args.split or ("test_ext" if args.data == "ext" else "test_id")
+    probe_path = args.probe or ("work/probe_ext/probe.pt" if args.data == "ext" else "work/probe/probe.pt")
+
+    data, splits = load(extended=args.data == "ext")
+    starts = windows(data, splits[split], CTX + H)
     ok = (data["map_ids"][starts + CTX - 1] == args.map) & ~data["in_battles"][starts[:, None] + np.arange(CTX)].any(1)
     starts = starts[ok]
+    if args.max_windows and len(starts) > args.max_windows:
+        starts = starts[:args.max_windows]
     fut = starts[:, None] + CTX + np.arange(H)
     ram = data["in_battles"][fut].astype(bool)
 
     model = load_world_model(args.run, device=dev)
-    probe = load_probe(device=dev)
+    probe = load_probe(probe_path, device=dev)
     real_probe = predict(probe, data["frames"][fut].reshape(-1, 72, 80), device=dev)["battle"].reshape(-1, H)
     imag = []
     for rep in range(args.samples):
@@ -57,7 +67,7 @@ def main():
         imag.append(predict(probe, frames.reshape(-1, 72, 80), device=dev)["battle"].reshape(-1, H))
     imag = np.stack(imag)                                             # (samples, windows, H)
 
-    res = {"run": args.run, "map": args.map, "split": args.split, "horizon": H, "windows": int(len(starts)),
+    res = {"run": args.run, "map": args.map, "split": split, "horizon": H, "windows": int(len(starts)),
            "episodes": int(len(set(data["episode_id"][starts].tolist()))), "samples": args.samples, "sampling_steps": args.steps,
            "battle_within_H": {"ram": float(ram.any(1).mean()), "probe_on_real_frames": float(real_probe.any(1).mean()),
                                "probe_on_imagined_frames": float(imag.any(2).mean()),
@@ -65,7 +75,10 @@ def main():
            "battle_frame_fraction": {"ram": float(ram.mean()), "probe_on_real_frames": float(real_probe.mean()),
                                      "probe_on_imagined_frames": float(imag.mean())},
            "imagined_given_real_onset": float(imag.any(2)[:, ram.any(1)].mean()) if ram.any() else None}
-    out = Path("work/eval") / (f"battle_onset_{args.run}_map{args.map}" + (f"_s{args.steps}" if args.steps != 3 else "") + ".json")
+    if args.data != "base":
+        res["data"] = args.data
+    suffix = ("_ext" if args.data == "ext" else "") + (f"_{args.tag}" if args.tag else "")
+    out = Path("work/eval") / (f"battle_onset_{args.run}_map{args.map}" + (f"_s{args.steps}" if args.steps != 3 else "") + f"{suffix}.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(res, indent=2))
     print(json.dumps(res, indent=2))
