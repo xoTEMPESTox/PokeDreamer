@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from lab.env import ROM_PATH, PokemonRed
-from src.ram_addresses import HP_ADDRESSES, IN_BATTLE, PARTY_SIZE
+from lab.game.ram_addresses import HP_ADDRESSES, IN_BATTLE, PARTY_SIZE
 
 STARTER_PALLET_STATE = Path("saves/starter_pallet.state")
 STARTER_LAB_STATE = Path("saves/starter_lab.state")

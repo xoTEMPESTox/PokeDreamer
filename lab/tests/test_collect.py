@@ -15,7 +15,7 @@ from lab.collect import (
 )
 from lab.data import to_small
 from lab.env import ROM_PATH, PokemonRed
-from src.game_state import extract_game_state
+from lab.game.game_state import extract_game_state
 
 ROM_EXISTS = ROM_PATH.exists()
 STATE_EXISTS = DEFAULT_STATE_PATH.exists()

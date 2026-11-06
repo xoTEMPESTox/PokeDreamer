@@ -24,7 +24,7 @@ from lab.dwm.controllability import load_world_model
 from lab.dwm.model import CTX, Denoiser, to_float
 from lab.probe import load_probe, predict
 from lab.upsampler import load_upsampler, upsample
-from src.ram_addresses import MAP_NAMES
+from lab.game.ram_addresses import MAP_NAMES
 
 MAP_NAME_OVERRIDES = {
     0: "Pallet Town",

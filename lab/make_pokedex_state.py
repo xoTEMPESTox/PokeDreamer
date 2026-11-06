@@ -53,8 +53,8 @@ from lab.agent.system12 import (
     party_status,
 )
 from lab.env import ROM_PATH, PokemonRed
-from src.game_state import screen_capture
-from src.ram_addresses import (
+from lab.game.game_state import screen_capture
+from lab.game.ram_addresses import (
     EVENT_FLAGS_START,
     HP_ADDRESSES,
     IN_BATTLE,

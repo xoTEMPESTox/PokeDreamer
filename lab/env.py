@@ -18,7 +18,7 @@ from pyboy import PyBoy
 from pyboy.utils import WindowEvent
 
 from lab.data import load, to_small
-from src.game_state import extract_game_state, screen_capture
+from lab.game.game_state import extract_game_state, screen_capture
 
 ROM_PATH = Path("Pokemon - Red Version (USA, Europe).gb")
 BUTTONS = ["down", "left", "right", "up", "a", "b", "start", "pass"]

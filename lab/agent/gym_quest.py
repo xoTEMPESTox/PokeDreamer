@@ -60,8 +60,8 @@ from lab.agent.nav import (
 )
 from lab.agent.system12 import party_status
 from lab.env import ROM_PATH, PokemonRed, ACTION_TO_INDEX
-from src.game_state import screen_capture
-from src.ram_addresses import (
+from lab.game.game_state import screen_capture
+from lab.game.ram_addresses import (
     HP_ADDRESSES,
     IN_BATTLE,
     LEVEL_ADDRESSES,

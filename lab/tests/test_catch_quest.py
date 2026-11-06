@@ -12,7 +12,7 @@ from lab.make_pokedex_state import (
     money,
     pokedex_status,
 )
-from src.ram_addresses import IN_BATTLE, PARTY_SIZE
+from lab.game.ram_addresses import IN_BATTLE, PARTY_SIZE
 
 POKEDEX_VIRIDIAN_STATE = Path("saves/pokedex_viridian.state")
 ROM_EXISTS = ROM_PATH.exists()

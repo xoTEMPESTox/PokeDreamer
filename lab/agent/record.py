@@ -11,7 +11,7 @@ from lab.agent.imagine_rl import Policy
 from lab.agent.mpc import A, B, CTX, in_dialog, learned_action
 from lab.agent.tasks import TASKS
 from lab.env import PokemonRed
-from src.game_state import screen_capture
+from lab.game.game_state import screen_capture
 
 NAMES = ["down", "left", "right", "up", "A (battle)"]
 

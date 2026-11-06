@@ -29,7 +29,7 @@ import numpy as np
 from lab.agent.catch_quest import get_battle_dialog, is_battle_menu_active
 from lab.agent.system12 import party_status
 from lab.env import ROM_PATH, PokemonRed
-from src.ram_addresses import (
+from lab.game.ram_addresses import (
     HP_ADDRESSES,
     IN_BATTLE,
     LEVEL_ADDRESSES,

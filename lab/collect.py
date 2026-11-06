@@ -39,8 +39,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lab.env import BUTTONS, ROM_PATH, PokemonRed
-from src.game_state import extract_game_state, screen_capture
-from src.ram_addresses import HP_ADDRESSES, MAX_HP_ADDRESSES, PARTY_SIZE
+from lab.game.game_state import extract_game_state, screen_capture
+from lab.game.ram_addresses import HP_ADDRESSES, MAX_HP_ADDRESSES, PARTY_SIZE
 
 # ── Map Constants ─────────────────────────────────────────────────────────────
 MAP_PALLET = 0

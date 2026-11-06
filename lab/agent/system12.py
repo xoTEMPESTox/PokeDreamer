@@ -32,8 +32,8 @@ from PIL import Image
 from lab.agent.mpc import CTX, DIRECTIONS, greedy_action, learned_action
 from lab.agent.tasks import _PALLET_DETOURS
 from lab.env import ROM_PATH, PokemonRed
-from src.game_state import screen_capture
-from src.ram_addresses import (
+from lab.game.game_state import screen_capture
+from lab.game.ram_addresses import (
     HP_ADDRESSES,
     IN_BATTLE,
     LEVEL_ADDRESSES,

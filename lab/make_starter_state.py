@@ -21,8 +21,8 @@ import cv2
 import numpy as np
 
 from lab.env import ROM_PATH, PokemonRed, make_states
-from src.game_state import extract_game_state, screen_capture
-from src.ram_addresses import (
+from lab.game.game_state import extract_game_state, screen_capture
+from lab.game.ram_addresses import (
     HP_ADDRESSES,
     IN_BATTLE,
     LEVEL_ADDRESSES,

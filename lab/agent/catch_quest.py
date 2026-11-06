@@ -80,8 +80,8 @@ from lab.make_pokedex_state import (
     money,
     pokedex_status,
 )
-from src.game_state import screen_capture
-from src.ram_addresses import (
+from lab.game.game_state import screen_capture
+from lab.game.ram_addresses import (
     HP_ADDRESSES,
     IN_BATTLE,
     LEVEL_ADDRESSES,
