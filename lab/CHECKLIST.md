@@ -40,7 +40,7 @@ Legend: [x] done · [~] in progress · [ ] open · (P) needs Priyanshu
 
 ## 5. Repo: clone and run
 - [x] `lab/WEIGHTS.md`, `lab/get_weights.py`, `lab/README.md` (4221ef3)
-- [ ] Export step that drops optimizer state before upload (wm31 268 -> ~67 MB, each policy 18.9 -> ~6.3 MB)
+- [x] `lab/export_weights.py` (8d0bc63): 718.7 -> 227.6 MB staged in `work/hf_stage/`, verified to load
 - [ ] Point `lab/README.md` and `lab/WEIGHTS.md` at `lab/results/` instead of the working notes
 - [ ] Reproduce commands tested from a fresh clone (ROM supplied by the user)
 - [ ] (P) Upload final weights to the existing HF repos (wm31, probe, upsampler, colorizer, 10 leg policies, PPO baseline)
@@ -55,14 +55,14 @@ Doable now, within the current rules (new files only):
 - [x] Tracked results `lab/results/` (12 pages + index, numbers checked against the notes; ea372a9)
 - [x] Experiment scripts `lab/experiments/`, configs `lab/configs/`, `lab/requirements.txt`, CI skip markers + GitHub Actions (95 pass / 79 skip without ROM; ec8913f)
 - [~] Figures: code tracked in `lab/figures/`; rendered PNGs stay in `work/figures/` until the layout decision (copy into the repo or attach to the website)
-- [ ] `.gitattributes` forcing LF for `*.sh` (they are checked out with CRLF on Windows)
-- [x] Proposed full layout written as a tree with reasons (`agent_notes/repo_layout_proposal.md`; needs sign-off)
+- [x] `.gitattributes` forcing LF for `*.sh`
+- [x] Layout proposal reviewed (Fable) and **applied** (edc57bb, 2b01f52, f8a9fce): `lab/game/` replaces the `src` imports; v1/v2/scripts/src/checkpoints/v2.md/v3.md under `legacy/` with `legacy/README.md`
+- [x] Fresh clone passes CI-mode tests (111 pass, 80 skip); found and fixed a palette dependency on `work/`
+- [ ] (P) De-duplicate `legacy/src`, `legacy/scripts`, `legacy/checkpoints` (byte-identical to `legacy/v2/...`) or keep
 
 Needs Priyanshu's sign-off (the project rules keep these off-limits to agents):
-- [ ] (P) Top-level layout: e.g. `v1/` + `v2/` + `src/` + `scripts/` + `checkpoints/` moved under `legacy/`, `lab/` renamed to `pokedreamer/` (or kept), `results/` and `paper/` at the top
-- [ ] (P) New top-level `README.md`: abstract, headline results table, hero video, figure, how to run, honesty notes, citation (draft in `agent_notes/README_draft.md`)
-- [ ] (P) `LICENSE` (code) and a statement that no ROM or game assets are distributed
-- [ ] (P) `CITATION.cff`
+- [x] New top-level `README.md` (cae4766; numbers checked against `lab/results/`); (P) review before push
+- [x] `LICENSE` (MIT, code only, no-ROM notice) and `CITATION.cff` (aed8a1d)
 - [ ] (P) `legacy/v3.md` (moved) and `docs/v3.html` updated to the final numbers, or folded into the website paper
 
 ## 7. Launch (after 1-6; needs Priyanshu throughout)
