@@ -1,0 +1,12 @@
+# Pinned requirements for lab/
+# Scanned from direct imports across lab/**/*.py
+# Note: torch was built with CUDA 12.1 locally (torch.__version__ == "2.5.1+cu121")
+# In CPU-only environments (e.g. CI), install torch via --index-url https://download.pytorch.org/whl/cpu
+huggingface-hub==1.20.1
+matplotlib==3.11.0
+numpy==2.4.6
+opencv-python==4.13.0.92
+pillow==12.2.0
+pyboy==2.7.0
+pytest==9.2.0
+torch==2.5.1

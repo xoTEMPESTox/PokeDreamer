@@ -1,0 +1,48 @@
+{
+  "source": [
+    "lab/upsampler.py",
+    "work/upsampler/train.log",
+    "work/upsampler/metrics.json"
+  ],
+  "architecture": {
+    "model": "Upsampler (Conv U-Net with skip connections)",
+    "params": "0.7M",
+    "input_resolution": [72, 80],
+    "output_resolution": [144, 160],
+    "output_classes": 4,
+    "channels": [32, 64, 128],
+    "shades": [0, 85, 153, 255]
+  },
+  "training": {
+    "device": "cuda",
+    "batch_size": 64,
+    "budget_minutes": 25.0,
+    "learning_rate_max": 0.0003,
+    "learning_rate_schedule": "cosine decay",
+    "grad_clip_norm": 1.0,
+    "optimizer": "AdamW",
+    "noise_augmentation_sigma": "uniform [0.0, 0.05]",
+    "train_frames": 139000,
+    "train_episodes": 139,
+    "final_step": 12889,
+    "final_loss": 0.0001,
+    "elapsed_minutes": 25.0
+  },
+  "metrics": {
+    "train": {
+      "pixel_accuracy": 0.999992,
+      "exact_frame_fraction": 0.9855,
+      "samples": 2000
+    },
+    "test_id": {
+      "pixel_accuracy": 0.999795,
+      "exact_frame_fraction": 0.9135,
+      "samples": 2000
+    },
+    "test_ood": {
+      "pixel_accuracy": 0.994807,
+      "exact_frame_fraction": 0.1130,
+      "samples": 2000
+    }
+  }
+}

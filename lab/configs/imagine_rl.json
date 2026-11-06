@@ -1,0 +1,141 @@
+{
+  "source": [
+    "lab/agent/imagine_rl.py",
+    "work/chain_gate.sh",
+    "work/chain_forest_gate.sh",
+    "work/chain_gate_legs.sh",
+    "work/chain_moves.sh",
+    "work/chain_pewter_fix.sh",
+    "work/chain_pewter_1800.sh",
+    "work/agent_rl/to_route2_wm31_gate_s0/train.log",
+    "work/agent_rl/to_gate_wm31_gate_s0/train.log",
+    "work/agent_rl/forest_wm31_gate_s0/train.log",
+    "work/agent_rl/to_pewter_wm31_gate_s0/train.log",
+    "work/agent_rl/to_gym_wm31_gate_s0/train.log",
+    "work/agent_rl/to_grass_wm31_gate_s0/train.log",
+    "work/agent_rl/to_viridian_pc_wm31_gate_s0/train.log",
+    "work/agent_rl/leave_viridian_pc_wm31_gate_s0/train.log",
+    "work/agent_rl/to_pewter_pc_wm31_gate_it1800_s0/train.log",
+    "work/agent_rl/leave_pewter_pc_wm31_gate_mc_s0/train.log"
+  ],
+  "constants": {
+    "H": 10,
+    "BATCH": 128,
+    "GAMMA": 0.95,
+    "LAMBDA": 0.9,
+    "ENT": 0.03,
+    "STEP_COST": 0.05,
+    "WARP_BONUS": 5.0,
+    "HALLUCINATION_PENALTY": 2.0,
+    "lr": 0.0003,
+    "optimizer": "Adam",
+    "world_model": "wm31",
+    "probe": "work/probe_ext/probe.pt",
+    "data": "ext"
+  },
+  "best_legs": {
+    "to_route2": {
+      "family": "travel",
+      "iterations": 1800,
+      "move_gate": 2.0,
+      "geodesic": true,
+      "warp_dist": 1,
+      "merge_centers": false,
+      "seeds": [0, 1, 2],
+      "policy_pattern": "work/agent_rl/to_route2_wm31_gate_s{seed}/policy.pt"
+    },
+    "to_gate": {
+      "family": "travel",
+      "iterations": 1780,
+      "move_gate": 2.0,
+      "geodesic": true,
+      "warp_dist": 1,
+      "merge_centers": false,
+      "seeds": [0, 1, 2],
+      "policy_pattern": "work/agent_rl/to_gate_wm31_gate_s{seed}/policy.pt"
+    },
+    "forest": {
+      "family": "travel",
+      "iterations": 1780,
+      "move_gate": 2.0,
+      "geodesic": true,
+      "warp_dist": 1,
+      "merge_centers": false,
+      "seeds": [0, 1, 2],
+      "policy_pattern": "work/agent_rl/forest_wm31_gate_s{seed}/policy.pt"
+    },
+    "to_pewter": {
+      "family": "travel",
+      "iterations": 1820,
+      "move_gate": 2.0,
+      "geodesic": true,
+      "warp_dist": 1,
+      "merge_centers": false,
+      "seeds": [0, 1, 2],
+      "policy_pattern": "work/agent_rl/to_pewter_wm31_gate_s{seed}/policy.pt"
+    },
+    "to_gym": {
+      "family": "travel",
+      "iterations": 1860,
+      "move_gate": 2.0,
+      "geodesic": true,
+      "warp_dist": 1,
+      "merge_centers": false,
+      "seeds": [0, 1, 2],
+      "policy_pattern": "work/agent_rl/to_gym_wm31_gate_s{seed}/policy.pt"
+    },
+    "to_grass": {
+      "family": "movement",
+      "iterations": 1800,
+      "move_gate": 2.0,
+      "geodesic": true,
+      "warp_dist": 1,
+      "merge_centers": false,
+      "seeds": [0, 1, 2],
+      "policy_pattern": "work/agent_rl/to_grass_wm31_gate_s{seed}/policy.pt"
+    },
+    "to_viridian_pc": {
+      "family": "movement",
+      "iterations": 1800,
+      "move_gate": 2.0,
+      "geodesic": true,
+      "warp_dist": 1,
+      "merge_centers": false,
+      "seeds": [0, 1, 2],
+      "policy_pattern": "work/agent_rl/to_viridian_pc_wm31_gate_s{seed}/policy.pt"
+    },
+    "leave_viridian_pc": {
+      "family": "movement",
+      "iterations": 600,
+      "move_gate": 2.0,
+      "geodesic": true,
+      "warp_dist": 1,
+      "merge_centers": false,
+      "seeds": [0, 1, 2],
+      "policy_pattern": "work/agent_rl/leave_viridian_pc_wm31_gate_s{seed}/policy.pt"
+    },
+    "to_pewter_pc": {
+      "family": "movement",
+      "iterations": 1800,
+      "move_gate": 2.0,
+      "geodesic": true,
+      "warp_dist": 1,
+      "merge_centers": false,
+      "seeds": [0, 1, 2],
+      "resume_from_iteration": 900,
+      "policy_pattern": "work/agent_rl/to_pewter_pc_wm31_gate_it1800_s{seed}/policy.pt",
+      "notes": "Continued from 900 iterations to 1,800. Resume restores policy, optimizer and iteration with constant lr and rng keyed on [seed, it]."
+    },
+    "leave_pewter_pc": {
+      "family": "movement",
+      "iterations": 600,
+      "move_gate": 2.0,
+      "geodesic": true,
+      "warp_dist": 1,
+      "merge_centers": true,
+      "seeds": [0, 1, 2],
+      "policy_pattern": "work/agent_rl/leave_pewter_pc_wm31_gate_mc_s{seed}/policy.pt",
+      "notes": "Trained with --merge-centers so probe confusion between Pewter PC (58) and Viridian PC (41) on the mat is treated as start center."
+    }
+  }
+}

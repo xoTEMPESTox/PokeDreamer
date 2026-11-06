@@ -1,0 +1,54 @@
+{
+  "source": [
+    "lab/dwm/model.py",
+    "lab/dwm/train.py",
+    "work/runs/wm31/train.log"
+  ],
+  "model": {
+    "architecture": "EDM Denoiser U-Net (DIAMOND-style)",
+    "params": "16.71M",
+    "cond_dim": 256,
+    "context_frames": 4,
+    "actions": 8,
+    "frame_resolution": [72, 80],
+    "frame_channels": 1
+  },
+  "edm_settings": {
+    "sigma_data": 0.5,
+    "p_mean": -0.4,
+    "p_std": 1.2,
+    "sigma_min": 0.002,
+    "sigma_max": 5.0,
+    "rho": 7.0,
+    "aug_buckets": 10,
+    "aug_max": 0.7
+  },
+  "sampler": {
+    "type": "deterministic Euler sampling",
+    "default_steps": 3,
+    "default_aug_bucket": 0
+  },
+  "training": {
+    "data": "ext",
+    "train_windows": 676284,
+    "batch_size": 64,
+    "learning_rate": 0.0002,
+    "weight_decay": 0.01,
+    "grad_clip": 1.0,
+    "ema_decay": 0.999,
+    "optimizer": "fused AdamW",
+    "context_noise_aug": false,
+    "init_from": "work/runs/noaug/ckpt.pt",
+    "budget_minutes": 150.0,
+    "max_steps": null,
+    "eval_every_steps": 5000,
+    "checkpoint_every_minutes": 15,
+    "gpu_power_limit_watts": 450
+  },
+  "results": {
+    "final_step": 114800,
+    "final_elapsed_minutes": 150.1,
+    "final_rollout_mse_k1": 0.0787,
+    "final_rollout_mse_k32": 0.5423
+  }
+}
