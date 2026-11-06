@@ -5,11 +5,12 @@
     "start": 78,
     "end": 78,
     "speed": "fit",
-    "caption": "It learned to walk Kanto inside its own dream, then won the Boulder Badge in the real game.",
+    "caption": "It learned to walk inside a dream of the game, then earned a real Boulder Badge.",
+    "subcaption": "navigation trained only in a learned world model · battles and plan: rules",
     "text": [
       "PokeDreamer",
-      "It learned to walk Kanto inside its own dream,",
-      "then won the Boulder Badge in the real game."
+      "It learned to walk inside a dream of the game,",
+      "then earned a real Boulder Badge."
     ]
   },
   {
@@ -18,7 +19,8 @@
     "start": 78,
     "end": 400,
     "speed": "fit",
-    "caption": "Walking: a policy trained only in the world model. Battles: rules."
+    "caption": "The walking was learned in a dream. The fighting is a rulebook.",
+    "subcaption": "every step of this walk: a policy trained only inside the world model, seeing frames"
   },
   {
     "type": "montage",
@@ -32,7 +34,8 @@
     ],
     "speed": "fit",
     "goal_text": "grind (level 8 to 14)",
-    "caption": "Grind montage, level 8 to 14"
+    "caption": "Levelling up: Charmander 8 → 14",
+    "subcaption": "the plan (grind, heal, travel, gym) is a rule-based planner; it chooses, the walker walks"
   },
   {
     "type": "play",
@@ -40,7 +43,8 @@
     "start": 6608,
     "end": 6832,
     "speed": "fit",
-    "caption": "Healing is navigation too: three more learned legs."
+    "caption": "Going to heal: three more walks, all learned in the dream",
+    "subcaption": "to the Center, out of the Center, back to the grass: three navigation legs, no fallback in this run"
   },
   {
     "type": "split",
@@ -48,7 +52,8 @@
     "start": 6833,
     "end": 7723,
     "speed": "fit",
-    "caption": "Right: the world model imagining 10 steps ahead (the horizon the policies trained on) from 4 real frames and the same buttons."
+    "caption": "Right: what the AI dreams will happen next, 10 steps ahead",
+    "subcaption": "from 4 real frames and the same buttons; 10 steps is the horizon the walkers trained on; the dream drifts, and we measure where"
   },
   {
     "type": "play",
@@ -56,7 +61,8 @@
     "start": 7724,
     "end": 7760,
     "speed": "fit",
-    "caption": "Pewter PC, in and out"
+    "caption": "Pewter Center, in and out",
+    "subcaption": "two learned legs; these doors are where the policies fail most often in other runs"
   },
   {
     "type": "play",
@@ -68,7 +74,8 @@
       [8184, 8717]
     ],
     "speed": "fit",
-    "caption": "Gym navigation learned; the fights are rule-based."
+    "caption": "Into the gym. The walk is learned; the fights are rules.",
+    "subcaption": "the AI never trained on a battle; the badge is the whole system's, not the policy's"
   },
   {
     "type": "end",
@@ -78,9 +85,9 @@
     "speed": "fit",
     "caption": "",
     "text": [
-      "30/30 badges",
-      "14/30 runs with every navigation leg learned in imagination",
-      "0 real-game steps of navigation training"
+      "Boulder Badge: 30 of 30 runs",
+      "14 of 30 runs: every walk by the dream-trained policy, no backup used",
+      "Colour and detail restored by neural nets: 99.27% of pixels, 91% of frames exact"
     ]
   }
 ]

@@ -45,6 +45,36 @@ SPLIT_GAP = 80                     # gap between real and dream frames
 SPLIT_MARGIN_X = (CANVAS_WIDTH - 2 * SPLIT_FRAME_W - SPLIT_GAP) // 2  # 120 px
 SPLIT_FRAME_Y = 150                # top coordinate for frames
 
+# Mappings for status panel goals, legs, and badge subtext
+GOAL_MAP: Dict[str, str] = {
+    "grind": "Level up by fighting wild Pokémon",
+    "heal": "Heal at the Pokémon Center",
+    "travel_to_pewter": "Travel to Pewter City",
+    "gym": "Beat the Pewter Gym",
+    "": "—",
+}
+
+LEG_MAP: Dict[str, str] = {
+    "to_grass": "the tall grass on Route 1",
+    "to_viridian_pc": "the Viridian Pokémon Center",
+    "leave_viridian_pc": "out of the Pokémon Center",
+    "to_route2": "Route 2",
+    "to_gate": "the gate to Viridian Forest",
+    "forest": "through Viridian Forest",
+    "to_pewter": "Pewter City",
+    "to_pewter_pc": "the Pewter Pokémon Center",
+    "leave_pewter_pc": "out of the Pokémon Center",
+    "to_gym": "the Pewter Gym",
+    "": "—",
+}
+
+BADGE_SUBTEXT: Dict[str, str] = {
+    "Battle rules": "hand-written, not learned",
+    "Backup path-finder": "fallback: the learned policy missed",
+    "Scripted: menus, talking, waiting": "rules, not learned",
+    "AI trained in the dream": "world-model policy, frames only",
+}
+
 _ICON_CACHE: Dict[int, Image.Image] = {}
 
 
@@ -173,19 +203,19 @@ def get_hud_badge(
     """Returns (badge_text, bg_rgb, border_rgb, text_rgb) based on step flags.
 
     Priority:
-    1. in_battles -> "rules: battle" (amber)
-    2. by == "bfs" -> "path-finding fallback" (grey)
-    3. by == "policy" -> "world-model policy" (green)
-    4. otherwise (no navigation leg pressing) -> "scripted: menus, talking" (grey)
+    1. in_battles -> "Battle rules" (amber)
+    2. by == "bfs" -> "Backup path-finder" (grey)
+    3. by == "policy" -> "AI trained in the dream" (green)
+    4. otherwise (no navigation leg pressing) -> "Scripted: menus, talking, waiting" (dark grey)
     """
     if in_battle:
-        return "rules: battle", (75, 45, 12), (180, 110, 25), (252, 211, 77)
+        return "Battle rules", (75, 45, 12), (180, 110, 25), (252, 211, 77)
     elif str(by).lower() == "bfs":
-        return "path-finding fallback", (45, 55, 68), (100, 116, 139), (203, 213, 225)
+        return "Backup path-finder", (45, 55, 68), (100, 116, 139), (203, 213, 225)
     elif str(by).lower() == "policy":
-        return "world-model policy", (18, 65, 36), (46, 125, 50), (110, 231, 145)
+        return "AI trained in the dream", (18, 65, 36), (46, 125, 50), (110, 231, 145)
     else:  # no navigation leg is pressing: menus, dialogue, the nurse-counter walk, grind pacing (scripted)
-        return "scripted: menus, talking", (40, 46, 56), (90, 100, 115), (190, 198, 210)
+        return "Scripted: menus, talking, waiting", (40, 46, 56), (90, 100, 115), (190, 198, 210)
 
 
 class FontManager:
@@ -285,41 +315,60 @@ def draw_hud_card(
     avail_w = (x1 - x0) - 2 * pad_x
 
     if is_large:
-        # Title / header
-        draw.text((x0 + pad_x, y0 + 34), "POKEDREAMER STATUS", font=fonts.get(18, bold=True), fill=(100, 116, 139))
-        draw.line([(x0 + pad_x, y0 + 68), (x1 - pad_x, y0 + 68)], fill=(34, 45, 58), width=2)
+        # Title / header (two lines at 19 px regular, white)
+        draw.text(
+            (x0 + pad_x, y0 + 26),
+            "Walking was learned only inside an AI dream of this game.",
+            font=fonts.get(19),
+            fill=(248, 250, 252),
+        )
+        draw.text(
+            (x0 + pad_x, y0 + 52),
+            "Battles and the plan follow hand-written rules.",
+            font=fonts.get(19),
+            fill=(248, 250, 252),
+        )
+        draw.line([(x0 + pad_x, y0 + 82), (x1 - pad_x, y0 + 82)], fill=(34, 45, 58), width=2)
 
-        curr_y = y0 + 104
-        step_y = 120 if progress_text else 140
+        curr_y = y0 + 106
+        step_y = 118 if progress_text else 128
 
-        def _draw_section(label: str, val_text: str, default_size: int, fill: Tuple[int, int, int], is_bold: bool = True):
+        def _draw_section(label: str, sub_label: str, val_text: str, default_size: int, fill: Tuple[int, int, int], is_bold: bool = True):
             draw.text((x0 + pad_x, curr_y), label, font=fonts.get(16, bold=True), fill=(148, 163, 184))
+            if sub_label:
+                lw = draw.textlength(label, font=fonts.get(16, bold=True))
+                draw.text((x0 + pad_x + lw + 12, curr_y + 2), sub_label, font=fonts.get(13), fill=(100, 116, 139))
             sz = default_size
             while sz > 16 and draw.textlength(val_text, font=fonts.get(sz, bold=is_bold)) > avail_w:
                 sz -= 2
             draw.text((x0 + pad_x, curr_y + 28), val_text, font=fonts.get(sz, bold=is_bold), fill=fill)
 
         # 1. Map name
-        _draw_section("CURRENT MAP", map_name or "—", default_size=36, fill=(248, 250, 252))
+        _draw_section("WHERE", "current map", map_name or "—", default_size=34, fill=(248, 250, 252))
         curr_y += step_y
 
-        # 2. System 2 Goal
-        _draw_section("SYSTEM 2 GOAL", str(goal).upper() if goal else "—", default_size=34, fill=(248, 250, 252))
+        # 2. System 2 Goal / The Plan
+        goal_val = GOAL_MAP.get(str(goal), "—") if goal else "—"
+        _draw_section("THE PLAN", "System 2 · rules", goal_val, default_size=32, fill=(248, 250, 252))
         curr_y += step_y
 
-        # 3. Active Leg
-        _draw_section("ACTIVE NAVIGATION LEG", leg if leg else "—", default_size=30, fill=(147, 197, 253))
+        # 3. Active Leg / Walking to
+        leg_val = LEG_MAP.get(str(leg), "—") if leg else "—"
+        _draw_section("WALKING TO", "navigation leg · learned in the dream", leg_val, default_size=30, fill=(147, 197, 253))
         curr_y += step_y
 
         # 4. Control Badge
-        draw.text((x0 + pad_x, curr_y), "CONTROL MODE", font=fonts.get(16, bold=True), fill=(148, 163, 184))
+        draw.text((x0 + pad_x, curr_y), "WHO'S PRESSING THE BUTTONS", font=fonts.get(16, bold=True), fill=(148, 163, 184))
+        lw = draw.textlength("WHO'S PRESSING THE BUTTONS", font=fonts.get(16, bold=True))
+        draw.text((x0 + pad_x + lw + 12, curr_y + 2), "control mode", font=fonts.get(13), fill=(100, 116, 139))
+
         badge_text, badge_bg, badge_border, badge_fg = get_hud_badge(in_battle, by)
-        badge_font = fonts.get(24, bold=True)
+        badge_font = fonts.get(22, bold=True)
         tb = draw.textbbox((0, 0), badge_text, font=badge_font)
         bw, bh = tb[2] - tb[0], tb[3] - tb[1]
-        pill_w = bw + 40
-        pill_h = bh + 20
-        pill_y = curr_y + 28
+        pill_w = bw + 36
+        pill_h = bh + 16
+        pill_y = curr_y + 24
         draw.rounded_rectangle(
             [x0 + pad_x, pill_y, x0 + pad_x + pill_w, pill_y + pill_h],
             radius=10,
@@ -328,68 +377,82 @@ def draw_hud_card(
             width=2,
         )
         draw.text((x0 + pad_x + pill_w // 2, pill_y + pill_h // 2), badge_text, font=badge_font, fill=badge_fg, anchor="mm")
+
+        badge_sub = BADGE_SUBTEXT.get(badge_text)
+        if badge_sub:
+            draw.text((x0 + pad_x, pill_y + pill_h + 6), badge_sub, font=fonts.get(13), fill=(100, 116, 139))
         curr_y += step_y
 
         # 5. Press Counter (step + 1)
-        draw.text((x0 + pad_x, curr_y), "PRESSES", font=fonts.get(16, bold=True), fill=(148, 163, 184))
-        draw.text((x0 + pad_x, curr_y + 28), f"{step + 1:,}", font=fonts.get(48, bold=True), fill=(56, 189, 248))
+        draw.text((x0 + pad_x, curr_y), "BUTTONS PRESSED", font=fonts.get(16, bold=True), fill=(148, 163, 184))
+        lw = draw.textlength("BUTTONS PRESSED", font=fonts.get(16, bold=True))
+        draw.text((x0 + pad_x + lw + 12, curr_y + 2), "since the run started", font=fonts.get(13), fill=(100, 116, 139))
+        draw.text((x0 + pad_x, curr_y + 28), f"{step + 1:,}", font=fonts.get(44, bold=True), fill=(56, 189, 248))
         curr_y += step_y
 
         # 6. Optional level progress (for montage)
         if progress_text:
-            _draw_section("PROGRESS", progress_text, default_size=30, fill=(250, 204, 21))
+            _draw_section("LEVELLING UP", "Charmander", progress_text, default_size=30, fill=(250, 204, 21))
 
     else:
         # Compact fallback for smaller scale/box
-        draw.text((x0 + 30, y0 + 26), "POKEDREAMER STATUS", font=fonts.get(14, bold=True), fill=(100, 116, 139))
-        draw.line([(x0 + 30, y0 + 52), (x1 - 30, y0 + 52)], fill=(34, 45, 58), width=1)
+        draw.text((x0 + 30, y0 + 16), "Walking: learned in an AI dream of the game. Battles: rules.", font=fonts.get(13), fill=(248, 250, 252))
+        draw.line([(x0 + 30, y0 + 44), (x1 - 30, y0 + 44)], fill=(34, 45, 58), width=1)
 
-        curr_y = y0 + 68
+        curr_y = y0 + 56
+
+        def _draw_compact_section(label: str, sub_label: str, val_text: str, default_size: int, fill: Tuple[int, int, int]):
+            draw.text((x0 + 30, curr_y), label, font=fonts.get(13), fill=(148, 163, 184))
+            if sub_label:
+                lw = draw.textlength(label, font=fonts.get(13))
+                draw.text((x0 + 30 + lw + 8, curr_y + 1), sub_label, font=fonts.get(11), fill=(100, 116, 139))
+            draw.text((x0 + 30, curr_y + 18), val_text, font=fonts.get(default_size, bold=True), fill=fill)
 
         # 1. Map name
-        draw.text((x0 + 30, curr_y), "CURRENT MAP", font=fonts.get(13), fill=(148, 163, 184))
-        draw.text((x0 + 30, curr_y + 22), map_name or "—", font=fonts.get(22, bold=True), fill=(248, 250, 252))
-        curr_y += 66
+        _draw_compact_section("WHERE", "current map", map_name or "—", 20, (248, 250, 252))
+        curr_y += 56
 
         # 2. System 2 Goal
-        draw.text((x0 + 30, curr_y), "SYSTEM 2 GOAL", font=fonts.get(13), fill=(148, 163, 184))
-        draw.text((x0 + 30, curr_y + 22), str(goal).upper() if goal else "—", font=fonts.get(22, bold=True), fill=(248, 250, 252))
-        curr_y += 66
+        goal_val = GOAL_MAP.get(str(goal), "—") if goal else "—"
+        _draw_compact_section("THE PLAN", "System 2 · rules", goal_val, 18, (248, 250, 252))
+        curr_y += 56
 
         # 3. Active Leg
-        draw.text((x0 + 30, curr_y), "ACTIVE NAVIGATION LEG", font=fonts.get(13), fill=(148, 163, 184))
-        leg_str = leg if leg else "—"
-        draw.text((x0 + 30, curr_y + 22), leg_str, font=fonts.get(20, bold=True), fill=(147, 197, 253))
-        curr_y += 66
+        leg_val = LEG_MAP.get(str(leg), "—") if leg else "—"
+        _draw_compact_section("WALKING TO", "navigation leg · learned in the dream", leg_val, 18, (147, 197, 253))
+        curr_y += 56
 
         # 4. Control Badge
-        draw.text((x0 + 30, curr_y), "CONTROL MODE", font=fonts.get(13), fill=(148, 163, 184))
+        draw.text((x0 + 30, curr_y), "WHO'S PRESSING THE BUTTONS", font=fonts.get(13), fill=(148, 163, 184))
+        lw = draw.textlength("WHO'S PRESSING THE BUTTONS", font=fonts.get(13))
+        draw.text((x0 + 30 + lw + 8, curr_y + 1), "control mode", font=fonts.get(11), fill=(100, 116, 139))
         badge_text, badge_bg, badge_border, badge_fg = get_hud_badge(in_battle, by)
-        badge_font = fonts.get(18, bold=True)
+        badge_font = fonts.get(16, bold=True)
         tb = draw.textbbox((0, 0), badge_text, font=badge_font)
         bw, bh = tb[2] - tb[0], tb[3] - tb[1]
-        pill_w = bw + 32
-        pill_h = bh + 16
-        pill_y = curr_y + 22
+        pill_w = bw + 24
+        pill_h = bh + 12
+        pill_y = curr_y + 18
         draw.rounded_rectangle(
             [x0 + 30, pill_y, x0 + 30 + pill_w, pill_y + pill_h],
-            radius=8,
+            radius=6,
             fill=badge_bg,
             outline=badge_border,
             width=2,
         )
         draw.text((x0 + 30 + pill_w // 2, pill_y + pill_h // 2), badge_text, font=badge_font, fill=badge_fg, anchor="mm")
-        curr_y += 68
+        curr_y += 58
 
         # 5. Press Counter (step + 1)
-        draw.text((x0 + 30, curr_y), "PRESSES", font=fonts.get(13), fill=(148, 163, 184))
-        draw.text((x0 + 30, curr_y + 22), f"{step + 1:,}", font=fonts.get(30, bold=True), fill=(56, 189, 248))
-        curr_y += 66
+        draw.text((x0 + 30, curr_y), "BUTTONS PRESSED", font=fonts.get(13), fill=(148, 163, 184))
+        lw = draw.textlength("BUTTONS PRESSED", font=fonts.get(13))
+        draw.text((x0 + 30 + lw + 8, curr_y + 1), "since the run started", font=fonts.get(11), fill=(100, 116, 139))
+        draw.text((x0 + 30, curr_y + 18), f"{step + 1:,}", font=fonts.get(26, bold=True), fill=(56, 189, 248))
+        curr_y += 56
 
         # 6. Optional level progress (for montage)
         if progress_text:
-            draw.text((x0 + 30, curr_y), "PROGRESS", font=fonts.get(13), fill=(148, 163, 184))
-            draw.text((x0 + 30, curr_y + 22), progress_text, font=fonts.get(20, bold=True), fill=(250, 204, 21))
+            _draw_compact_section("LEVELLING UP", "Charmander", progress_text, 18, (250, 204, 21))
 
 
 def render_title_frame(
@@ -398,6 +461,7 @@ def render_title_frame(
     caption: str,
     fonts: FontManager,
     fade_alpha: float = 1.0,
+    subcaption: Optional[str] = None,
 ) -> np.ndarray:
     """Renders a title frame with centered text lines and Viridian background."""
     img = Image.new("RGB", (CANVAS_WIDTH, CANVAS_HEIGHT), BG_COLOR)
@@ -432,10 +496,11 @@ def render_title_frame(
     if len(text_lines) > 2:
         draw.text((cx, cy + 65), text_lines[2], font=fonts.get(28, bold=True), fill=(226, 232, 240), anchor="mm")
 
-    # If caption is distinct from text lines, show it; otherwise do not duplicate
+    # Subcaption or distinct caption shown under the card
+    note = subcaption if subcaption else caption
     combined_text = " ".join(text_lines)
-    if caption and caption not in combined_text:
-        draw.text((cx, CANVAS_HEIGHT - 100), caption, font=fonts.get(24), fill=(160, 175, 195), anchor="mm")
+    if note and note not in combined_text:
+        draw.text((cx, CANVAS_HEIGHT - 100), note, font=fonts.get(20), fill=(160, 175, 195), anchor="mm")
 
     res = np.asarray(img)
     if fade_alpha < 0.999:
@@ -465,13 +530,13 @@ def render_end_frame(
     )
 
     # Title header
-    draw_heading(img, draw, fonts, cx=cx, cy=cy - 210, text="POKEDREAMER // EXPERIMENT RESULTS", font_size=20, icon_size=22, fill=(100, 116, 139))
+    draw_heading(img, draw, fonts, cx=cx, cy=cy - 210, text="PokeDreamer · results", font_size=20, icon_size=22, fill=(100, 116, 139))
     draw.line([(cx - card_w // 2 + 50, cy - 180), (cx + card_w // 2 - 50, cy - 180)], fill=(34, 45, 58), width=1)
 
     colors = [
         (250, 204, 21),   # Gold for badges
         (74, 222, 128),   # Green for learned navigation
-        (56, 189, 248),   # Cyan for 0 real-game steps
+        (56, 189, 248),   # Cyan for restored color/detail
     ]
 
     base_y = cy - 110
@@ -483,7 +548,13 @@ def render_end_frame(
         draw.text((cx, base_y + idx * 85), line, font=fonts.get(size, bold=True), fill=color, anchor="mm")
 
     # Footer note
-    draw.text((cx, cy + 220), "Autonomous Quest // Boulder Badge Achieved", font=fonts.get(18), fill=(148, 163, 184), anchor="mm")
+    draw.text(
+        (cx, cy + 220),
+        "walking learned only inside the world model · battles and plan: hand-written rules · 3 seeds x 10 runs",
+        font=fonts.get(18),
+        fill=(148, 163, 184),
+        anchor="mm",
+    )
 
     res = np.asarray(img)
     if fade_alpha < 0.999:
@@ -503,6 +574,7 @@ def render_play_frame(
     fonts: FontManager,
     scale: int = PLAY_SCALE,
     progress_text: Optional[str] = None,
+    subcaption: Optional[str] = None,
 ) -> np.ndarray:
     """Renders a standard play or montage frame with Game Boy canvas and left HUD."""
     img = Image.new("RGB", (CANVAS_WIDTH, CANVAS_HEIGHT), BG_COLOR)
@@ -549,10 +621,26 @@ def render_play_frame(
     )
 
     # 5. Caption centred under the game frame
-    if caption:
+    if caption or subcaption:
         cap_x = fx + fw // 2
-        cap_y = fy + fh + (58 if scale == 6 else 60)
-        draw.text((cap_x, cap_y), caption, font=fonts.get(24, bold=True), fill=(241, 245, 249), anchor="mm")
+        if subcaption:
+            cap_y = fy + fh + (42 if scale == 6 else 44)
+            sub_y = cap_y + 30
+            if caption:
+                sz = 26
+                while sz > 18 and draw.textlength(caption, font=fonts.get(sz, bold=True)) > fw:
+                    sz -= 1
+                draw.text((cap_x, cap_y), caption, font=fonts.get(sz, bold=True), fill=(241, 245, 249), anchor="mm")
+            sz_sub = 20
+            while sz_sub > 14 and draw.textlength(subcaption, font=fonts.get(sz_sub)) > fw:
+                sz_sub -= 1
+            draw.text((cap_x, sub_y), subcaption, font=fonts.get(sz_sub), fill=(148, 163, 184), anchor="mm")
+        else:
+            cap_y = fy + fh + (58 if scale == 6 else 60)
+            sz = 24
+            while sz > 16 and draw.textlength(caption, font=fonts.get(sz, bold=True)) > fw:
+                sz -= 1
+            draw.text((cap_x, cap_y), caption, font=fonts.get(sz, bold=True), fill=(241, 245, 249), anchor="mm")
 
     return np.asarray(img)
 
@@ -564,6 +652,7 @@ def render_split_frame(
     fonts: FontManager,
     is_anchor_flashing: bool = False,
     scale: int = SPLIT_SCALE,
+    subcaption: Optional[str] = None,
 ) -> np.ndarray:
     """Renders side-by-side real vs dream frame comparison (each 5x)."""
     img = Image.new("RGB", (CANVAS_WIDTH, CANVAS_HEIGHT), BG_COLOR)
@@ -578,8 +667,20 @@ def render_split_frame(
     draw_heading(img, draw, fonts, cx=CANVAS_WIDTH // 2, cy=HEADING_Y, text="PokeDreamer", font_size=HEADING_FONT_SIZE)
 
     # 1. Labels above frames
-    draw.text((lx + fw // 2, ly - 36), "REAL GAME", font=fonts.get(26, bold=True), fill=(226, 232, 240), anchor="mm")
-    draw.text((rx + fw // 2, ly - 36), "WORLD MODEL'S IMAGINATION", font=fonts.get(26, bold=True), fill=(96, 165, 250), anchor="mm")
+    draw.text((lx + fw // 2, ly - 36), "The real game", font=fonts.get(24, bold=True), fill=(226, 232, 240), anchor="mm")
+
+    f_main = fonts.get(24, bold=True)
+    f_sub = fonts.get(14)
+    main_txt = "The AI's dream of it"
+    sub_txt = "diffusion world model, same button presses"
+    w_main = draw.textlength(main_txt, font=f_main)
+    w_sub = draw.textlength(sub_txt, font=f_sub)
+    gap = 12
+    total_w = w_main + gap + w_sub
+    start_x = (rx + fw // 2) - total_w / 2
+
+    draw.text((start_x, ly - 36), main_txt, font=f_main, fill=(96, 165, 250), anchor="lm")
+    draw.text((start_x + w_main + gap, ly - 36), sub_txt, font=f_sub, fill=(148, 163, 184), anchor="lm")
 
     # 2. Real frame (left)
     scaled_real = cv2.resize(real_frame, (fw, fh), interpolation=cv2.INTER_NEAREST)
@@ -594,7 +695,7 @@ def render_split_frame(
 
         # Flashing re-anchor tag
         if is_anchor_flashing:
-            tag_text = "re-anchored on 4 real frames"
+            tag_text = "reset: shown 4 real frames"
             tag_font = fonts.get(18, bold=True)
             tb = draw.textbbox((0, 0), tag_text, font=tag_font)
             pw, ph = (tb[2] - tb[0]) + 28, (tb[3] - tb[1]) + 14
@@ -613,8 +714,26 @@ def render_split_frame(
         )
 
     # 4. Caption centred under both frames
-    if caption:
-        draw.text((CANVAS_WIDTH // 2, ly + fh + 60), caption, font=fonts.get(24, bold=True), fill=(241, 245, 249), anchor="mm")
+    if caption or subcaption:
+        cap_x = CANVAS_WIDTH // 2
+        if subcaption:
+            cap_y = ly + fh + 48
+            sub_y = cap_y + 32
+            if caption:
+                sz = 26
+                while sz > 18 and draw.textlength(caption, font=fonts.get(sz, bold=True)) > CANVAS_WIDTH - 80:
+                    sz -= 1
+                draw.text((cap_x, cap_y), caption, font=fonts.get(sz, bold=True), fill=(241, 245, 249), anchor="mm")
+            sz_sub = 20
+            while sz_sub > 14 and draw.textlength(subcaption, font=fonts.get(sz_sub)) > CANVAS_WIDTH - 80:
+                sz_sub -= 1
+            draw.text((cap_x, sub_y), subcaption, font=fonts.get(sz_sub), fill=(148, 163, 184), anchor="mm")
+        else:
+            cap_y = ly + fh + 60
+            sz = 24
+            while sz > 16 and draw.textlength(caption, font=fonts.get(sz, bold=True)) > CANVAS_WIDTH - 80:
+                sz -= 1
+            draw.text((cap_x, cap_y), caption, font=fonts.get(sz, bold=True), fill=(241, 245, 249), anchor="mm")
 
     return np.asarray(img)
 
@@ -653,19 +772,12 @@ def compose_video(
         def get_map_name(mid: int) -> str:
             return f"Map {mid}"
 
-    # Load quest timeline for level lookup if available
-    timeline_levels = []
+    # The run records the level only at planner decisions, so a "live" level would lag behind the battles on screen;
+    # the montage shows the grind's span instead (start level from the run JSON -> target 14).
+    start_level = 8
     if os.path.exists(quest_json_path):
         with open(quest_json_path, "r") as f:
-            q_data = json.load(f)
-            timeline_levels = [(e["presses"], e.get("level", 8)) for e in q_data.get("timeline", [])]
-
-    def get_level(step_idx: int) -> int:
-        lvl = 8
-        for p, l in timeline_levels:
-            if step_idx >= p:
-                lvl = l
-        return lvl
+            start_level = json.load(f).get("level_start", 8)
 
     # Check dream frames
     dream_file = Path(dream_path)
@@ -723,6 +835,7 @@ def compose_video(
         start_step = seg.get("start", 0)
         end_step = seg.get("end", 0)
         caption = seg.get("caption", "")
+        subcaption = seg.get("subcaption", None)
         text_lines = seg.get("text", [])
 
         steps = compute_step_indices(start_step, end_step, n_frames, speed=speed, ranges=ranges)
@@ -762,7 +875,7 @@ def compose_video(
                     fade = (f_idx + 1) / 15.0
                 elif f_idx >= n_frames - 15:
                     fade = (n_frames - f_idx) / 15.0
-                frame = render_title_frame(cf, text_lines, caption, fonts, fade_alpha=fade)
+                frame = render_title_frame(cf, text_lines, caption, fonts, fade_alpha=fade, subcaption=subcaption)
 
             elif seg_type == "end":
                 fade = 1.0
@@ -791,13 +904,13 @@ def compose_video(
                     caption=caption,
                     fonts=fonts,
                     is_anchor_flashing=(anchor_flash_countdown > 0),
+                    subcaption=subcaption,
                 )
                 if anchor_flash_countdown > 0:
                     anchor_flash_countdown -= 1
 
             elif seg_type == "montage":
-                lvl = get_level(st_clamped)
-                prog_str = f"Level {lvl} -> 14"
+                prog_str = f"Level {start_level} → 14"
                 frame = render_play_frame(
                     color_frame=cf,
                     map_name=m_name,
@@ -810,6 +923,7 @@ def compose_video(
                     fonts=fonts,
                     scale=scale,
                     progress_text=prog_str,
+                    subcaption=subcaption,
                 )
 
             else:  # "play"
@@ -824,7 +938,16 @@ def compose_video(
                     caption=caption,
                     fonts=fonts,
                     scale=scale,
+                    subcaption=subcaption,
                 )
+
+            if seg_type == "play":
+                if bat and "play_battle" not in stills_to_save:
+                    stills_to_save["play_battle"] = frame
+                elif not bat and by_str.lower() == "policy" and "play_policy" not in stills_to_save:
+                    stills_to_save["play_policy"] = frame
+                elif not bat and by_str == "" and "play_scripted" not in stills_to_save:
+                    stills_to_save["play_scripted"] = frame
 
             seg_out.append(frame)
 
@@ -834,6 +957,8 @@ def compose_video(
         mid_idx = n_frames // 2
         still_key = f"segment_{seg_idx+1:02d}_{seg_type}"
         stills_to_save[still_key] = seg_out[mid_idx]
+        if seg_type not in stills_to_save:
+            stills_to_save[seg_type] = seg_out[mid_idx]
 
     # Save stills if directory provided
     if stills_dir:

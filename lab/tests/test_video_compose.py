@@ -16,6 +16,8 @@ from lab.video.compose import (
     draw_heading,
     get_pokeball_icon,
     FontManager,
+    GOAL_MAP,
+    LEG_MAP,
     CANVAS_WIDTH,
     CANVAS_HEIGHT,
     PLAY_SCALE,
@@ -77,9 +79,9 @@ def test_storyboard_end_card_exact_numbers():
     assert len(end_segments) >= 1, "Storyboard must have at least one end segment"
     end_text = end_segments[0].get("text", [])
 
-    assert "30/30 badges" in end_text
-    assert "14/30 runs with every navigation leg learned in imagination" in end_text
-    assert "0 real-game steps of navigation training" in end_text
+    assert "Boulder Badge: 30 of 30 runs" in end_text
+    assert "14 of 30 runs: every walk by the dream-trained policy, no backup used" in end_text
+    assert "Colour and detail restored by neural nets: 99.27% of pixels, 91% of frames exact" in end_text
 
 
 def test_fit_speed_maps_step_range():
@@ -113,25 +115,25 @@ def test_numeric_speed_mapping():
 
 
 def test_hud_badge_text_and_priority():
-    """Verify HUD badge text and colors for in_battle / bfs / policy."""
-    # 1. in_battle=True -> amber "rules: battle"
+    """Verify HUD badge text and colors for in_battle / bfs / policy / scripted."""
+    # 1. in_battle=True -> amber "Battle rules"
     text, bg, border, fg = get_hud_badge(in_battle=True, by="policy")
-    assert text == "rules: battle"
+    assert text == "Battle rules"
 
     text, bg, border, fg = get_hud_badge(in_battle=True, by="bfs")
-    assert text == "rules: battle"
+    assert text == "Battle rules"
 
-    # 2. in_battle=False, by="bfs" -> grey "path-finding fallback"
+    # 2. in_battle=False, by="bfs" -> grey "Backup path-finder"
     text, bg, border, fg = get_hud_badge(in_battle=False, by="bfs")
-    assert text == "path-finding fallback"
+    assert text == "Backup path-finder"
 
-    # 3. in_battle=False, by="policy" -> green "world-model policy"
+    # 3. in_battle=False, by="policy" -> green "AI trained in the dream"
     text, bg, border, fg = get_hud_badge(in_battle=False, by="policy")
-    assert text == "world-model policy"
+    assert text == "AI trained in the dream"
 
     # 4. in_battle=False, by="" (no navigation leg pressing) -> grey scripted badge, not the policy
     text, bg, border, fg = get_hud_badge(in_battle=False, by="")
-    assert text == "scripted: menus, talking"
+    assert text == "Scripted: menus, talking, waiting"
 
 
 def test_toy_rendering_dimensions_and_types():
@@ -308,7 +310,80 @@ def test_heading_band_present_in_rendered_frames():
 
 def test_hud_badge_does_not_credit_the_policy_for_scripted_steps():
     # by == "" outside battle means no navigation leg is pressing (menus, dialogue, the nurse-counter walk, grind
-    # pacing): 2,757 of the 8,718 recorded steps. Showing "world-model policy" there would overclaim.
+    # pacing): 2,757 of the 8,718 recorded steps. Showing "AI trained in the dream" there would overclaim.
     text, _, _, _ = get_hud_badge(in_battle=False, by="")
-    assert "policy" not in text.lower() and "scripted" in text.lower()
-    assert "policy" in get_hud_badge(in_battle=False, by="policy")[0].lower()
+    assert "trained in the dream" not in text.lower() and "scripted" in text.lower()
+    assert "trained in the dream" in get_hud_badge(in_battle=False, by="policy")[0].lower()
+
+
+def test_mapping_dicts_cover_all_trajectory_legs_and_goals():
+    """Verify GOAL_MAP and LEG_MAP cover every leg and goal in run_seed_100_color.npz."""
+    traj_path = Path("work/video/traj/run_seed_100_color.npz")
+    assert traj_path.exists(), "Trajectory file must exist"
+
+    data = np.load(traj_path)
+    unique_goals = set(str(g) for g in data["goals"])
+    unique_legs = set(str(l) for l in data["leg"])
+
+    for g in unique_goals:
+        assert g in GOAL_MAP, f"Goal {g!r} missing from GOAL_MAP"
+        assert GOAL_MAP[g] != "", f"Goal {g!r} mapped to empty string"
+
+    for l in unique_legs:
+        assert l in LEG_MAP, f"Leg {l!r} missing from LEG_MAP"
+        assert LEG_MAP[l] != "", f"Leg {l!r} mapped to empty string"
+
+
+def test_storyboard_subcaptions_present_and_match_spec():
+    """Verify storyboard segments have two-tier captions with subcaptions."""
+    sb_path = Path("lab/video/storyboard.json")
+    with open(sb_path, "r") as f:
+        storyboard = json.load(f)
+
+    # Check that play, montage, and split segments have non-empty subcaption
+    for i, seg in enumerate(storyboard):
+        if seg.get("type") in ("play", "montage", "split"):
+            assert "subcaption" in seg, f"Segment {i} ({seg['type']}) missing 'subcaption'"
+            assert len(seg["subcaption"]) > 0, f"Segment {i} subcaption is empty"
+
+
+def test_no_do_not_say_phrases():
+    """Verify no storyboard strings or HUD texts violate COPY_REVIEW.md §6 do-not-say list."""
+    do_not_say_patterns = [
+        "learned to play pokémon",
+        "learned to play pokemon",
+        "plays pokémon by itself",
+        "plays pokemon by itself",
+        "ai beats the gym on its own",
+        "beats the gym on its own",
+        "autonomous",
+        "end-to-end",
+        "learned to walk kanto",
+        "never needs the backup",
+        "100% success",
+        "the world model is accurate",
+        "predicts the game",
+    ]
+
+    sb_path = Path("lab/video/storyboard.json")
+    with open(sb_path, "r") as f:
+        storyboard = json.load(f)
+
+    strings_to_check = []
+    for s in storyboard:
+        if s.get("caption"):
+            strings_to_check.append(s["caption"])
+        if s.get("subcaption"):
+            strings_to_check.append(s["subcaption"])
+        for t in s.get("text", []):
+            strings_to_check.append(t)
+
+    for g_val in GOAL_MAP.values():
+        strings_to_check.append(g_val)
+    for l_val in LEG_MAP.values():
+        strings_to_check.append(l_val)
+
+    for text in strings_to_check:
+        t_low = text.lower()
+        for phrase in do_not_say_patterns:
+            assert phrase not in t_low, f"Found forbidden phrase {phrase!r} in text: {text!r}"
