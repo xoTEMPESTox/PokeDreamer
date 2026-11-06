@@ -33,7 +33,7 @@ from lab.eval.metrics import bootstrap_ci, manhattan, no_change_error
 
 def load_v1_models():
     """Dynamically load v1 model classes from v1/src."""
-    v1_root = Path(__file__).resolve().parents[1] / "v1" / "src"
+    v1_root = Path(__file__).resolve().parents[1] / "legacy" / "v1" / "src"
 
     def _import_from_path(name: str, path: Path):
         spec = importlib.util.spec_from_file_location(name, str(path))
