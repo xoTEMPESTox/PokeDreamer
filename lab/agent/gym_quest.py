@@ -208,6 +208,7 @@ def run_leg(
 
     # If policy exists, run learned policy loop
     if net is not None:
+        env._nav_leg, env._nav_by = leg, "policy"  # read by the --save-color recorder
         cur_frame, ram = env.observe()
         frames = [cur_frame] * 4  # CTX = 4
 
@@ -259,6 +260,7 @@ def run_leg(
 
     # Fallback to navigate_to if not reached by policy (and no blackout)
     if not reached_by_policy and blackouts == 0:
+        env._nav_leg, env._nav_by = leg, "bfs"
         fb_limit = fallback_budget if fallback_budget is not None else budget
         for f_map in fallback_maps:
             cur_map = int(env.observe()[1]["map_id"])
@@ -285,6 +287,7 @@ def run_leg(
                 for m_k, count in r_nav.get("moves_used", {}).items():
                     moves_used[m_k] = moves_used.get(m_k, 0) + count
 
+    env._nav_leg, env._nav_by = "", ""
     success = _is_target(env.observe()[1])
     return {
         "leg": leg,
@@ -974,6 +977,7 @@ def run_gym_quest(
     seed: int = 100,
     save_gif: bool = False,
     save_traj: bool = False,
+    save_color: bool = False,
     state_path: str | Path = "saves/pokedex_viridian.state",
     work_dir: str | Path = "work/gym",
     traj_dir: str | Path = "work/gym_traj",
@@ -1014,6 +1018,19 @@ def run_gym_quest(
     traj_in_battles: list[bool] = []
     traj_goals: list[str] = []
 
+    # --save-color: the stage-1 colour frame (lab/color) and the active navigation leg at every trajectory step
+    palette = None
+    traj_colors: list[np.ndarray] = []
+    traj_legs: list[str] = []
+    traj_bys: list[str] = []
+    if save_color:
+        from lab.color.native import pixel_tiles
+        from lab.color.rules import build_tile_map, colorize_frame
+        labels = json.loads(Path("lab/color/labels.json").read_text(encoding="utf-8"))
+        keys = [f"{k.split(':')[0]}:{layer}:{k.split(':')[1]}" for k in labels for layer in (0, 1)]
+        palette = {"classes": json.loads(Path("lab/color/palette.json").read_text(encoding="utf-8"))["classes"],
+                   "tiles": build_tile_map(labels, keys)}
+
     current_goal_str = "init"
     start_time = time.time()
 
@@ -1043,6 +1060,10 @@ def run_gym_quest(
                 traj_ys.append(int(ram_obs["y"]))
                 traj_in_battles.append(bool(ram_obs["in_battle"]))
                 traj_goals.append(current_goal_str)
+                if palette is not None:
+                    traj_colors.append(colorize_frame(pixel_tiles(env.pyboy), palette))
+                    traj_legs.append(getattr(env, "_nav_leg", ""))
+                    traj_bys.append("" if ram_obs["in_battle"] else getattr(env, "_nav_by", ""))
 
             # Map visit tracking
             m_id = int(ram_obs["map_id"])
@@ -1329,6 +1350,13 @@ def run_gym_quest(
                 goal=np.array(traj_goals, dtype=str),
             )
             print(f"[GymQuest seed={seed}] Saved trajectory ({len(traj_frames)} steps) -> {traj_path}")
+            if traj_colors:
+                color_path = traj_dir / f"run_seed_{seed}_color.npz"
+                np.savez_compressed(color_path, color=np.array(traj_colors, dtype=np.uint8),
+                                    map_ids=np.array(traj_maps, dtype=np.uint8), goals=np.array(traj_goals, dtype=str),
+                                    in_battles=np.array(traj_in_battles, dtype=bool),
+                                    leg=np.array(traj_legs, dtype=str), by=np.array(traj_bys, dtype=str))
+                print(f"[GymQuest seed={seed}] Saved colour trajectory ({len(traj_colors)} steps) -> {color_path}")
 
         # Save single run JSON
         run_file = work_dir / f"run_seed_{seed}.json"
@@ -1366,6 +1394,8 @@ def main() -> None:
     parser.add_argument("--state", type=str, default="saves/pokedex_viridian.state", help="Path to initial save state")
     parser.add_argument("--gif", action="store_true", help="Record and save captioned GIF of run")
     parser.add_argument("--save-traj", action="store_true", help="Record and save full trajectory npz to work/gym_traj/run_seed_<seed>.npz")
+    parser.add_argument("--save-color", action="store_true",
+                        help="with --save-traj: also save the stage-1 colour frames and the active leg to <traj-dir>/run_seed_<seed>_color.npz")
     parser.add_argument("--traj-dir", type=str, default="work/gym_traj", help="Directory for output trajectory npz files")
     parser.add_argument("--heal-threshold", type=float, default=0.35, help="HP fraction threshold to trigger healing")
     parser.add_argument("--nav", choices=["bfs", "learned"], default="bfs", help="Navigation mode (bfs or learned)")
@@ -1375,6 +1405,8 @@ def main() -> None:
     parser.add_argument("--no-think", action="store_true", help="Disable thinking in LLM planner")
     parser.add_argument("--max-llm-decisions", type=int, default=60, help="Max LLM planner decisions before stopping run")
     args = parser.parse_args()
+    if args.save_color and not args.save_traj:
+        parser.error("--save-color requires --save-traj")
 
     work_dir = Path(args.work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -1399,6 +1431,7 @@ def main() -> None:
             seed=cur_seed,
             save_gif=record_gif_this_run,
             save_traj=args.save_traj,
+            save_color=args.save_color,
             state_path=args.state,
             work_dir=work_dir,
             traj_dir=args.traj_dir,
