@@ -126,6 +126,7 @@ def main():
                     help="instead of --step-clip: count progress only from reads within this many tiles of the last accepted one")
     ap.add_argument("--warp-dist", type=float, default=1,
                     help="an imagined map change earns the warp bonus only from within this distance of the exit (0: the exit tile)")
+    ap.add_argument("--ent", type=float, default=ENT, help=f"entropy bonus coefficient (default {ENT})")
     ap.add_argument("--merge-centers", action="store_true",
                     help="read another Pokemon Center as the start Center (one shared interior; the probe confuses them)")
     ap.add_argument("--seed", type=int, default=None, help="seed torch and the start sampling (default: unseeded)")
@@ -149,7 +150,8 @@ def main():
     exits = TASKS[args.task]["exits"]
     fields = train_geodesic_fields(exits, extended=args.data == "ext") if args.geodesic else None
     log(f"distance to exit: {'geodesic (observed moves, train split)' if args.geodesic else 'Manhattan'}; "
-        f"step clip {args.step_clip}; move gate {args.move_gate}; warp dist {args.warp_dist}; merge centers {args.merge_centers}")
+        f"step clip {args.step_clip}; move gate {args.move_gate}; warp dist {args.warp_dist}; merge centers {args.merge_centers}; "
+        f"entropy coef {args.ent}")
     train_maps = TASKS[args.task].get("train_maps", list(exits))
     ok = np.isin(data["map_ids"][last], train_maps) & ~data["in_battles"][starts[:, None] + np.arange(CTX)].any(1)
     if fields is not None:  # only starts with an observed path to the exit (to_pewter: 76% of Route 2 is south of the forest)
@@ -223,7 +225,7 @@ def main():
         pg = -(logp.gather(-1, a_t[..., None]).squeeze(-1) * adv * alive_t).sum() / alive_t.sum()
         vloss = ((v - target) ** 2 * alive_t).sum() / alive_t.sum()
         ent = -(logp.exp() * logp).sum(-1).mul(alive_t).sum() / alive_t.sum()
-        loss = pg + 0.5 * vloss - ENT * ent
+        loss = pg + 0.5 * vloss - args.ent * ent
         opt.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(policy.parameters(), 1.0)
