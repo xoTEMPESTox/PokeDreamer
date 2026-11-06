@@ -33,6 +33,21 @@ CLASS_NAMES = [
     "sprite_npc", "battle_bg", "battle_hp_bar", "other", "rock",
 ]
 
+# Extended classes for v2 rich battle colorizer
+CLASS_NAMES += [
+    "battle_enemy", "battle_player_mon", "battle_hp_high", "battle_hp_mid", "battle_hp_low", "battle_box",
+    "effect_normal", "effect_fire", "effect_water", "effect_grass", "effect_electric", "effect_poison",
+    "effect_rock", "effect_ground", "effect_flying", "effect_bug", "effect_fighting", "effect_psychic",
+    "effect_ice", "effect_ghost", "effect_dragon", "mon_charmander", "mon_charmeleon", "mon_squirtle",
+    "mon_wartortle", "mon_bulbasaur", "mon_ivysaur", "mon_pidgey", "mon_spearow", "mon_rattata",
+    "mon_caterpie", "mon_metapod", "mon_butterfree", "mon_weedle", "mon_kakuna", "mon_beedrill",
+    "mon_pikachu", "mon_geodude", "mon_onix", "mon_diglett", "mon_sandshrew", "mon_nidoran_f",
+    "mon_nidoran_m", "mon_zubat", "mon_type_normal", "mon_type_fighting", "mon_type_flying",
+    "mon_type_poison", "mon_type_ground", "mon_type_rock", "mon_type_bug", "mon_type_ghost",
+    "mon_type_fire", "mon_type_water", "mon_type_grass", "mon_type_electric", "mon_type_psychic",
+    "mon_type_ice", "mon_type_dragon",
+]
+
 DEFAULT_PALETTE_PATH = Path("lab/color/palette.json")
 DEFAULT_LABELS_PATH = Path("lab/color/labels.json")
 DEFAULT_TILES_PATH = Path("work/color/native/tiles.npz")
@@ -62,6 +77,14 @@ def load_palette(
         "tiles": tiles,
         "labels": labels_data,
     }
+
+
+if DEFAULT_PALETTE_PATH.exists():
+    try:
+        with open(DEFAULT_PALETTE_PATH, "r") as _f_pal:
+            CLASS_NAMES = list(json.load(_f_pal)["classes"])
+    except Exception:
+        pass
 
 
 def class_map(px: Dict[str, Any], palette: Optional[Dict[str, Any]] = None) -> np.ndarray:
@@ -98,6 +121,9 @@ def class_map(px: Dict[str, Any], palette: Optional[Dict[str, Any]] = None) -> n
         box = np.zeros(layer.shape, bool)
         box[y0:y1, x0:x1] = True
         cls[box & (layer == 2)] = names.index("sprite_player")
+    else:
+        from lab.color.rules import assign_battle_classes
+        cls = assign_battle_classes(cls, px, names)
     return cls
 
 
@@ -868,5 +894,372 @@ def main():
         make_demo(device=args.device)
 
 
+# ==============================================================================
+# V2 Rich Battle Extensions (Additive)
+# ==============================================================================
+
+def load_colorizer_v2(
+    path: str | Path = "work/color/learned/model_v2.pt",
+    device: str = "cpu",
+    num_classes: Optional[int] = None,
+) -> Colorizer:
+    """Loads Colorizer model, auto-detecting num_classes from checkpoint weights."""
+    ckpt_path = Path(path)
+    if not ckpt_path.exists():
+        fallback_path = Path("work/color/learned/model.pt")
+        if fallback_path.exists():
+            ckpt_path = fallback_path
+        else:
+            raise FileNotFoundError(f"Colorizer checkpoint not found at {path}")
+    state = torch.load(ckpt_path, map_location=device, weights_only=True)
+    d = state.get("state_dict", state) if isinstance(state, dict) else state
+    if num_classes is None:
+        if isinstance(d, dict) and "conv_out.weight" in d:
+            num_classes = int(d["conv_out.weight"].shape[0])
+        else:
+            num_classes = len(CLASS_NAMES)
+    model = Colorizer(num_classes=num_classes).to(device)
+    model.load_state_dict(d)
+    model.eval()
+    return model
+
+
+def train_colorizer_v2(
+    minutes: float = 25.0,
+    device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    batch_size: int = 64,
+    lr: float = 3e-4,
+    data_dir: str | Path = "work/color/learned",
+    upsampler_path: str | Path = "work/upsampler/upsampler.pt",
+    model_name: str = "model_v2.pt",
+    train_data_name: str = "data_train_v2.npz",
+    num_classes: Optional[int] = None,
+) -> None:
+    """Trains Colorizer U-Net with rich battle classes on data_train_v2.npz."""
+    if device == "cuda":
+        wait_for_gpu_idle()
+
+    data_dir = Path(data_dir)
+    train_npz = data_dir / train_data_name
+    if not train_npz.exists():
+        fallback = data_dir / "data_train.npz"
+        if fallback.exists():
+            print(f"{train_npz} not found; falling back to {fallback}")
+            train_npz = fallback
+        else:
+            raise FileNotFoundError(f"Train data not found at {train_npz}")
+
+    log_path = data_dir / "train_v2.log"
+    ckpt_path = data_dir / model_name
+
+    print(f"Loading upsampler from {upsampler_path}...")
+    upsampler = load_upsampler(str(upsampler_path), device=device)
+
+    print(f"Loading training data from {train_npz}...")
+    t0 = time.time()
+    data = np.load(train_npz)
+    train_f72 = data["frames72"]
+    train_cm = data["class_map"]
+    n_train = len(train_f72)
+    print(f"Loaded {n_train:,} training frames in {time.time() - t0:.1f} s")
+
+    shades_cache_path = data_dir / f"train_shades_{Path(train_data_name).stem}.npy"
+    if shades_cache_path.exists():
+        print(f"Loading precomputed upsampled shades from {shades_cache_path}...")
+        train_shades = np.load(shades_cache_path)
+    else:
+        print(f"Precomputing upsampled shades for {n_train:,} training frames on {device}...")
+        t_up = time.time()
+        train_shades = upsample(upsampler, train_f72, device=device, batch=256)
+        np.save(shades_cache_path, train_shades)
+        print(f"Saved upsampled shades cache to {shades_cache_path} in {time.time() - t_up:.1f} s")
+
+    dev = torch.device(device)
+    if num_classes is None:
+        num_classes = len(CLASS_NAMES)
+    model = Colorizer(num_classes=num_classes).to(dev)
+    if dev.type == "cuda":
+        model = model.to(memory_format=torch.channels_last)
+
+    n_params = sum(p.numel() for p in model.parameters())
+    print(f"Colorizer model v2 parameters: {n_params:,} ({n_params / 1e6:.3f}M, num_classes={num_classes})")
+    if n_params > 2_000_000:
+        raise ValueError(f"Model exceeds 2.0M parameter budget: {n_params}")
+
+    opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-2)
+    autocast_ctx = torch.autocast("cuda", torch.bfloat16) if dev.type == "cuda" else contextlib.nullcontext()
+
+    def log(msg: str) -> None:
+        line = f"{time.strftime('%H:%M:%S')} {msg}"
+        print(line, flush=True)
+        with open(log_path, "a") as f:
+            f.write(line + "\n")
+
+    log(f"Starting v2 training for {minutes:.1f} min on {device}, batch {batch_size}, params {n_params:,}")
+
+    rng = np.random.default_rng(42)
+    t_start = time.time()
+    t_last = time.time()
+    step = 0
+    losses: List[float] = []
+
+    def save_ckpt() -> None:
+        tmp_path = ckpt_path.with_suffix(".tmp")
+        torch.save(model.state_dict(), tmp_path)
+        os.replace(tmp_path, ckpt_path)
+        log(f"Saved checkpoint to {ckpt_path}")
+
+    while (time.time() - t_start) < (minutes * 60):
+        idx = rng.choice(n_train, size=batch_size, replace=True)
+        batch_f72 = train_f72[idx]
+        batch_shades = train_shades[idx]
+        batch_cm = train_cm[idx]
+
+        shade_cls = torch.from_numpy(to_classes(batch_shades)).long().to(dev)
+        one_hot = F.one_hot(shade_cls, num_classes=4).permute(0, 3, 1, 2).float()
+        raw_t = torch.from_numpy(batch_f72).float().unsqueeze(1).to(dev) / 255.0
+        sigma = torch.rand(batch_size, 1, 1, 1, device=dev) * 0.05
+        raw_t = (raw_t + torch.randn_like(raw_t) * sigma).clamp(0.0, 1.0)
+        nearest = F.interpolate(raw_t, size=(144, 160), mode="nearest")
+
+        x = torch.cat([one_hot, nearest], dim=1)
+        if dev.type == "cuda":
+            x = x.to(memory_format=torch.channels_last)
+        y = torch.from_numpy(batch_cm).long().to(dev)
+
+        opt.zero_grad(set_to_none=True)
+        with autocast_ctx:
+            logits = model(x)
+            loss = F.cross_entropy(logits, y)
+
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+
+        frac = min((time.time() - t_start) / (minutes * 60), 1.0)
+        cur_lr = lr * 0.5 * (1.0 + np.cos(np.pi * frac))
+        for g in opt.param_groups:
+            g["lr"] = cur_lr
+
+        opt.step()
+        step += 1
+        losses.append(loss.item())
+
+        if step % 100 == 0:
+            now = time.time()
+            dt = now - t_last
+            sps = 100 / dt if dt > 0 else 0
+            mean_loss = sum(losses) / len(losses)
+            elapsed_min = (now - t_start) / 60
+            log(f"step {step} loss {mean_loss:.4f} {sps:.1f} steps/s lr {cur_lr:.2e} elapsed {elapsed_min:.1f} min")
+            losses = []
+
+            pause_file = Path("work/PAUSE")
+            if pause_file.exists():
+                save_ckpt()
+                log("PAUSED: work/PAUSE exists; idling...")
+                t_pause = time.time()
+                while pause_file.exists():
+                    time.sleep(10)
+                t_start += (time.time() - t_pause)
+                log("Resumed after pause.")
+
+            t_last = time.time()
+
+        if step % 1000 == 0:
+            save_ckpt()
+
+    save_ckpt()
+    total_elapsed = (time.time() - t_start) / 60
+    log(f"DONE v2 training {step} steps in {total_elapsed:.1f} min. Final checkpoint saved to {ckpt_path}")
+
+
+def evaluate_colorizer_v2(
+    data_dir: str | Path = "work/color/learned",
+    model_path: str | Path = "work/color/learned/model_v2.pt",
+    upsampler_path: str | Path = "work/upsampler/upsampler.pt",
+    device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    batch_size: int = 64,
+    test_data_name: str = "data_test_v2.npz",
+    metrics_name: str = "metrics_v2.json",
+) -> Dict[str, Any]:
+    """Evaluates v2 colorizer on held-out test split, reporting overall/non-battle/battle/species accuracy."""
+    data_dir = Path(data_dir)
+    test_npz = data_dir / test_data_name
+    if not test_npz.exists():
+        fallback = data_dir / "data_test.npz"
+        if fallback.exists():
+            test_npz = fallback
+        else:
+            raise FileNotFoundError(f"Test data not found at {test_npz}")
+
+    palette = load_palette()
+    classes = palette["classes"]
+    names = list(classes)
+    ramps = np.asarray([classes[n] for n in names], dtype=np.uint8)
+
+    print(f"Loading Colorizer model from {model_path} on {device}...")
+    model = load_colorizer_v2(model_path, device=device)
+    print(f"Loading Upsampler from {upsampler_path} on {device}...")
+    upsampler = load_upsampler(str(upsampler_path), device=device)
+
+    print(f"Loading test data from {test_npz}...")
+    test_data = np.load(test_npz)
+    frames72 = test_data["frames72"]
+    target_cm = test_data["class_map"]
+    cidx = test_data["cidx"]
+    in_battle = test_data["in_battle"]
+    N = len(frames72)
+    print(f"Loaded {N:,} test frames.")
+
+    shades_cache_path = data_dir / f"test_shades_{Path(test_data_name).stem}.npy"
+    if shades_cache_path.exists():
+        print(f"Loading precomputed upsampled shades from {shades_cache_path}...")
+        test_shades = np.load(shades_cache_path)
+    else:
+        print(f"Precomputing upsampled shades for {N:,} test frames on {device}...")
+        t_up = time.time()
+        test_shades = upsample(upsampler, frames72, device=device, batch=256)
+        np.save(shades_cache_path, test_shades)
+        print(f"Saved upsampled shades cache to {shades_cache_path} in {time.time() - t_up:.1f} s")
+
+    dev = torch.device(device)
+    model.eval()
+
+    total_pixels = 0
+    matching_pixels = 0
+    non_battle_pixels = 0
+    non_battle_matches = 0
+    battle_pixels = 0
+    battle_matches = 0
+    rgb_differ_pixels = 0
+
+    # Species sprite region tracking during battle
+    species_sprite_pixels = 0
+    species_sprite_matches = 0
+
+    H, W = 144, 160
+    y_coords, x_coords = np.meshgrid(np.arange(H), np.arange(W), indexing="ij")
+    enemy_sprite_mask = (y_coords < 56) & (x_coords >= 96)
+    player_sprite_mask = (y_coords >= 40) & (y_coords < 96) & (x_coords >= 8) & (x_coords < 64)
+    sprite_regions_mask = enemy_sprite_mask | player_sprite_mask
+
+    text_idx = names.index("text_box") if "text_box" in names else -1
+    bg_idx = names.index("battle_bg") if "battle_bg" in names else -1
+
+    per_class_total = np.zeros(len(CLASS_NAMES), dtype=np.int64)
+    per_class_correct = np.zeros(len(CLASS_NAMES), dtype=np.int64)
+
+    autocast_ctx = torch.autocast("cuda", torch.bfloat16) if dev.type == "cuda" else contextlib.nullcontext()
+
+    print("Evaluating v2 test split...")
+    t0 = time.time()
+    for i in range(0, N, batch_size):
+        b_f72 = frames72[i : i + batch_size]
+        b_shades = test_shades[i : i + batch_size]
+        b_tgt_cm = target_cm[i : i + batch_size]
+        b_cidx = cidx[i : i + batch_size]
+        b_battle = in_battle[i : i + batch_size]
+
+        shade_cls = torch.from_numpy(to_classes(b_shades)).long().to(dev)
+        one_hot = F.one_hot(shade_cls, num_classes=4).permute(0, 3, 1, 2).float()
+        raw_t = torch.from_numpy(b_f72).float().unsqueeze(1).to(dev) / 255.0
+        nearest = F.interpolate(raw_t, size=(144, 160), mode="nearest")
+
+        x = torch.cat([one_hot, nearest], dim=1)
+        if dev.type == "cuda":
+            x = x.to(memory_format=torch.channels_last)
+
+        with torch.no_grad():
+            with autocast_ctx:
+                logits = model(x)
+            pred_cls = logits.argmax(dim=1).cpu().numpy().astype(np.uint8)
+
+        correct_mask = (pred_cls == b_tgt_cm)
+        matching_pixels += int(correct_mask.sum())
+        total_pixels += b_tgt_cm.size
+
+        b_cnt = int(b_battle.sum())
+        nb_cnt = len(b_battle) - b_cnt
+        battle_pixels += b_cnt * 144 * 160
+        battle_matches += int(correct_mask[b_battle].sum()) if b_cnt > 0 else 0
+        non_battle_pixels += nb_cnt * 144 * 160
+        non_battle_matches += int(correct_mask[~b_battle].sum()) if nb_cnt > 0 else 0
+
+        # Species sprite pixels during battle
+        if b_cnt > 0:
+            b_tgt_battle = b_tgt_cm[b_battle]
+            b_pred_battle = pred_cls[b_battle]
+            sp_pix_mask = sprite_regions_mask[None, :, :] & (b_tgt_battle != text_idx) & (b_tgt_battle != bg_idx)
+            sp_tot = int(sp_pix_mask.sum())
+            if sp_tot > 0:
+                species_sprite_pixels += sp_tot
+                species_sprite_matches += int((b_pred_battle[sp_pix_mask] == b_tgt_battle[sp_pix_mask]).sum())
+
+        for c in range(len(CLASS_NAMES)):
+            c_mask = (b_tgt_cm == c)
+            c_tot = int(c_mask.sum())
+            if c_tot > 0:
+                per_class_total[c] += c_tot
+                per_class_correct[c] += int(correct_mask[c_mask].sum())
+
+        b_ramp_idx = (3 - to_classes(b_shades)).astype(np.int64)
+        pred_rgb = ramps[pred_cls, b_ramp_idx]
+        stage1_rgb = ramps[b_tgt_cm, b_cidx]
+        rgb_diff = (pred_rgb != stage1_rgb).any(axis=-1)
+        rgb_differ_pixels += int(rgb_diff.sum())
+
+    dt = time.time() - t0
+    overall_acc = matching_pixels / max(1, total_pixels)
+    non_battle_acc = non_battle_matches / max(1, non_battle_pixels)
+    battle_acc = battle_matches / max(1, battle_pixels)
+    species_acc = species_sprite_matches / max(1, species_sprite_pixels)
+    rgb_differ_share = rgb_differ_pixels / max(1, total_pixels)
+
+    per_class_acc = {}
+    for c in range(len(CLASS_NAMES)):
+        c_name = CLASS_NAMES[c]
+        c_tot = int(per_class_total[c])
+        acc = float(per_class_correct[c] / c_tot) if c_tot > 0 else 0.0
+        per_class_acc[c_name] = {
+            "accuracy": acc,
+            "total_pixels": c_tot,
+        }
+
+    metrics = {
+        "overall_pixel_accuracy": float(overall_acc),
+        "non_battle_pixel_accuracy": float(non_battle_acc),
+        "battle_pixel_accuracy": float(battle_acc),
+        "species_sprite_accuracy": float(species_acc),
+        "rgb_difference_share": float(rgb_differ_share),
+        "total_test_frames": N,
+        "total_test_pixels": total_pixels,
+        "species_sprite_test_pixels": species_sprite_pixels,
+        "evaluation_time_seconds": float(dt),
+        "per_class": per_class_acc,
+    }
+
+    metrics_file = data_dir / metrics_name
+    metrics_file.write_text(json.dumps(metrics, indent=2))
+    print(f"\nEvaluation complete in {dt:.1f} s. Saved metrics to {metrics_file}")
+    print(f"  Overall Pixel Accuracy:   {overall_acc * 100:.2f}% (Baseline: 99.27%)")
+    print(f"  Non-battle Accuracy:     {non_battle_acc * 100:.2f}% (Baseline: 99.43%)")
+    print(f"  Battle Accuracy:         {battle_acc * 100:.2f}% (Baseline: 98.82%)")
+    print(f"  Species Sprite Accuracy: {species_acc * 100:.2f}%")
+    print(f"  RGB Differ Share:        {rgb_differ_share * 100:.2f}%")
+    return metrics
+
+
+# Aliases for v2 execution
+_orig_load_colorizer = load_colorizer
+load_colorizer = load_colorizer_v2
+_orig_train_colorizer = train_colorizer
+train_colorizer = train_colorizer_v2
+_orig_evaluate_colorizer = evaluate_colorizer
+evaluate_colorizer = evaluate_colorizer_v2
+
+
 if __name__ == "__main__":
     main()
+
+
+

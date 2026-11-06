@@ -896,3 +896,81 @@ def demo(
     demo_img.save(out_file)
     print(f"Saved demo image to {out_file} ({out_file.stat().st_size / 1024:.1f} KB, dimensions: {total_w}x{total_h})")
     return str(out_file)
+
+
+_orig_pixel_tiles = pixel_tiles
+
+
+def _decode_gb_text(bytes_seq) -> str:
+    res = []
+    for b in bytes_seq:
+        b_int = int(b)
+        if b_int == 0x50:
+            break
+        elif 0x80 <= b_int <= 0x99:
+            res.append(chr(b_int - 0x80 + ord('A')))
+        elif 0xA0 <= b_int <= 0xB9:
+            res.append(chr(b_int - 0xA0 + ord('a')))
+        elif 0xF6 <= b_int <= 0xFF:
+            res.append(chr(b_int - 0xF6 + ord('0')))
+        elif b_int == 0x7F:
+            res.append(" ")
+        elif b_int == 0xEF:
+            res.append("_M")
+        elif b_int == 0xF5:
+            res.append("_F")
+    return "".join(res).strip().upper()
+
+
+def pixel_tiles(pyboy) -> Dict[str, Any]:
+    px = _orig_pixel_tiles(pyboy)
+    try:
+        mem = getattr(pyboy, "memory", None)
+        if mem is not None and px.get("in_battle"):
+            e_hp = (int(mem[0xCFE6]) << 8) | int(mem[0xCFE7])
+            e_max = (int(mem[0xCFF4]) << 8) | int(mem[0xCFF5])
+            e_frac = float(e_hp / e_max) if e_max > 0 else 1.0
+
+            p_hp = (int(mem[0xD015]) << 8) | int(mem[0xD016])
+            p_max = (int(mem[0xD023]) << 8) | int(mem[0xD024])
+            if p_max == 0:
+                p_hp = (int(mem[0xD16C]) << 8) | int(mem[0xD16D])
+                p_max = (int(mem[0xD18D]) << 8) | int(mem[0xD18E])
+            p_frac = float(p_hp / p_max) if p_max > 0 else 1.0
+
+            px["enemy_hp_frac"] = max(0.0, min(1.0, e_frac))
+            px["player_hp_frac"] = max(0.0, min(1.0, p_frac))
+
+            px["enemy_name"] = _decode_gb_text([mem[0xCFDA + i] for i in range(11)])
+            px["player_mon_name"] = _decode_gb_text([mem[0xD009 + i] for i in range(11)])
+
+            px["enemy_types"] = (int(mem[0xCFEA]), int(mem[0xCFEB]))
+            px["player_mon_types"] = (int(mem[0xD019]), int(mem[0xD01A]))
+
+            p_m = int(mem[0xCFD2])
+            e_m = int(mem[0xCFCC])
+            if p_m > 0:
+                px["move_type"] = int(mem[0xCFD5])
+            elif e_m > 0:
+                px["move_type"] = int(mem[0xCFCF])
+            else:
+                px["move_type"] = 0x00
+        else:
+            px["enemy_hp_frac"] = 1.0
+            px["player_hp_frac"] = 1.0
+            px["enemy_name"] = ""
+            px["player_mon_name"] = ""
+            px["enemy_types"] = (0x00, 0x00)
+            px["player_mon_types"] = (0x00, 0x00)
+            px["move_type"] = 0x00
+    except Exception:
+        px["enemy_hp_frac"] = 1.0
+        px["player_hp_frac"] = 1.0
+        px["enemy_name"] = ""
+        px["player_mon_name"] = ""
+        px["enemy_types"] = (0x00, 0x00)
+        px["player_mon_types"] = (0x00, 0x00)
+        px["move_type"] = 0x00
+    t_arr = px.get("tile")
+    px["player_mon_out"] = bool(np.any((t_arr[56:, :] >= 355) & (t_arr[56:, :] <= 363))) if t_arr is not None else True
+    return px
