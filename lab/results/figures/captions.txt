@@ -1,0 +1,29 @@
+================================================================================
+Generating PokeDreamer v3 publication figures...
+================================================================================
+
+[fig_leg_paths] (5.44s)
+Caption: Real-game evaluation traces (20 random episodes per leg, with ±0.25 tile jitter and alpha 0.35) of the learned navigation policies on each leg's primary traversal map, showing observed training tiles (light grey), target exits (dark), successful paths (green), and failures (red).
+
+[fig_leg_failures] (0.67s)
+Caption: Real-game failure traces (20 episodes each, with ±0.25 tile jitter and alpha 0.35) from weaker policy seeds: (left) Viridian Forest seed 1 (69/100): 31 failures, 15 of them ending at (25,12) beside the Antidote item ball at (25,11), a spot the training data barely covers; (right) to_pewter_pc seed 1 (0/100) reaching the Pokémon Center door (13,26) but repeatedly failing to press up.
+
+[fig_leg_success] (0.43s)
+Caption: Evaluation success rate (/100) and median steps across seeds 0, 1, and 2 of the learned gate policies compared against the greedy geodesic baseline (hollow markers).
+
+[fig_door_warp] (0.91s)
+Caption: Imagined vs real map-change rates per action across Pokémon Center door and mat tile groups; cells outlined in red indicate imagined map changes that never happen in the real game (imagined − real ≥ 0.3), which erroneously paid training reward.
+
+[fig_battle_fidelity] (0.33s)
+Caption: Battle fidelity evaluation of wm31: (left) battle-end timing categories showing 71.9% hallucinated early ends in imagination vs 0.9% for the real probe ceiling; (right) battle-screen pixel MSE vs horizon k with 95% bootstrap CIs, where copy-last surpasses imagination for k >= 4.
+
+[fig_gpu_ledger] (0.21s)
+Caption: Measured GPU compute accounting for the project: (top) 40.6 total hours broken down by component kind, dominated by imagination RL; (bottom) Path A stretch allocation across planned work (6.3 h), added scope (21.4 h), and debugging rework (13.5 h).
+
+[fig_quest_presses] (0.26s)
+Caption: Distribution of total GameBoy button presses to obtain the Boulder Badge across quest policy configurations: rules + path-finding baseline (grey), 5 travel legs learned (gateall), and all 10 legs learned (first and best retrains), with individual 10-run evaluations shown as strip points and seed medians marked.
+
+================================================================================
+All figures generated successfully in 8.25s!
+Outputs located in work/figures/ (*.png and *.svg)
+================================================================================
