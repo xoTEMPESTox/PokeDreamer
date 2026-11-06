@@ -123,7 +123,7 @@ For a complete manifest of file sizes, paths, and result mappings, see [`lab/WEI
 
 ## 3. Reproduction Commands (Public Results)
 
-Each command below is copied directly from the production chain scripts (`work/chain_*.sh`) and maps to a specific result table in `agent_notes/results/`.
+Each command below is copied directly from the production chain scripts (`work/chain_*.sh`) and maps to a specific result table in `lab/results/`.
 
 ### 3.1 Brock Gym Quest: 10/10 Badges with BFS Navigation
 - **Command:**
@@ -131,7 +131,7 @@ Each command below is copied directly from the production chain scripts (`work/c
   python -m lab.agent.gym_quest --runs 10 --seed 100 --target-level 14 --nav bfs --work-dir work/gym_rng
   ```
 - **Output Files:** `work/gym_rng/summary.json`, `work/gym_rng/run_seed_100.json` .. `109.json`
-- **Result Table:** [`agent_notes/results/v3_gym.md`](../agent_notes/results/v3_gym.md#L15-L25) (10/10 badges, 8,791 ± 696 mean presses).
+- **Result Table:** [`lab/results/v3_gym.md`](results/v3_gym.md#L15-L25) (10/10 badges, 8,791 ± 696 mean presses).
 
 ### 3.2 Brock Gym Quest with 5 Learned World-Model Travel Legs
 - **Command (from [`work/chain_gate_legs.sh`](../work/chain_gate_legs.sh#L18-L21)):**
@@ -141,7 +141,7 @@ Each command below is copied directly from the production chain scripts (`work/c
     --work-dir work/gym_learned_gateall_s0
   ```
 - **Output Files:** `work/gym_learned_gateall_s0/summary.json`
-- **Result Table:** [`agent_notes/results/v3_gym.md`](../agent_notes/results/v3_gym.md#L90-L97) (10/10 badges; 9/10 runs with zero travel fallback).
+- **Result Table:** [`lab/results/v3_gym.md`](results/v3_gym.md#L90-L97) (10/10 badges; 9/10 runs with zero travel fallback).
 
 ### 3.3 Brock Gym Quest with All 10 Learned Legs (5 Travel + 5 Movement)
 - **Command (from [`work/chain_pewter_1800.sh`](../work/chain_pewter_1800.sh#L27-L29)):**
@@ -151,7 +151,7 @@ Each command below is copied directly from the production chain scripts (`work/c
     --work-dir work/gym_learned_best_s0
   ```
 - **Output Files:** `work/gym_learned_best_s0/summary.json`
-- **Result Table:** [`agent_notes/results/v3_gym.md`](../agent_notes/results/v3_gym.md) & [`work/chain_pewter_1800.sh`](../work/chain_pewter_1800.sh).
+- **Result Table:** [`lab/results/v3_gym.md`](results/v3_gym.md) & [`work/chain_pewter_1800.sh`](../work/chain_pewter_1800.sh).
 
 ### 3.4 Standalone Travel Leg Real-Game Evaluation (Viridian Forest)
 - **Command (from [`work/chain_moves.sh`](../work/chain_moves.sh#L28)):**
@@ -159,7 +159,7 @@ Each command below is copied directly from the production chain scripts (`work/c
   python -m lab.agent.mpc --task forest --policy learned --rl-name forest_wm31_gate_s0 --episodes 100 --max-steps 1000 --seed 200 --device cpu
   ```
 - **Output Files:** `work/agent/forest_learned_forest_wm31_gate_s0_s200.json` (and `work/agent/eval_forest_wm31_gate_s0.log`)
-- **Result Table:** [`agent_notes/results/v3_gym.md`](../agent_notes/results/v3_gym.md#L71) (100/100 successes, median 560 presses).
+- **Result Table:** [`lab/results/v3_gym.md`](results/v3_gym.md#L71) (100/100 successes, median 560 presses).
 
 ### 3.5 Headline Imagination RL: Leave House
 - **Command:**
@@ -167,7 +167,7 @@ Each command below is copied directly from the production chain scripts (`work/c
   python -m lab.agent.mpc --task leave_house --policy learned --rl-name leave_house --episodes 100 --max-steps 60 --seed 200 --device cpu
   ```
 - **Output Files:** `work/agent/leave_house_learned_leave_house_s200.json`
-- **Result Table:** [`agent_notes/results/v3_agent.md`](../agent_notes/results/v3_agent.md#L40-L50) (100/100 successes, median 28 presses, zero-shot from 4 screen frames).
+- **Result Table:** [`lab/results/v3_agent.md`](results/v3_agent.md#L40-L50) (100/100 successes, median 28 presses, zero-shot from 4 screen frames).
 
 ### 3.6 Harder Task Imagination RL: Route 1
 - **Command:**
@@ -175,7 +175,7 @@ Each command below is copied directly from the production chain scripts (`work/c
   python -m lab.agent.mpc --task route1 --policy learned --rl-name route1 --episodes 100 --max-steps 100 --seed 200 --device cpu
   ```
 - **Output Files:** `work/agent/route1_learned_route1_s200.json`
-- **Result Table:** [`agent_notes/results/v3_agent.md`](../agent_notes/results/v3_agent.md#L62) (100/100 successes, median 22 presses).
+- **Result Table:** [`lab/results/v3_agent.md`](results/v3_agent.md#L62) (100/100 successes, median 22 presses).
 
 ### 3.7 Pallet Town → Route 1 → Viridian City (Geodesic + Clip)
 - **Command:**
@@ -183,7 +183,7 @@ Each command below is copied directly from the production chain scripts (`work/c
   python -m lab.agent.mpc --task viridian --policy learned --rl-name viridian_geo_clip --episodes 100 --max-steps 1000 --seed 200 --device cpu
   ```
 - **Output Files:** `work/agent/viridian_learned_viridian_geo_clip_s200.json`
-- **Result Table:** [`agent_notes/results/v3_agent.md`](../agent_notes/results/v3_agent.md#L103,L120) (100/100 successes, median 284 presses).
+- **Result Table:** [`lab/results/v3_agent.md`](results/v3_agent.md#L103,L120) (100/100 successes, median 284 presses).
 
 ### 3.8 Model-Free PPO in the Real Game (Viridian Geodesic)
 - **Command (from [`work/chain_ppo.sh`](../work/chain_ppo.sh#L8)):**
@@ -191,7 +191,7 @@ Each command below is copied directly from the production chain scripts (`work/c
   python -m lab.agent.ppo_real --task viridian --name viridian_geo --geodesic --cap 1000 --envs 12 --minutes 90 --max-env-steps 3000000
   ```
 - **Output Files:** `work/ppo_real/viridian_geo/eval.jsonl`, `work/ppo_real/viridian_geo/policy.pt`
-- **Result Table:** [`agent_notes/results/v3_agent.md`](../agent_notes/results/v3_agent.md#L124-L140) (95/100 successes, median 262 presses in 103k steps).
+- **Result Table:** [`lab/results/v3_agent.md`](results/v3_agent.md#L124-L140) (95/100 successes, median 262 presses in 103k steps).
 
 ### 3.9 Diffusion World Model Rollout Evaluation & Error Decomposition
 - **Commands:**
@@ -203,7 +203,7 @@ Each command below is copied directly from the production chain scripts (`work/c
   python -m lab.eval.decompose work/eval/wm31_test_ext_s3_a0_ext.npz
   ```
 - **Output Files:** `work/eval/wm31_test_ext_s3_a0_ext.json`, `work/eval/wm31_test_ext_s3_a0_ext.npz`
-- **Result Tables:** [`agent_notes/results/v3_dwm_eval.md`](../agent_notes/results/v3_dwm_eval.md#L14-L35); [`agent_notes/results/v3_battle_fidelity.md`](../agent_notes/results/v3_battle_fidelity.md).
+- **Result Tables:** [`lab/results/v3_dwm_eval.md`](results/v3_dwm_eval.md#L14-L35); [`lab/results/v3_battle_fidelity.md`](results/v3_battle_fidelity.md).
 
 ### 3.10 Battle Onset Evaluation (wm31 on Tall Grass)
 - **Command (from [`work/chain_battle_eval.sh`](../work/chain_battle_eval.sh#L10)):**
@@ -211,7 +211,7 @@ Each command below is copied directly from the production chain scripts (`work/c
   python -m lab.dwm.battle_onset --run wm31 --data ext --map 13
   ```
 - **Output Files:** `work/eval/battle_onset_wm31_map13_ext.json`
-- **Result Table:** [`agent_notes/results/v3_battle_fidelity.md`](../agent_notes/results/v3_battle_fidelity.md#L8-L13).
+- **Result Table:** [`lab/results/v3_battle_fidelity.md`](results/v3_battle_fidelity.md#L8-L13).
 
 ### 3.11 Battle Fidelity Evaluation (Inside Battle Screens)
 - **Command (from [`work/chain_battle_eval.sh`](../work/chain_battle_eval.sh#L11)):**
@@ -219,7 +219,7 @@ Each command below is copied directly from the production chain scripts (`work/c
   python -m lab.dwm.battle_fidelity --run wm31 --data ext --max-windows 1024
   ```
 - **Output Files:** `work/eval/battle_fidelity_wm31_ext.json`, `work/plots/battle_fidelity_wm31_ext.png`
-- **Result Table:** [`agent_notes/results/v3_battle_fidelity.md`](../agent_notes/results/v3_battle_fidelity.md#L25-L42).
+- **Result Table:** [`lab/results/v3_battle_fidelity.md`](results/v3_battle_fidelity.md#L25-L42).
 
 ### 3.12 Catching Pokémon Strategy Comparison (Throw vs Weaken First)
 - **Commands:**
@@ -231,7 +231,7 @@ Each command below is copied directly from the production chain scripts (`work/c
   python -m lab.agent.catch_quest --runs 10 --seed 100 --strategy weaken --work-dir work/catch_weaken
   ```
 - **Output Files:** `work/catch_throw/summary.json`, `work/catch_weaken/summary.json`
-- **Result Table:** [`agent_notes/results/v3_catch.md`](../agent_notes/results/v3_catch.md#L21-L25) (Weaken: 10/10 runs reached 10 catches, 85.5% catch rate per ball vs 31.1% for throw).
+- **Result Table:** [`lab/results/v3_catch.md`](results/v3_catch.md#L21-L25) (Weaken: 10/10 runs reached 10 catches, 85.5% catch rate per ball vs 31.1% for throw).
 
 ### 3.13 System 2 LLM Planner Bake-off
 - **Command:**
@@ -239,7 +239,7 @@ Each command below is copied directly from the production chain scripts (`work/c
   python -m lab.agent.gym_quest --runs 10 --seed 100 --target-level 14 --nav bfs --planner llm --llm-model gemma4:31b --work-dir work/sys2_bakeoff/gemma4_31b
   ```
 - **Output Files:** `work/sys2_bakeoff/gemma4_31b/run_seed_100.json` .. `109.json`
-- **Result Table:** [`agent_notes/results/v3_system2.md`](../agent_notes/results/v3_system2.md#L19-L28) (gemma4:31b: 10/10 badges, 0 rejected decisions, 7,239 median presses).
+- **Result Table:** [`lab/results/v3_system2.md`](results/v3_system2.md#L19-L28) (gemma4:31b: 10/10 badges, 0 rejected decisions, 7,239 median presses).
 
 ### 3.14 Start-Tile Robustness Sweep across 26 Reachable Tiles
 - **Command:**
@@ -247,7 +247,7 @@ Each command below is copied directly from the production chain scripts (`work/c
   python -m lab.agent.tile_sweep --task to_route2 --policies to_route2_wm31_gate_s0 --n-tiles 24 --episodes 30 --workers 8 --seed 0
   ```
 - **Output Files:** `work/agent/sweep_to_route2/summary_1policies.csv` (and per-run JSONs)
-- **Result Table:** [`agent_notes/results/v3_tile_sweep.md`](../agent_notes/results/v3_tile_sweep.md#L19-L30) (26/26 tiles ≥95% success; 780/780 = 100% successes).
+- **Result Table:** [`lab/results/v3_tile_sweep.md`](results/v3_tile_sweep.md#L19-L30) (26/26 tiles ≥95% success; 780/780 = 100% successes).
 
 ---
 
@@ -289,7 +289,7 @@ python -m pytest lab/tests/test_upsampler.py
 
 ## 5. Honesty & Scope Notes
 
-The findings in `agent_notes/results/` are grounded in direct measurement against Game Boy RAM ground truth. Keep these explicit scope limits in mind when interpreting results:
+The findings in `lab/results/` are grounded in direct measurement against Game Boy RAM ground truth. Keep these explicit scope limits in mind when interpreting results:
 
 1. **What is Learned vs What is Rules:**
    - **Learned in Imagination:** System 1 overworld navigation for travel legs (Viridian City → Route 2 → Gate → Forest → Pewter → Gym) and movement legs (grind pacing, PokéCenter healing) is driven by small CNN policies trained **purely inside the diffusion world model's imagination from pixels alone** (no RAM or emulator at test time).
@@ -297,7 +297,7 @@ The findings in `agent_notes/results/` are grounded in direct measurement agains
    - **Navigation Fallback:** If a learned navigation leg exceeds its 1,000-press budget without reaching the target, privileged BFS pathfinding takes over to complete the leg. This is tracked and reported per run: with the best leg set, 14 of 30 quests use no fallback anywhere (`work/gym_learned_best_s*`).
 
 2. **The World Model is NOT a Sample-Efficiency Win Here:**
-   - Model-free PPO trained directly in the real game reaches ≥95% success within 10,752-41,453 real steps on all three navigation tasks (leave_house, route1, viridian; Manhattan reward, 3 seeds; see [`agent_notes/results/v3_agent.md`](../agent_notes/results/v3_agent.md)). With the geodesic reward on the longest task it needed about 76k-103k steps, 4-5 minutes on CPU with 12 emulators.
+   - Model-free PPO trained directly in the real game reaches ≥95% success within 10,752-41,453 real steps on all three navigation tasks (leave_house, route1, viridian; Manhattan reward, 3 seeds; see [`lab/results/v3_agent.md`](results/v3_agent.md)). With the geodesic reward on the longest task it needed about 76k-103k steps, 4-5 minutes on CPU with 12 emulators.
    - The world model it competes with: wm31 trained for 150 minutes on one RTX 4090 (114,800 steps on 676,284 windows of the 800,000-frame extended dataset; `work/runs/wm31/train.log`), and each navigation leg then takes 15-45 minutes of imagination RL (600-1,800 iterations).
    - The scientific value of this project is not beating a fast emulator on sample count: it is **measuring what a learned pixel simulator gets right and wrong in grounded physical game units (tiles, maps, battle turns)**, developing safeguards against hallucinations, and proving zero-shot sim-to-real transfer from learned simulators for domains where real execution is slow, expensive, or unsafe.
 
@@ -307,5 +307,5 @@ The findings in `agent_notes/results/` are grounded in direct measurement agains
    - Success requires anti-exploit safeguards: potential-based move gates (`--move-gate 2`), geodesic distance fields over observed transitions, and crediting map transitions only when adjacent to genuine exit tiles.
 
 4. **Battles Cannot Currently Be Trained in the Diffusion World Model:**
-   - As measured in [`agent_notes/results/v3_battle_fidelity.md`](../agent_notes/results/v3_battle_fidelity.md#L45-L54), wm31 suffers from **hallucinated early battle termination** in 72% of windows (battles end >3 steps early). An agent trained in this simulator would learn that battles resolve themselves regardless of pressed buttons.
+   - As measured in [`lab/results/v3_battle_fidelity.md`](results/v3_battle_fidelity.md#L45-L54), wm31 suffers from **hallucinated early battle termination** in 72% of windows (battles end >3 steps early). An agent trained in this simulator would learn that battles resolve themselves regardless of pressed buttons.
    - Battle menus and text boxes degrade in pixel MSE beyond copy-last after 4 steps. Consequently, battle policies remain rule-based.
