@@ -175,3 +175,9 @@ Leg set: to_pewter_pc continued to 1,800 iterations (old reward) and leave_pewte
 - **30/30 badges. In 14 of 30 runs every navigation leg is driven by a world-model policy** (in the moves quests: 7/30).
 - The remaining misses are seed 1's to_pewter_pc (0/100 even at 1,800 iterations), the forest (24/33), and 2 of 138 to_viridian_pc legs.
 - Seed 0 had 10 blackouts against 5 in its moves quest. Battles are governed by scripted rules; individual encounter damage rolls account for the blackout variation.
+
+### Can imagination predict which policies fail? (measured 2026-11-06)
+Imagined 10-step rollouts in wm31 from real train contexts, scored with the training reward, compared with each policy's real-game success (CPU; `work/eval/door_audit_6.log`, `work/eval/forest_audit.log`).
+- **to_pewter_pc, 6 policies** (1,800 iterations, default and `--ent 0.1`, 3 seeds each; real 100/0/100 and 100/97/0): near the door the 4 good policies score imagined return 4.09-4.52 and the 2 stuck ones 2.46-2.58; mid-range 6.77-7.40 vs 4.94-5.61. Perfect separation, but found post hoc on these same policies.
+- **Forest, 5 policies** (real 49-100), out of sample: imagined returns 2.72-3.10 with no relation to real success (Spearman ρ = -0.5, the worst policy scores highest).
+- **Reading:** imagination detects failures that also happen inside imagination (to_pewter_pc's policy local optimum at the door), but not sim-to-real failures where the world model itself is wrong (the forest, where imagined position drifts most; see `v3_dwm_eval.md`, "Drift per leg map"). So imagined return is not a general way to choose policies without real-game evaluation.
