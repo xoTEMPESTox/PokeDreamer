@@ -57,6 +57,33 @@ Definitions:
 - **qwen3.6:35b-a3b relied on the fallback the most.** 18 of its 97 decisions (19%) were malformed. Its thinking used ~14.8k of the 16,384-token context, leaving no room for the JSON answer. Under this equal protocol it is reported as "79 of 97 decisions its own". A 32k-context rerun is planned only if it becomes the chosen planner.
 - **The LLMs black out more than the rules.** Only qwen3.5:9b (2) is close to the rules' 1. Except gpt-oss (median level 12 at the gym), the LLMs are as levelled as the rules (13-15 vs 14). The hypothesis is that the extra blackouts come from when they choose to heal: the rule planner heals at an explicit HP threshold, and an LLM only learns that threshold from the prompt.
 
+## Full harness demo: LLM System 2 + dream-trained System 1 (one run, not a measurement)
+
+One pre-declared run (seed 100, the video's seed, recorded 2026-11-07) swaps both halves in: `gemma4:31b` as System 2 and the ten world-model navigation legs as System 1 (`--nav learned --leg-policies` from `work/best_s0_legs.txt`, the set behind the 30/30 headline in [v3_gym](v3_gym.md)).
+
+| | LLM planner (gemma4:31b) | rule planner, same legs and seed |
+|---|---|---|
+| badge | yes | yes |
+| presses | 7,045 | 8,718 |
+| level at gym | 14 | 14 |
+| blackouts | 1 | 0 |
+| planner decisions (rejected) | 8 (0) | 11 (–) |
+| navigation presses by the BFS fallback | 0 | 0 |
+
+- The LLM left Route 1 for Pewter at 18/36 HP and healed in Pewter; the rules heal in Viridian first.
+- Of the LLM run's 20 leg runs, 19 reached their goal by policy; the 20th (`to_viridian_pc`) was cut short by the blackout.
+- Mean decision time: 13.7 s.
+- One run per planner, so this shows that the harness works end to end, not which planner is better.
+
+A first attempt the same night omitted `--leg-policies`. With that flag missing, `gym_quest --nav learned` loads older default legs: to_route2 without the move gate, the 900-iteration to_pewter_pc, and leave_pewter_pc without merged centres. That run still won the badge (11,042 presses), but 4 legs fell back to BFS. It is kept in `work/video/quest_s100_llm_defaultlegs/` and not used.
+
+Command: `python -m lab.agent.gym_quest --runs 1 --seed 100 --target-level 14 --nav learned --planner llm --llm-model gemma4:31b --leg-policies "$(cat work/best_s0_legs.txt)" --save-traj --save-color --traj-dir work/video/traj_llm --work-dir work/video/quest_s100_llm`.
+
+Raw data:
+- `work/video/quest_s100_llm/run_seed_100.json`;
+- log `work/video/record_s100_llm.log`;
+- rule run `work/video/quest_s100/run_seed_100.json`.
+
 ## Caveats
 
 - 10 seeds per model, so differences of 1-2 badges or a few hundred presses are within noise. No confidence intervals were computed.
