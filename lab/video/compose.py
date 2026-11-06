@@ -58,6 +58,7 @@ LEG_MAP: Dict[str, str] = {
     "to_grass": "the tall grass on Route 1",
     "to_viridian_pc": "the Viridian Pokémon Center",
     "leave_viridian_pc": "out of the Pokémon Center",
+    "viridian": "Viridian City",
     "to_route2": "Route 2",
     "to_gate": "the gate to Viridian Forest",
     "forest": "through Viridian Forest",
@@ -289,6 +290,44 @@ def get_dream_colorizer(device: str = "cpu") -> Tuple[Callable[[np.ndarray], np.
     return _fallback_fn, "Nearest-neighbor fallback"
 
 
+def truncate_reason(reason: str, max_chars: int = 180) -> str:
+    """Truncates reason at a word boundary, appending '…' if truncated."""
+    if len(reason) <= max_chars:
+        return reason
+    cut = reason[:max_chars]
+    last_space = cut.rfind(" ")
+    if last_space != -1:
+        cut = cut[:last_space]
+    return cut.rstrip(".,;:!? ") + "…"
+
+
+def get_latest_decision(timeline: List[Dict[str, Any]], step: int) -> Optional[Dict[str, Any]]:
+    """Returns the latest timeline entry with presses <= step, or None if none qualify."""
+    candidates = [e for e in timeline if e.get("presses", 0) <= step]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda e: e.get("presses", 0))
+
+
+def wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: float) -> List[str]:
+    """Wraps text into lines that fit within max_width pixels using font."""
+    lines: List[str] = []
+    words = text.split()
+    if not words:
+        return []
+    cur_line = words[0]
+    for w in words[1:]:
+        test_line = cur_line + " " + w
+        w_px = font.getlength(test_line) if hasattr(font, "getlength") else font.getsize(test_line)[0]
+        if w_px <= max_width:
+            cur_line = test_line
+        else:
+            lines.append(cur_line)
+            cur_line = w
+    lines.append(cur_line)
+    return lines
+
+
 def draw_hud_card(
     draw: ImageDraw.ImageDraw,
     fonts: FontManager,
@@ -300,6 +339,9 @@ def draw_hud_card(
     by: str,
     step: int,
     progress_text: Optional[str] = None,
+    is_llm_planner: bool = False,
+    planner_decision: Optional[Dict[str, Any]] = None,
+    is_decision_highlighted: bool = False,
 ):
     """Draws left-column HUD card with status, goals, badge, and counter."""
     x0, y0, x1, y1 = box
@@ -322,16 +364,25 @@ def draw_hud_card(
             font=fonts.get(19),
             fill=(248, 250, 252),
         )
+        line2 = (
+            "Here the plan comes from a local LLM, not rules."
+            if is_llm_planner
+            else "Battles and the plan follow hand-written rules."
+        )
         draw.text(
             (x0 + pad_x, y0 + 52),
-            "Battles and the plan follow hand-written rules.",
+            line2,
             font=fonts.get(19),
             fill=(248, 250, 252),
         )
         draw.line([(x0 + pad_x, y0 + 82), (x1 - pad_x, y0 + 82)], fill=(34, 45, 58), width=2)
 
-        curr_y = y0 + 106
-        step_y = 118 if progress_text else 128
+        if is_llm_planner:
+            step_y = 110
+            curr_y = y0 + 104
+        else:
+            step_y = 118 if progress_text else 128
+            curr_y = y0 + 106
 
         def _draw_section(label: str, sub_label: str, val_text: str, default_size: int, fill: Tuple[int, int, int], is_bold: bool = True):
             draw.text((x0 + pad_x, curr_y), label, font=fonts.get(16, bold=True), fill=(148, 163, 184))
@@ -348,8 +399,9 @@ def draw_hud_card(
         curr_y += step_y
 
         # 2. System 2 Goal / The Plan
+        plan_sub = "System 2 · local LLM" if is_llm_planner else "System 2 · rules"
         goal_val = GOAL_MAP.get(str(goal), "—") if goal else "—"
-        _draw_section("THE PLAN", "System 2 · rules", goal_val, default_size=32, fill=(248, 250, 252))
+        _draw_section("THE PLAN", plan_sub, goal_val, default_size=32, fill=(248, 250, 252))
         curr_y += step_y
 
         # 3. Active Leg / Walking to
@@ -381,18 +433,69 @@ def draw_hud_card(
         badge_sub = BADGE_SUBTEXT.get(badge_text)
         if badge_sub:
             draw.text((x0 + pad_x, pill_y + pill_h + 6), badge_sub, font=fonts.get(13), fill=(100, 116, 139))
-        curr_y += step_y
+        curr_y += (step_y + 10) if is_llm_planner else step_y
 
         # 5. Press Counter (step + 1)
         draw.text((x0 + pad_x, curr_y), "BUTTONS PRESSED", font=fonts.get(16, bold=True), fill=(148, 163, 184))
         lw = draw.textlength("BUTTONS PRESSED", font=fonts.get(16, bold=True))
         draw.text((x0 + pad_x + lw + 12, curr_y + 2), "since the run started", font=fonts.get(13), fill=(100, 116, 139))
-        draw.text((x0 + pad_x, curr_y + 28), f"{step + 1:,}", font=fonts.get(44, bold=True), fill=(56, 189, 248))
-        curr_y += step_y
+        draw.text((x0 + pad_x, curr_y + 28), f"{step + 1:,}", font=fonts.get(42 if is_llm_planner else 44, bold=True), fill=(56, 189, 248))
+        curr_y += (step_y - 2) if is_llm_planner else step_y
 
         # 6. Optional level progress (for montage)
         if progress_text:
             _draw_section("LEVELLING UP", "Charmander", progress_text, default_size=30, fill=(250, 204, 21))
+
+        # 7. Planner card (for harness)
+        if is_llm_planner and planner_decision is not None:
+            card_x0 = x0 + pad_x
+            card_x1 = x1 - pad_x
+            card_y0 = curr_y + 6
+            card_y1 = y1 - 22
+            card_w = card_x1 - card_x0
+
+            if is_decision_highlighted:
+                c_fill = (24, 38, 54)
+                c_border = (56, 189, 248)
+                b_width = 3
+            else:
+                c_fill = (16, 22, 30)
+                c_border = (45, 58, 75)
+                b_width = 2
+
+            draw.rounded_rectangle([card_x0, card_y0, card_x1, card_y1], radius=12, fill=c_fill, outline=c_border, width=b_width)
+
+            # Card Header
+            hdr_text = "Planner: gemma4:31b (local, via Ollama)"
+            draw.text((card_x0 + 18, card_y0 + 13), hdr_text, font=fonts.get(16, bold=True), fill=(248, 250, 252))
+
+            # Latency tag when highlighted
+            if is_decision_highlighted:
+                latency = float(planner_decision.get("latency", 0.0))
+                tag_str = f"thought for {latency:.1f} s"
+                f_tag = fonts.get(14, bold=True)
+                tb_tag = draw.textbbox((0, 0), tag_str, font=f_tag)
+                t_w, t_h = tb_tag[2] - tb_tag[0], tb_tag[3] - tb_tag[1]
+                p_w = t_w + 20
+                p_h = t_h + 10
+                p_x0 = card_x1 - 18 - p_w
+                p_y0 = card_y0 + 9
+                draw.rounded_rectangle([p_x0, p_y0, p_x0 + p_w, p_y0 + p_h], radius=6, fill=(15, 45, 75), outline=(56, 189, 248), width=2)
+                draw.text((p_x0 + p_w // 2, p_y0 + p_h // 2), tag_str, font=f_tag, fill=(125, 211, 252), anchor="mm")
+
+            draw.line([(card_x0 + 18, card_y0 + 40), (card_x1 - 18, card_y0 + 40)], fill=(34, 45, 58), width=1)
+
+            dec_goal = str(planner_decision.get("goal", ""))
+            goal_mapped = GOAL_MAP.get(dec_goal, dec_goal)
+            dec_line = f"Goal: {dec_goal} — {goal_mapped}"
+            draw.text((card_x0 + 18, card_y0 + 48), dec_line, font=fonts.get(17, bold=True), fill=(250, 204, 21))
+
+            raw_reason = str(planner_decision.get("reason", ""))
+            trunc = truncate_reason(raw_reason, max_chars=180)
+            quoted = f'"{trunc}"'
+            wrapped_lines = wrap_text(quoted, fonts.get(15), max_width=card_w - 36)
+            for idx, line in enumerate(wrapped_lines[:4]):
+                draw.text((card_x0 + 18, card_y0 + 76 + idx * 24), line, font=fonts.get(15), fill=(203, 213, 225))
 
     else:
         # Compact fallback for smaller scale/box
@@ -562,6 +665,100 @@ def render_end_frame(
     return res
 
 
+def render_bakeoff_frame(
+    rows: List[Dict[str, Any]],
+    title: str,
+    footer: str,
+    fonts: FontManager,
+    fade_alpha: float = 1.0,
+) -> np.ndarray:
+    """Renders the full-frame bakeoff card with 7-row local LLM comparison table."""
+    img = Image.new("RGB", (CANVAS_WIDTH, CANVAS_HEIGHT), BG_COLOR)
+    draw = ImageDraw.Draw(img)
+    cx, cy = CANVAS_WIDTH // 2, CANVAS_HEIGHT // 2
+
+    card_w, card_h = 1420, 720
+    x0 = cx - card_w // 2
+    x1 = cx + card_w // 2
+    y0 = cy - card_h // 2
+    y1 = cy + card_h // 2
+
+    draw.rounded_rectangle([x0, y0, x1, y1], radius=18, fill=(20, 26, 35), outline=(50, 65, 85), width=2)
+
+    # Heading band
+    draw_heading(img, draw, fonts, cx=cx, cy=y0 + 38, text="PokeDreamer · System 2 bake-off", font_size=20, icon_size=22, fill=(100, 116, 139))
+    draw.line([(x0 + 50, y0 + 64), (x1 - 50, y0 + 64)], fill=(34, 45, 58), width=1)
+
+    # Title
+    draw.text((cx, y0 + 104), title, font=fonts.get(32, bold=True), fill=(248, 250, 252), anchor="mm")
+
+    # Table columns
+    col_planner_x = x0 + 80
+    col_badges_x = x0 + 590
+    col_presses_x = x0 + 910
+    col_vram_x = x1 - 80
+
+    th_y = y0 + 155
+    f_th = fonts.get(16, bold=True)
+    c_th = (148, 163, 184)
+    draw.text((col_planner_x, th_y), "PLANNER", font=f_th, fill=c_th, anchor="lm")
+    draw.text((col_badges_x, th_y), "BADGES / 10", font=f_th, fill=c_th, anchor="mm")
+    draw.text((col_presses_x, th_y), "MEDIAN PRESSES", font=f_th, fill=c_th, anchor="rm")
+    draw.text((col_vram_x, th_y), "PEAK GPU MEMORY", font=f_th, fill=c_th, anchor="rm")
+
+    draw.line([(x0 + 50, y0 + 180), (x1 - 50, y0 + 180)], fill=(45, 58, 75), width=1)
+
+    # Rows
+    row_start_y = y0 + 218
+    row_step = 54
+    logos_dir = Path("work/video/logos")
+
+    for i, r in enumerate(rows):
+        ry = row_start_y + i * row_step
+        is_hl = bool(r.get("highlight", False))
+
+        if is_hl:
+            draw.rounded_rectangle([x0 + 50, ry - 18, x1 - 50, ry + 26], radius=8, fill=(28, 48, 72), outline=(56, 189, 248), width=2)
+            c_planner = (255, 255, 255)
+            c_badges = (250, 204, 21)
+            c_presses = (56, 189, 248)
+            c_vram = (248, 250, 252)
+            f_row = fonts.get(22, bold=True)
+        else:
+            c_planner = (180, 195, 215) if i == 0 else (226, 232, 240)
+            c_badges = (250, 204, 21) if r.get("badges") == "10/10" else (203, 213, 225)
+            c_presses = (226, 232, 240)
+            c_vram = (148, 163, 184)
+            f_row = fonts.get(21, bold=(i == 0))
+
+        # Logo check
+        key = r.get("key", "")
+        logo_path = logos_dir / f"{key}.png"
+        text_x = col_planner_x
+        if key and logo_path.exists():
+            try:
+                logo_im = Image.open(logo_path).convert("RGBA")
+                logo_im = logo_im.resize((26, 26), resample=getattr(Image, "Resampling", Image).LANCZOS)
+                img.paste(logo_im, (text_x, ry - 13), logo_im)
+                text_x += 34
+            except Exception:
+                pass
+
+        draw.text((text_x, ry), r.get("planner", ""), font=f_row, fill=c_planner, anchor="lm")
+        draw.text((col_badges_x, ry), r.get("badges", ""), font=f_row, fill=c_badges, anchor="mm")
+        draw.text((col_presses_x, ry), r.get("presses", ""), font=f_row, fill=c_presses, anchor="rm")
+        draw.text((col_vram_x, ry), r.get("vram", ""), font=f_row, fill=c_vram, anchor="rm")
+
+    # Divider before footer
+    draw.line([(x0 + 50, y1 - 66), (x1 - 50, y1 - 66)], fill=(34, 45, 58), width=1)
+    draw.text((cx, y1 - 34), footer, font=fonts.get(18), fill=(148, 163, 184), anchor="mm")
+
+    res = np.asarray(img)
+    if fade_alpha < 0.999:
+        res = (res.astype(np.float32) * max(0.0, min(1.0, fade_alpha))).astype(np.uint8)
+    return res
+
+
 def render_play_frame(
     color_frame: np.ndarray,
     map_name: str,
@@ -575,6 +772,9 @@ def render_play_frame(
     scale: int = PLAY_SCALE,
     progress_text: Optional[str] = None,
     subcaption: Optional[str] = None,
+    is_llm_planner: bool = False,
+    planner_decision: Optional[Dict[str, Any]] = None,
+    is_decision_highlighted: bool = False,
 ) -> np.ndarray:
     """Renders a standard play or montage frame with Game Boy canvas and left HUD."""
     img = Image.new("RGB", (CANVAS_WIDTH, CANVAS_HEIGHT), BG_COLOR)
@@ -618,6 +818,9 @@ def render_play_frame(
         by=by,
         step=step,
         progress_text=progress_text,
+        is_llm_planner=is_llm_planner,
+        planner_decision=planner_decision,
+        is_decision_highlighted=is_decision_highlighted,
     )
 
     # 5. Caption centred under the game frame
@@ -855,99 +1058,190 @@ def compose_video(
             assert dream_colorizer_fn is not None
             dream_colorized = dream_colorizer_fn(raw_dream_arr)
 
+        # Harness-specific data
+        harness_colors = None
+        harness_map_ids = None
+        harness_goals = None
+        harness_in_battles = None
+        harness_legs = None
+        harness_bys = None
+        harness_timeline: List[Dict[str, Any]] = []
+        if seg_type == "harness":
+            harness_traj_path = seg.get("traj", "work/video/traj_llm/run_seed_100_color.npz")
+            harness_json_path = seg.get("run_json", "work/video/quest_s100_llm/run_seed_100.json")
+            print(f"Loading harness trajectory: {harness_traj_path}")
+            h_npz = np.load(harness_traj_path)
+            harness_colors = h_npz["color"]
+            harness_map_ids = h_npz["map_ids"]
+            harness_goals = h_npz["goals"]
+            harness_in_battles = h_npz["in_battles"]
+            harness_legs = h_npz["leg"]
+            harness_bys = h_npz["by"]
+            if os.path.exists(harness_json_path):
+                with open(harness_json_path, "r") as f:
+                    harness_timeline = json.load(f).get("timeline", [])
+
         anchor_flash_countdown = 0
+        decision_highlight_countdown = 0
 
         for f_idx in range(n_frames):
             st = steps[f_idx]
             prev_st = steps[max(0, f_idx - 1)]
-            st_clamped = min(st, total_traj_steps - 1)
-            cf = colors[st_clamped]
-            m_id = int(map_ids[st_clamped])
-            m_name = get_map_name(m_id)
-            g_str = str(goals[st_clamped])
-            l_str = str(legs[st_clamped])
-            bat = bool(in_battles[st_clamped])
-            by_str = str(bys[st_clamped])
 
-            if seg_type == "title":
+            if seg_type == "harness":
+                assert harness_colors is not None
+                st_clamped = min(st, len(harness_colors) - 1)
+                cf = harness_colors[st_clamped]
+                m_id = int(harness_map_ids[st_clamped])
+                m_name = get_map_name(m_id)
+                g_str = str(harness_goals[st_clamped])
+                l_str = str(harness_legs[st_clamped])
+                bat = bool(harness_in_battles[st_clamped])
+                by_str = str(harness_bys[st_clamped])
+
+                if f_idx == 0:
+                    crossed = any(entry.get("presses", 0) == st for entry in harness_timeline)
+                else:
+                    low_st = min(prev_st, st)
+                    high_st = max(prev_st, st)
+                    crossed = any(low_st < entry.get("presses", 0) <= high_st for entry in harness_timeline)
+
+                if crossed:
+                    decision_highlight_countdown = 20
+
+                is_highlighted = decision_highlight_countdown > 0
+                if decision_highlight_countdown > 0:
+                    decision_highlight_countdown -= 1
+
+                dec_entry = get_latest_decision(harness_timeline, st_clamped)
+
+                frame = render_play_frame(
+                    color_frame=cf,
+                    map_name=m_name,
+                    goal=g_str,
+                    leg=l_str,
+                    in_battle=bat,
+                    by=by_str,
+                    step=st_clamped,
+                    caption=caption,
+                    fonts=fonts,
+                    scale=scale,
+                    subcaption=subcaption,
+                    is_llm_planner=True,
+                    planner_decision=dec_entry,
+                    is_decision_highlighted=is_highlighted,
+                )
+
+                if is_highlighted and "harness_decision" not in stills_to_save:
+                    stills_to_save["harness_decision"] = frame
+                elif not is_highlighted and "harness_between" not in stills_to_save and f_idx > 30:
+                    stills_to_save["harness_between"] = frame
+
+            elif seg_type == "bakeoff":
                 fade = 1.0
                 if f_idx < 15:
                     fade = (f_idx + 1) / 15.0
                 elif f_idx >= n_frames - 15:
                     fade = (n_frames - f_idx) / 15.0
-                frame = render_title_frame(cf, text_lines, caption, fonts, fade_alpha=fade, subcaption=subcaption)
+                frame = render_bakeoff_frame(
+                    rows=seg.get("rows", []),
+                    title=seg.get("title", "Six local LLMs tested as the planner"),
+                    footer=seg.get("footer", ""),
+                    fonts=fonts,
+                    fade_alpha=fade,
+                )
+                if f_idx == n_frames // 2:
+                    stills_to_save["bakeoff"] = frame
 
-            elif seg_type == "end":
-                fade = 1.0
-                if f_idx < 15:
-                    fade = (f_idx + 1) / 15.0
-                elif f_idx >= n_frames - 15:
-                    fade = (n_frames - f_idx) / 15.0
-                frame = render_end_frame(text_lines, caption, fonts, fade_alpha=fade)
+            else:
+                st_clamped = min(st, total_traj_steps - 1)
+                cf = colors[st_clamped]
+                m_id = int(map_ids[st_clamped])
+                m_name = get_map_name(m_id)
+                g_str = str(goals[st_clamped])
+                l_str = str(legs[st_clamped])
+                bat = bool(in_battles[st_clamped])
+                by_str = str(bys[st_clamped])
 
-            elif seg_type == "split":
-                # Check if any step in [prev_st, st] was an anchor step
-                if has_dream and dream_anchors_data is not None:
-                    step_range_to_check = range(min(prev_st, st), max(prev_st, st) + 1)
-                    hit = any(
-                        dream_anchors_data[s - dream_start]
-                        for s in step_range_to_check
-                        if 0 <= s - dream_start < len(dream_anchors_data)
+                if seg_type == "title":
+                    fade = 1.0
+                    if f_idx < 15:
+                        fade = (f_idx + 1) / 15.0
+                    elif f_idx >= n_frames - 15:
+                        fade = (n_frames - f_idx) / 15.0
+                    frame = render_title_frame(cf, text_lines, caption, fonts, fade_alpha=fade, subcaption=subcaption)
+
+                elif seg_type == "end":
+                    fade = 1.0
+                    if f_idx < 15:
+                        fade = (f_idx + 1) / 15.0
+                    elif f_idx >= n_frames - 15:
+                        fade = (n_frames - f_idx) / 15.0
+                    frame = render_end_frame(text_lines, caption, fonts, fade_alpha=fade)
+
+                elif seg_type == "split":
+                    # Check if any step in [prev_st, st] was an anchor step
+                    if has_dream and dream_anchors_data is not None:
+                        step_range_to_check = range(min(prev_st, st), max(prev_st, st) + 1)
+                        hit = any(
+                            dream_anchors_data[s - dream_start]
+                            for s in step_range_to_check
+                            if 0 <= s - dream_start < len(dream_anchors_data)
+                        )
+                        if hit:
+                            anchor_flash_countdown = 15  # 0.5 s @ 30 fps
+
+                    dream_img = dream_colorized[f_idx] if dream_colorized is not None else None
+                    frame = render_split_frame(
+                        real_frame=cf,
+                        dream_frame=dream_img,
+                        caption=caption,
+                        fonts=fonts,
+                        is_anchor_flashing=(anchor_flash_countdown > 0),
+                        subcaption=subcaption,
                     )
-                    if hit:
-                        anchor_flash_countdown = 15  # 0.5 s @ 30 fps
+                    if anchor_flash_countdown > 0:
+                        anchor_flash_countdown -= 1
 
-                dream_img = dream_colorized[f_idx] if dream_colorized is not None else None
-                frame = render_split_frame(
-                    real_frame=cf,
-                    dream_frame=dream_img,
-                    caption=caption,
-                    fonts=fonts,
-                    is_anchor_flashing=(anchor_flash_countdown > 0),
-                    subcaption=subcaption,
-                )
-                if anchor_flash_countdown > 0:
-                    anchor_flash_countdown -= 1
+                elif seg_type == "montage":
+                    prog_str = f"Level {start_level} → 14"
+                    frame = render_play_frame(
+                        color_frame=cf,
+                        map_name=m_name,
+                        goal=g_str,
+                        leg=l_str,
+                        in_battle=bat,
+                        by=by_str,
+                        step=st_clamped,
+                        caption=caption,
+                        fonts=fonts,
+                        scale=scale,
+                        progress_text=prog_str,
+                        subcaption=subcaption,
+                    )
 
-            elif seg_type == "montage":
-                prog_str = f"Level {start_level} → 14"
-                frame = render_play_frame(
-                    color_frame=cf,
-                    map_name=m_name,
-                    goal=g_str,
-                    leg=l_str,
-                    in_battle=bat,
-                    by=by_str,
-                    step=st_clamped,
-                    caption=caption,
-                    fonts=fonts,
-                    scale=scale,
-                    progress_text=prog_str,
-                    subcaption=subcaption,
-                )
+                else:  # "play"
+                    frame = render_play_frame(
+                        color_frame=cf,
+                        map_name=m_name,
+                        goal=g_str,
+                        leg=l_str,
+                        in_battle=bat,
+                        by=by_str,
+                        step=st_clamped,
+                        caption=caption,
+                        fonts=fonts,
+                        scale=scale,
+                        subcaption=subcaption,
+                    )
 
-            else:  # "play"
-                frame = render_play_frame(
-                    color_frame=cf,
-                    map_name=m_name,
-                    goal=g_str,
-                    leg=l_str,
-                    in_battle=bat,
-                    by=by_str,
-                    step=st_clamped,
-                    caption=caption,
-                    fonts=fonts,
-                    scale=scale,
-                    subcaption=subcaption,
-                )
-
-            if seg_type == "play":
-                if bat and "play_battle" not in stills_to_save:
-                    stills_to_save["play_battle"] = frame
-                elif not bat and by_str.lower() == "policy" and "play_policy" not in stills_to_save:
-                    stills_to_save["play_policy"] = frame
-                elif not bat and by_str == "" and "play_scripted" not in stills_to_save:
-                    stills_to_save["play_scripted"] = frame
+                if seg_type == "play":
+                    if bat and "play_battle" not in stills_to_save:
+                        stills_to_save["play_battle"] = frame
+                    elif not bat and by_str.lower() == "policy" and "play_policy" not in stills_to_save:
+                        stills_to_save["play_policy"] = frame
+                    elif not bat and by_str == "" and "play_scripted" not in stills_to_save:
+                        stills_to_save["play_scripted"] = frame
 
             seg_out.append(frame)
 

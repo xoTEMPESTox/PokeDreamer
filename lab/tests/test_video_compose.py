@@ -13,6 +13,10 @@ from lab.video.compose import (
     render_play_frame,
     render_end_frame,
     render_split_frame,
+    render_bakeoff_frame,
+    truncate_reason,
+    get_latest_decision,
+    wrap_text,
     draw_heading,
     get_pokeball_icon,
     FontManager,
@@ -55,7 +59,7 @@ def test_segment_frame_counts_sum_to_seconds_times_fps():
 
 
 def test_actual_storyboard_json_frame_counts():
-    """Verify lab/video/storyboard.json totals exactly 60.0 s (1800 frames at 30 fps)."""
+    """Verify lab/video/storyboard.json totals exactly 74.0 s (2220 frames at 30 fps)."""
     sb_path = Path("lab/video/storyboard.json")
     assert sb_path.exists(), "lab/video/storyboard.json must exist"
 
@@ -64,9 +68,9 @@ def test_actual_storyboard_json_frame_counts():
 
     fps = 30
     counts = calculate_segment_frames(storyboard, fps=fps)
-    assert sum(counts) == 1800, f"Expected 1800 frames, got {sum(counts)}"
+    assert sum(counts) == 2220, f"Expected 2220 frames, got {sum(counts)}"
     total_seconds = sum(s["seconds"] for s in storyboard)
-    assert abs(total_seconds - 60.0) < 1e-6, f"Expected 60.0 seconds, got {total_seconds}"
+    assert abs(total_seconds - 74.0) < 1e-6, f"Expected 74.0 seconds, got {total_seconds}"
 
 
 def test_storyboard_end_card_exact_numbers():
@@ -387,3 +391,126 @@ def test_no_do_not_say_phrases():
         t_low = text.lower()
         for phrase in do_not_say_patterns:
             assert phrase not in t_low, f"Found forbidden phrase {phrase!r} in text: {text!r}"
+
+
+def test_harness_card_reason_truncation():
+    """Verify reason truncation occurs at a word boundary and ends with '…', never mid-word."""
+    # 1. Short text <= max_chars is preserved verbatim without ellipsis
+    short_text = "Level up Charmander on Route 1."
+    assert truncate_reason(short_text, max_chars=180) == short_text
+    assert truncate_reason(short_text, max_chars=len(short_text)) == short_text
+
+    # 2. Text longer than max_chars is cut at a word boundary
+    long_text = "The starter has reached the target level of 13, which is sufficient to challenge Brock. I will now travel north through Route 2 and Viridian Forest to reach Pewter City."
+    # len is 170. If max_chars=80:
+    # "The starter has reached the target level of 13, which is sufficient to challenge Brock."
+    trunc_80 = truncate_reason(long_text, max_chars=80)
+    assert trunc_80.endswith("…")
+    # Content before ellipsis
+    prefix = trunc_80[:-1]
+    # The last word in prefix must be a complete word in long_text (e.g. followed by a space in long_text)
+    assert prefix in long_text
+    word_end_idx = long_text.find(prefix) + len(prefix)
+    assert word_end_idx == len(long_text) or long_text[word_end_idx] in " .,;:!?", f"Truncated mid-word at index {word_end_idx}: {long_text[word_end_idx-5:word_end_idx+5]}"
+
+    # 3. Test on all reasons in run_seed_100.json
+    llm_json_path = Path("work/video/quest_s100_llm/run_seed_100.json")
+    if llm_json_path.exists():
+        with open(llm_json_path, "r") as f:
+            data = json.load(f)
+        for entry in data.get("timeline", []):
+            reason = entry["reason"]
+            for limit in [50, 80, 120, 150, 180]:
+                tr = truncate_reason(reason, max_chars=limit)
+                if len(reason) > limit:
+                    assert tr.endswith("…")
+                    assert not tr[:-1].endswith(" ")
+                    assert len(tr) <= limit + 1
+                    # Verify no mid-word cut: tr[:-1] must be a prefix of reason at a word boundary
+                    prefix = tr[:-1]
+                    assert reason.startswith(prefix)
+                    if len(prefix) < len(reason):
+                        after_char = reason[len(prefix)]
+                        assert after_char in " .,;:!?'\"-\n", f"Mid-word cut on '{prefix[-10:]}' followed by '{after_char}' in '{reason}'"
+
+
+def test_decision_lookup_by_presses():
+    """Verify get_latest_decision returns latest timeline entry with presses <= step."""
+    toy_timeline = [
+        {"presses": 72, "goal": "grind", "latency": 10.8},
+        {"presses": 1020, "goal": "heal", "latency": 13.7},
+        {"presses": 1405, "goal": "grind", "latency": 12.2},
+        {"presses": 4697, "goal": "travel_to_pewter", "latency": 21.5},
+        {"presses": 6130, "goal": "gym", "latency": 10.9},
+    ]
+
+    # Before first decision
+    assert get_latest_decision(toy_timeline, 0) is None
+    assert get_latest_decision(toy_timeline, 71) is None
+
+    # Exactly at decisions
+    assert get_latest_decision(toy_timeline, 72)["goal"] == "grind"
+    assert get_latest_decision(toy_timeline, 1020)["goal"] == "heal"
+    assert get_latest_decision(toy_timeline, 4697)["goal"] == "travel_to_pewter"
+    assert get_latest_decision(toy_timeline, 6130)["goal"] == "gym"
+
+    # Between decisions
+    assert get_latest_decision(toy_timeline, 100)["goal"] == "grind"
+    assert get_latest_decision(toy_timeline, 1019)["goal"] == "grind"
+    assert get_latest_decision(toy_timeline, 1021)["goal"] == "heal"
+    assert get_latest_decision(toy_timeline, 3000)["goal"] == "grind"
+    assert get_latest_decision(toy_timeline, 4700)["goal"] == "travel_to_pewter"
+
+    # After last decision
+    assert get_latest_decision(toy_timeline, 7044)["goal"] == "gym"
+    assert get_latest_decision(toy_timeline, 99999)["goal"] == "gym"
+
+
+def test_bakeoff_rows_load_from_storyboard():
+    """Verify bakeoff segment in storyboard.json loads 7 rows with correct structure."""
+    sb_path = Path("lab/video/storyboard.json")
+    with open(sb_path, "r") as f:
+        storyboard = json.load(f)
+
+    bakeoff_segs = [s for s in storyboard if s.get("type") == "bakeoff"]
+    assert len(bakeoff_segs) == 1, "Expected exactly 1 bakeoff segment"
+
+    bakeoff = bakeoff_segs[0]
+    assert bakeoff.get("title") == "Six local LLMs tested as the planner"
+    assert "RTX 4090" in bakeoff.get("footer", "")
+
+    rows = bakeoff.get("rows", [])
+    assert len(rows) == 7, f"Expected 7 table rows, got {len(rows)}"
+
+    # Rule planner must be first, labelled 'rules (reference)'
+    assert rows[0]["planner"] == "rules (reference)"
+    assert rows[0]["badges"] == "10/10"
+
+    # gemma4:31b must be present and highlighted
+    gemma_rows = [r for r in rows if "gemma4:31b" in r.get("planner", "")]
+    assert len(gemma_rows) == 1
+    assert gemma_rows[0].get("highlight") is True
+
+    # Every row must have required columns
+    for r in rows:
+        assert "planner" in r and len(r["planner"]) > 0
+        assert "badges" in r and len(r["badges"]) > 0
+        assert "presses" in r and len(r["presses"]) > 0
+        assert "vram" in r and len(r["vram"]) > 0
+
+
+def test_render_bakeoff_frame_dimensions():
+    """Verify render_bakeoff_frame generates (1080, 1920, 3) uint8 frame."""
+    fonts = FontManager()
+    toy_rows = [
+        {"planner": "rules (reference)", "badges": "10/10", "presses": "8,508.5", "vram": "—"},
+        {"planner": "gemma4:31b", "badges": "10/10", "presses": "7,239", "vram": "22.4 GB", "highlight": True},
+    ]
+    frame = render_bakeoff_frame(
+        rows=toy_rows,
+        title="Six local LLMs tested as the planner",
+        footer="Test footer",
+        fonts=fonts,
+    )
+    assert frame.shape == (CANVAS_HEIGHT, CANVAS_WIDTH, 3)
+    assert frame.dtype == np.uint8

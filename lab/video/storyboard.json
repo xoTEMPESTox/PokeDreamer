@@ -78,6 +78,78 @@
     "subcaption": "the AI never trained on a battle; the badge is the whole system's, not the policy's"
   },
   {
+    "type": "harness",
+    "seconds": 9.0,
+    "traj": "work/video/traj_llm/run_seed_100_color.npz",
+    "run_json": "work/video/quest_s100_llm/run_seed_100.json",
+    "ranges": [
+      [4650, 4900],
+      [6020, 6260],
+      [6940, 7044]
+    ],
+    "speed": "fit",
+    "caption": "Same agent, new brain: a local LLM plans the quest",
+    "subcaption": "the game harness: any planner can drive the same dream-trained skills · gemma4:31b on this PC, via Ollama"
+  },
+  {
+    "type": "bakeoff",
+    "seconds": 5.0,
+    "title": "Six local LLMs tested as the planner",
+    "footer": "10 quests each · map-reading navigation so only the planner differs · measured on one RTX 4090",
+    "rows": [
+      {
+        "planner": "rules (reference)",
+        "badges": "10/10",
+        "presses": "8,508.5",
+        "vram": "—",
+        "key": "rules"
+      },
+      {
+        "planner": "gemma4:26b (MoE)",
+        "badges": "8/10",
+        "presses": "9,930.5 (8 runs)",
+        "vram": "20.9 GB",
+        "key": "gemma"
+      },
+      {
+        "planner": "qwen3.6:35b-a3b (MoE)",
+        "badges": "10/10",
+        "presses": "8,355",
+        "vram": "22.4 GB",
+        "key": "qwen"
+      },
+      {
+        "planner": "gpt-oss:20b",
+        "badges": "10/10",
+        "presses": "6,233",
+        "vram": "14.4 GB",
+        "key": "gpt-oss"
+      },
+      {
+        "planner": "gemma4:31b",
+        "badges": "10/10",
+        "presses": "7,239",
+        "vram": "22.4 GB",
+        "highlight": true,
+        "key": "gemma"
+      },
+      {
+        "planner": "gemma4:12b",
+        "badges": "10/10",
+        "presses": "8,145",
+        "vram": "10.2 GB",
+        "key": "gemma"
+      },
+      {
+        "planner": "qwen3.5:9b",
+        "badges": "10/10",
+        "presses": "10,246.5",
+        "vram": "7.8 GB",
+        "key": "qwen"
+      }
+    ]
+  },
+  {
     "type": "end",
     "seconds": 5.0,
     "start": 8717,
