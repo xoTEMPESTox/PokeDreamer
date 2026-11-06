@@ -35,7 +35,8 @@ Legend: [x] done · [~] in progress · [ ] open · (P) needs Priyanshu
 - [x] World-model frames aligned with the run (`lab/video/dream.py`, K=10 = the imagination-RL horizon)
 - [x] Storyboard-driven 1080p composer (`lab/video/compose.py`, `storyboard.json`; 6fffa78)
 - [~] Draft 2 rendered: `work/video/draft_v2.mp4` (60 s, 1920x1080); (P) review
-- [ ] (P) Optional 5 s voxel opener (`lab/viz` Plan A)
+- [x] 3D pond opener, 8 s (`lab/viz3d`, b93b26c; `work/viz3d/opener_8s.mp4`); combined draft `work/video/draft_v3_with_3d_opener.mp4` (64 s)
+- [ ] (P) Review: keep the 3D opener? Twin and gym-closer drafts (`work/viz3d/clips/`) need another pass or drop
 - [ ] Final render after review
 
 ## 5. Repo: clone and run
