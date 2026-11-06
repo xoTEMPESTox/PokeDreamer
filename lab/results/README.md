@@ -22,7 +22,8 @@ All measurements are grounded in Game Boy RAM state and preserve exact empirical
 | [`colorizer.md`](colorizer.md) | Per-tile colour for real frames (exact) and for world-model frames (learned); display only | Stage 2 pixel class accuracy **99.27%** on held-out save states; stage 1 screen rebuild 99.9412% | `work/color/learned/metrics.json`, `work/color/native/validate.log` |
 | [`probe.md`](probe.md) | Frame-to-RAM diagnostic probe extracting map ID, tile (x, y), and battle flag | **99.36% map accuracy**, 0.397 tiles mean Manhattan error on test_id | `work/probe/` |
 | [`dataset_stats.md`](dataset_stats.md) | Dataset distribution, movement frequencies, battle occurrences, and action counts | **200,000 steps** across 200 episodes (139 train / 16 test_id / 45 test_ood) | `work/cache_72x80.npz` |
-| [`speed.md`](speed.md) | Hardware training throughput benchmarks and project GPU compute accounting | **15.15 steps/s** (970 samples/s) with fused AdamW; 40.6 total project GPU hours | `work/bench_speed.log` |
+| [`speed.md`](speed.md) | Hardware training throughput benchmarks and project GPU compute accounting | **15.15 steps/s** (970 samples/s) with fused AdamW; GPU-hour ledger as of 2026-11-05 | `work/bench_speed.log` |
+| [`compute.md`](compute.md) | Training time per model family and parameter count of each shipped model | **50.0 GPU-hours** of logged v3 training (76 runs, one RTX 4090); shipped world model 16.7M params, 3.6 h | run logs in `work/runs/`, `work/agent_rl/`, `work/upsampler/`, `work/color/learned/` |
 
 ---
 

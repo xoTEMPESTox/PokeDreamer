@@ -5,7 +5,7 @@ This page documents training throughput benchmarks for the 16.7M-parameter EDM d
 **Reproduce:** Benchmarked via `python -m lab.bench_speed`; see [lab/README.md §1](../README.md#1-directory--module-layout) (no single Section 3 command reproduces this benchmark).
 
 **Figures:**
-- `work/figures/fig_gpu_ledger.png`: Measured GPU compute accounting for the project: (top) 40.6 total hours broken down by component kind, dominated by imagination RL; (bottom) Path A stretch allocation across planned work (6.3 h), added scope (21.4 h), and debugging rework (13.5 h).
+- `work/figures/fig_gpu_ledger.png`: Measured GPU compute accounting for the project: (top) 40.6 total hours broken down by component kind, dominated by imagination RL; (bottom) Path A stretch allocation across planned work (6.3 h), added scope (21.4 h), and debugging rework (13.5 h). This ledger is as of 2026-11-05; the current tally is in [`compute.md`](compute.md).
 
 ---
 
