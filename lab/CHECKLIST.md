@@ -11,23 +11,22 @@ Legend: [x] done · [~] in progress · [ ] open · (P) needs Priyanshu
 - [x] leave_pewter_pc fixed by `--merge-centers`: 100/100 on 3 seeds (commit 8825102)
 - [x] to_pewter_pc: 1,800 iterations give 100 / 0 / 100. Seed 1 stays stuck; reported as 2 of 3 seeds, no further fix
 - [x] Battle go/no-go: no-go for wm31 as is (`agent_notes/results/v3_battle_fidelity.md`)
-- [~] Forest at 2x iterations, seeds 1-2 (`work/chain_forest_3560.sh`, 11-06)
+- [~] Forest at 2x iterations, seeds 1-2 (`work/chain_forest_3560.sh`, 11-06): s1 got worse (69 -> 49/100; more runs stall at the Antidote ball), so s1 stays at 1,780; s2 pending
 - [ ] Final leg table and quest table consolidated; every number traceable to a file in `work/`
 
 ## 2. Display pipeline: upsampler + colorizer (no metric uses it)
 - [x] Upsampler 72x80 -> 144x160, 91% of held-out frames pixel-exact (`agent_notes/results/upsampler.md`, `lab/upsampler.py`)
-- [ ] Tile clustering and contact sheet of the ~500 tiles that cover 98% of pixels
-- [ ] (P) Tile classes labelled; palettes chosen (GBC-like vs bolder: Priyanshu's call)
-- [ ] Stage 1 colorizer: tile lookup on real frames, per-map palette variation
+- [x] 4x4-block inventory at 72x80 (`lab/color/tiles.py`, uncommitted): works, but the blocks are too small to label; superseded by native tiles
+- [~] Native tile ids from the emulator (PyBoy tilemap, scroll, OAM) per (tileset, tile); contact sheets per tileset (`lab/color/native.py`)
+- [ ] Tile classes: first pass labelled by Claude from the sheets, (P) reviewed by Priyanshu; palette direction (P)
+- [ ] Stage 1 colorizer: exact per-tile colour on real frames
 - [ ] Stage 2 colorizer: small CNN gray -> color trained on stage-1 output, works on world-model frames; held-out accuracy reported
 - [ ] `lab/render.py`: one entry point, gray frame -> upsampled color frame; used by the video and the live-run recorder
 
 ## 3. Research visuals for the site (static PNG + SVG from `work/`)
-- [ ] Agent paths per leg on the Kanto tile map, real vs imagined
-- [ ] Imagination drift vs horizon with CIs, per leg
-- [ ] Probe-read heatmaps and the door-warp diagram (`work/eval/door_warp_wm31.json`)
-- [ ] GPU-hour ledger chart (planned / scope / rework)
-- [ ] Battle-fidelity figure (`work/plots/battle_fidelity_wm31_ext.png` restyled)
+- [x] Seven figures, code in `lab/figures/` (4b62d2a), output `work/figures/` + captions: leg paths, leg failures, leg success vs greedy, door-warp misread heatmaps, battle fidelity, GPU-hour ledger, presses per quest set
+- [ ] Imagination drift vs horizon with CIs, per leg (needs a short GPU eval)
+- [ ] A Kanto overview map with all ten legs on one canvas (needs the colorizer for the backdrop)
 
 ## 4. The 60-second gameplay video
 - [ ] (P) Storyboard approved: route, which legs are split real/dream, battle shown as a colorized 2D inset
@@ -36,9 +35,9 @@ Legend: [x] done · [~] in progress · [ ] open · (P) needs Priyanshu
 - [ ] Captions, timing overlay, badge ending; export `work/videos/v3_hero.mp4`
 
 ## 5. Repo: clone and run
-- [~] `lab/WEIGHTS.md`: every published weight file, size, what it is, which table uses it
-- [~] `lab/get_weights.py`: pulls weights from the HF repos into `work/` (anonymous, `weights_only=True`)
-- [~] `lab/README.md`: layout of `lab/`, setup, one reproduce command per public table
+- [x] `lab/WEIGHTS.md`, `lab/get_weights.py`, `lab/README.md` (4221ef3)
+- [ ] Export step that drops optimizer state before upload (wm31 268 -> ~67 MB, each policy 18.9 -> ~6.3 MB)
+- [ ] Point the docs at the tracked results (`lab/results/`) once section 6 creates it
 - [ ] Reproduce commands tested from a fresh clone (ROM supplied by the user)
 - [ ] (P) Upload final weights to the existing HF repos (wm31, probe, upsampler, colorizer, 10 leg policies, PPO baseline)
 - [ ] (P) Route save states: publish or not (emulator states of a session on the user's own ROM)
