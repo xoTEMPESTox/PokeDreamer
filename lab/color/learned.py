@@ -49,12 +49,12 @@ def load_palette(
     with open(labels_path, "r") as f:
         labels_data = json.load(f)
 
+    # keys from the labels themselves (both bg and window layers), so the map is complete without work/ files;
+    # the collected inventory, when present, only adds unlabelled keys (which map to rules or "other")
+    keys = [f"{k.split(':')[0]}:{layer}:{k.split(':')[1]}" for k in labels_data for layer in (0, 1)]
     t_path = Path(tiles_path)
     if t_path.exists():
-        tiles_npz = np.load(t_path)
-        keys = list(tiles_npz["keys"])
-    else:
-        keys = []
+        keys += [str(k) for k in np.load(t_path)["keys"]]
 
     tiles = build_tile_map(labels_data, keys)
     return {
