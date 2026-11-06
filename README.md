@@ -6,7 +6,24 @@
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 · [Website](https://pokedreamer.priyanshusah.com) · [Model weights](https://huggingface.co/xxxTEMPESTxxx/PokeDreamer) · [Dataset](https://huggingface.co/datasets/xxxTEMPESTxxx/PokeDreamer) · [Results](lab/results/README.md)
 
-![An agent trained only in the world model, playing the real game](docs/assets/v3/agent_trained_in_imagination.gif)
+<p align="center"><img src="docs/assets/v3/opener_3d.gif" width="80%" alt="A procedural 3D render of Viridian City built from the game's map data, following the agent's recorded path"></p>
+
+## In 30 seconds
+- **A world model of a real game.** A diffusion model learned to predict Pokémon Red frame by frame from recorded play: you press a button, it imagines the next screen.
+- **An agent that learned inside the dream.** Ten navigation skills were trained purely in that imagination, with zero real-game steps, then dropped into the real game, where the agent wins the Boulder Badge in **30/30** runs.
+- **Measured, not eyeballed.** The game's own memory says exactly where the agent and the imagined world really are, so every claim below is a number: where the dream drifts, which shortcuts the agent learned to exploit, and why battles can't be learned this way.
+- **Seen in colour.** A neural upscaler and colorizer turn the 72x80 greyscale frames into full-resolution colour for display (99.27% per-pixel accuracy on held-out frames).
+
+<table>
+<tr>
+<td width="38%"><img src="docs/assets/v3/gameplay_colour.gif" alt="The agent in the real game"></td>
+<td width="62%"><img src="docs/assets/v3/real_vs_dream.gif" alt="Real game next to the world model's imagination"></td>
+</tr>
+<tr>
+<td><sub>The real game: walking is a policy trained only in the world model; battles are rules.</sub></td>
+<td><sub>Left, the real game. Right, the world model imagining the same moments from 4 real frames and the same buttons (re-anchored every 10 steps).</sub></td>
+</tr>
+</table>
 
 ## What this is
 A research project on world models for game agents, built around one advantage a game gives you: the emulator's RAM is ground truth for every imagined frame. That makes it possible to measure, in game units (tiles, maps, battle turns), what a learned simulator gets right, where it drifts, and how a policy trained inside it exploits its mistakes.
