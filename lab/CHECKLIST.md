@@ -36,14 +36,35 @@ Legend: [x] done · [~] in progress · [ ] open · (P) needs Priyanshu
 - [ ] Captions, timing overlay, badge ending; export `work/videos/v3_hero.mp4`
 
 ## 5. Repo: clone and run
-- [ ] `lab/WEIGHTS.md`: every published weight file, size, what it is, which table uses it
-- [ ] Download script that pulls weights from the HF repos into `work/` (anonymous, `weights_only=True`)
-- [ ] One reproduce command per public table, tested from a fresh clone (ROM supplied by the user)
-- [ ] `lab/README.md`: layout of `lab/`, how the quests, evals and training are run
+- [~] `lab/WEIGHTS.md`: every published weight file, size, what it is, which table uses it
+- [~] `lab/get_weights.py`: pulls weights from the HF repos into `work/` (anonymous, `weights_only=True`)
+- [~] `lab/README.md`: layout of `lab/`, setup, one reproduce command per public table
+- [ ] Reproduce commands tested from a fresh clone (ROM supplied by the user)
 - [ ] (P) Upload final weights to the existing HF repos (wm31, probe, upsampler, colorizer, 10 leg policies, PPO baseline)
-- [ ] (P) Proposed public README text reviewed (`agent_notes/README_draft.md`)
+- [ ] (P) Route save states: publish or not (emulator states of a session on the user's own ROM)
 
-## 6. Launch (after 1-5; needs Priyanshu throughout)
+## 6. Research-repo structure (before any launch work)
+The repo must read like a research artifact on its own, since the website and posts will link to it.
+Today: v3 code is in `lab/` (tracked), but its results, run scripts and notes live in git-excluded
+`agent_notes/` and `work/`; v1/v2 sit at the top level beside `src/`, `scripts/` and `checkpoints/`.
+
+Doable now, within the current rules (new files only):
+- [ ] Tracked results: copy the public results from `agent_notes/results/*.md` into `lab/results/` with internal notes removed, every number linked to the command that makes it
+- [ ] Tracked experiment scripts: the chain scripts behind public numbers (`work/chain_*.sh`) cleaned into `lab/experiments/` with relative paths and no machine-specific paths
+- [ ] Tracked figures: `lab/figures/` code + the rendered PNG/SVG the results pages use
+- [ ] `lab/configs/`: the exact hyperparameters of wm31, the probe and each leg policy (from their logs)
+- [ ] Environment: pin `environment.yml` versions for the v3 env (torch 2.5.1+cu121, numpy 2.x, pyboy) or add `lab/requirements.txt`
+- [ ] Tests green from a clean checkout; a GitHub Actions workflow for the CPU-only tests (no ROM: skip env tests)
+- [ ] Proposed full layout written as a tree with reasons (`agent_notes/repo_layout_proposal.md`)
+
+Needs Priyanshu's sign-off (the project rules keep these off-limits to agents):
+- [ ] (P) Top-level layout: e.g. `v1/` + `v2/` + `src/` + `scripts/` + `checkpoints/` moved under `legacy/`, `lab/` renamed to `pokedreamer/` (or kept), `results/` and `paper/` at the top
+- [ ] (P) New top-level `README.md`: abstract, headline results table, hero video, figure, how to run, honesty notes, citation (draft in `agent_notes/README_draft.md`)
+- [ ] (P) `LICENSE` (code) and a statement that no ROM or game assets are distributed
+- [ ] (P) `CITATION.cff`
+- [ ] (P) `v3.md` and `docs/v3.html` updated to the final numbers, or folded into the website paper
+
+## 7. Launch (after 1-6; needs Priyanshu throughout)
 - [ ] Portfolio case study page
 - [ ] GitHub description and topics
 - [ ] X / LinkedIn post with the hero video
