@@ -29,7 +29,9 @@ Legend: [x] done · [~] in progress · [ ] open · (P) needs Priyanshu
 - [ ] A Kanto overview map with all ten legs on one canvas (needs the colorizer for the backdrop)
 
 ## 4. The 60-second gameplay video
-- [ ] (P) Storyboard approved: route, which legs are split real/dream, battle shown as a colorized 2D inset
+- [x] Source run recorded in colour: seed 100, best set, badge in 8,718 presses, every navigation press by a policy (fd8d7ea; `work/video/`)
+- [x] 4x colour preview + scene list (`work/video/preview_s100_color.mp4`, `scenes.json`)
+- [ ] (P) Storyboard approved (draft: `agent_notes/video_storyboard.md`)
 - [ ] Three 5-second voxel candidates of different areas rendered for the look decision (`lab/viz/`)
 - [ ] Full render (1080p, 24 fps; ~15 h CPU or ~2 h GPU)
 - [ ] Captions, timing overlay, badge ending; export `work/videos/v3_hero.mp4`
