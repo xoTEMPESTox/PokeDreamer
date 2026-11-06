@@ -61,3 +61,25 @@ Architectural options for Path B (costs are planned estimates, not measured):
 1. A battle simulator built from RAM: learn the transition of battle RAM state (HP, moves, turn) from the dataset instead of from pixels. It is cheap, and it measures what a world model would need to know.
 2. A pixel world model with longer context or RAM conditioning, retrained on battle windows. This costs GPU hours, and whether it would sustain battles is uncertain.
 3. Keep battles as rules (the current System 2) and call Path A finished. The quests already win 30/30 with learned navigation.
+
+## Full held-out sample (measured 2026-11-06)
+The same evaluation on all 8,913 eligible in-battle windows (29 test_ext episodes) instead of 1,024 (`lab.dwm.battle_fidelity --run wm31 --data ext --max-windows 0 --tag full`; `work/eval/battle_fidelity_wm31_ext_full.json`, log `work/battle_fidelity_full.log`).
+
+| | real probe | imagined |
+|---|---|---|
+| ends within ±3 steps of the RAM end | 0.492 | 0.128 |
+| **ends > 3 steps early** | 0.011 | **0.746** |
+| ends later or never | 0.001 | 0.106 |
+| neither ends within 32 steps | 0.496 | 0.019 |
+| median absolute timing error (both end) | 0 | 9 steps |
+
+| k | imagined MSE [95% CI] | copy-last MSE [95% CI] |
+|---|---|---|
+| 1 | 0.0345 [0.0332, 0.0357] | 0.0348 [0.0324, 0.0373] |
+| 2 | 0.0629 [0.0614, 0.0645] | 0.0556 [0.0521, 0.0590] |
+| 4 | 0.0941 [0.0921, 0.0959] | 0.0785 [0.0742, 0.0829] |
+| 8 | 0.1193 [0.1174, 0.1212] | 0.0808 [0.0767, 0.0850] |
+| 16 | 0.1617 [0.1597, 0.1634] | 0.1056 [0.1005, 0.1104] |
+| 32 | 0.2099 [0.2086, 0.2114] | 0.1431 [0.1367, 0.1490] |
+
+With the full sample the verdict holds and tightens: imagined battles end early in 74.6% of windows, and imagined battle frames are worse than copy-last from k=2 (non-overlapping CIs), not from k=4 as in the 1,024-window sample. At k=1 the two are tied.
