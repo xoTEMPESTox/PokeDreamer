@@ -125,12 +125,13 @@ def test_hud_badge_text_and_priority():
     text, bg, border, fg = get_hud_badge(in_battle=False, by="bfs")
     assert text == "path-finding fallback"
 
-    # 3. in_battle=False, by="policy" or empty -> green "world-model policy"
+    # 3. in_battle=False, by="policy" -> green "world-model policy"
     text, bg, border, fg = get_hud_badge(in_battle=False, by="policy")
     assert text == "world-model policy"
 
+    # 4. in_battle=False, by="" (no navigation leg pressing) -> grey scripted badge, not the policy
     text, bg, border, fg = get_hud_badge(in_battle=False, by="")
-    assert text == "world-model policy"
+    assert text == "scripted: menus, talking"
 
 
 def test_toy_rendering_dimensions_and_types():
