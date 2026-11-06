@@ -737,6 +737,8 @@ def main():
     parser.add_argument("--aug-bucket", type=int, default=0, help="Context noise augmentation bucket")
     parser.add_argument("--device", type=str, default="cuda", help="Device to run on (cuda or cpu)")
     parser.add_argument("--batch", type=int, default=128, help="Batch size for rollout evaluation")
+    parser.add_argument("--maps", type=str, default="13,51,2,54", help="Comma-separated map ids for the per-map summary (ext data)")
+    parser.add_argument("--tag", type=str, default="", help="Suffix for the output file names (keeps earlier outputs)")
     args = parser.parse_args()
 
     dev = args.device
@@ -799,11 +801,11 @@ def main():
         print_compact_table(summary, split_name)
 
         if split_name == "test_ext" or is_ext:
-            per_map = summarize_per_map(per_window, episode_ids, maps=[13, 51, 2, 54])
+            per_map = summarize_per_map(per_window, episode_ids, maps=[int(m) for m in args.maps.split(",")])
             summary["per_map"] = per_map
             print_per_map_table(per_map)
 
-        stem = f"{args.run}_{split_name}_s{args.steps}_a{args.aug_bucket}" + ("_ext" if args.data == "ext" else "")  # base keeps the old names
+        stem = f"{args.run}_{split_name}_s{args.steps}_a{args.aug_bucket}" + ("_ext" if args.data == "ext" else "") + (f"_{args.tag}" if args.tag else "")  # base keeps the old names
 
         # Save per-window arrays in npz
         npz_path = Path("work/eval") / f"{stem}.npz"
