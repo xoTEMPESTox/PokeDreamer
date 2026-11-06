@@ -1,0 +1,86 @@
+[
+  {
+    "type": "title",
+    "seconds": 4.0,
+    "start": 78,
+    "end": 78,
+    "speed": "fit",
+    "caption": "It learned to walk Kanto inside its own dream, then won the Boulder Badge in the real game.",
+    "text": [
+      "PokeDreamer",
+      "It learned to walk Kanto inside its own dream,",
+      "then won the Boulder Badge in the real game."
+    ]
+  },
+  {
+    "type": "play",
+    "seconds": 8.0,
+    "start": 78,
+    "end": 400,
+    "speed": "fit",
+    "caption": "Walking: a policy trained only in the world model. Battles: rules."
+  },
+  {
+    "type": "montage",
+    "seconds": 6.0,
+    "start": 1283,
+    "end": 6607,
+    "ranges": [
+      [1283, 2866],
+      [3106, 4393],
+      [4552, 6607]
+    ],
+    "speed": "fit",
+    "goal_text": "grind (level 8 to 14)",
+    "caption": "Grind montage, level 8 to 14"
+  },
+  {
+    "type": "play",
+    "seconds": 5.0,
+    "start": 6608,
+    "end": 6832,
+    "speed": "fit",
+    "caption": "Healing is navigation too: three more learned legs."
+  },
+  {
+    "type": "split",
+    "seconds": 15.0,
+    "start": 6833,
+    "end": 7723,
+    "speed": "fit",
+    "caption": "Right: the world model imagining 10 steps ahead (the horizon the policies trained on) from 4 real frames and the same buttons."
+  },
+  {
+    "type": "play",
+    "seconds": 3.0,
+    "start": 7724,
+    "end": 7760,
+    "speed": "fit",
+    "caption": "Pewter PC, in and out"
+  },
+  {
+    "type": "play",
+    "seconds": 14.0,
+    "start": 7761,
+    "end": 8717,
+    "ranges": [
+      [7761, 8086],
+      [8184, 8717]
+    ],
+    "speed": "fit",
+    "caption": "Gym navigation learned; the fights are rule-based."
+  },
+  {
+    "type": "end",
+    "seconds": 5.0,
+    "start": 8717,
+    "end": 8717,
+    "speed": "fit",
+    "caption": "",
+    "text": [
+      "30/30 badges",
+      "14/30 runs with every navigation leg learned in imagination",
+      "0 real-game steps of navigation training"
+    ]
+  }
+]
