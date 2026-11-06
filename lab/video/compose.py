@@ -24,6 +24,109 @@ DEFAULT_FPS = 30
 BG_COLOR = (15, 20, 25)  # #0f1419 very dark blue-grey in RGB
 BG_COLOR_BGR = (25, 20, 15)
 
+# Play and Montage segment layout (6x Game Boy frame)
+PLAY_SCALE = 6
+GAME_W = 160 * PLAY_SCALE  # 960
+GAME_H = 144 * PLAY_SCALE  # 864
+PLAY_OUTER_MARGIN = 50     # outer margin on left and right (about 40-60 px)
+PLAY_GAP = 40              # gap between status panel and game frame
+PANEL_W = CANVAS_WIDTH - 2 * PLAY_OUTER_MARGIN - GAME_W - PLAY_GAP  # 820 px
+PANEL_H = GAME_H           # 864 px
+PLAY_FRAME_Y = 94          # top coordinate for game frame and status panel
+HEADING_Y = 47             # vertical center for top heading band
+HEADING_FONT_SIZE = 48     # heading font size (bold, 44-52 px)
+HEADING_ICON_SIZE = 42     # pokeball icon size in heading band
+
+# Split segment layout (5x Game Boy frames side-by-side)
+SPLIT_SCALE = 5
+SPLIT_FRAME_W = 160 * SPLIT_SCALE  # 800
+SPLIT_FRAME_H = 144 * SPLIT_SCALE  # 720
+SPLIT_GAP = 80                     # gap between real and dream frames
+SPLIT_MARGIN_X = (CANVAS_WIDTH - 2 * SPLIT_FRAME_W - SPLIT_GAP) // 2  # 120 px
+SPLIT_FRAME_Y = 150                # top coordinate for frames
+
+_ICON_CACHE: Dict[int, Image.Image] = {}
+
+
+def get_pokeball_icon(size: int = HEADING_ICON_SIZE) -> Image.Image:
+    """Procedurally generates a Poké Ball-style icon using PIL primitives.
+
+    Drawn supersampled at 4x with PIL primitives (pieslices, rectangles, ellipses)
+    and downscaled with Lanczos antialiasing for crisp, smooth edges.
+    """
+    if size in _ICON_CACHE:
+        return _ICON_CACHE[size]
+
+    scale = 4
+    s = size * scale
+    im = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(im)
+    cx, cy = s // 2, s // 2
+    r = s // 2 - 2 * scale
+
+    # Upper red dome
+    draw.pieslice([cx - r, cy - r, cx + r, cy + r], start=180, end=360, fill=(230, 45, 45, 255))
+    # Lower white dome
+    draw.pieslice([cx - r, cy - r, cx + r, cy + r], start=0, end=180, fill=(245, 245, 248, 255))
+
+    # Center dividing band
+    band_h = max(2, int(r * 0.22))
+    draw.rectangle([cx - r, cy - band_h // 2, cx + r, cy + band_h // 2], fill=(24, 28, 36, 255))
+
+    # Outer circle border
+    border_w = max(2, int(r * 0.12))
+    draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=(24, 28, 36, 255), width=border_w)
+
+    # Center button outer ring
+    btn_r = int(r * 0.36)
+    draw.ellipse([cx - btn_r, cy - btn_r, cx + btn_r, cy + btn_r], fill=(24, 28, 36, 255))
+
+    # Center button face
+    inner_r = int(r * 0.24)
+    draw.ellipse([cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r], fill=(245, 245, 248, 255))
+
+    # Center button core dot
+    core_r = max(2, int(r * 0.12))
+    draw.ellipse([cx - core_r, cy - core_r, cx + core_r, cy + core_r], fill=(210, 215, 225, 255), outline=(140, 150, 165, 255), width=max(1, scale))
+
+    resample = getattr(Image, "Resampling", Image).LANCZOS
+    icon = im.resize((size, size), resample=resample)
+    _ICON_CACHE[size] = icon
+    return icon
+
+
+def draw_heading(
+    img: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    fonts: FontManager,
+    cx: int = CANVAS_WIDTH // 2,
+    cy: int = HEADING_Y,
+    text: str = "PokeDreamer",
+    font_size: int = HEADING_FONT_SIZE,
+    fill: Tuple[int, int, int] = (255, 255, 255),
+    icon_size: Optional[int] = None,
+) -> Tuple[int, int, int, int]:
+    """Draws procedural Poké Ball icon and bold heading text centered at (cx, cy)."""
+    if icon_size is None:
+        icon_size = max(16, int(round(font_size * 0.88)))
+
+    font = fonts.get(font_size, bold=True)
+    tb = draw.textbbox((0, 0), text, font=font)
+    tw = tb[2] - tb[0]
+    gap = max(8, int(font_size * 0.28))
+    total_w = icon_size + gap + tw
+
+    start_x = cx - total_w // 2
+    icon_x = start_x
+    icon_y = cy - icon_size // 2
+    text_x = start_x + icon_size + gap
+
+    icon = get_pokeball_icon(icon_size)
+    img.paste(icon, (icon_x, icon_y), icon)
+    draw.text((text_x, cy), text, font=font, fill=fill, anchor="lm")
+
+    return (start_x, cy - font_size // 2, start_x + total_w, cy + font_size // 2)
+
 
 def calculate_segment_frames(storyboard: List[Dict[str, Any]], fps: int = DEFAULT_FPS) -> List[int]:
     """Computes output frame count for each segment from its seconds."""
@@ -167,58 +270,123 @@ def draw_hud_card(
 ):
     """Draws left-column HUD card with status, goals, badge, and counter."""
     x0, y0, x1, y1 = box
-    draw.rounded_rectangle([x0, y0, x1, y1], radius=14, fill=(20, 26, 35), outline=(45, 58, 75), width=2)
+    box_h = y1 - y0
 
-    # Title / header
-    draw.text((x0 + 30, y0 + 26), "POKEDREAMER STATUS", font=fonts.get(14, bold=True), fill=(100, 116, 139))
-    draw.line([(x0 + 30, y0 + 52), (x1 - 30, y0 + 52)], fill=(34, 45, 58), width=1)
+    # Large layout for 6x (or any height >= 700), compact fallback for smaller boxes
+    is_large = box_h >= 700
 
-    curr_y = y0 + 68
+    radius = 16 if is_large else 14
+    draw.rounded_rectangle([x0, y0, x1, y1], radius=radius, fill=(20, 26, 35), outline=(45, 58, 75), width=2)
 
-    # 1. Map name
-    draw.text((x0 + 30, curr_y), "CURRENT MAP", font=fonts.get(13), fill=(148, 163, 184))
-    draw.text((x0 + 30, curr_y + 22), map_name or "—", font=fonts.get(22, bold=True), fill=(248, 250, 252))
-    curr_y += 66
+    pad_x = 40 if is_large else 30
+    avail_w = (x1 - x0) - 2 * pad_x
 
-    # 2. System 2 Goal
-    draw.text((x0 + 30, curr_y), "SYSTEM 2 GOAL", font=fonts.get(13), fill=(148, 163, 184))
-    draw.text((x0 + 30, curr_y + 22), str(goal).upper() if goal else "—", font=fonts.get(22, bold=True), fill=(248, 250, 252))
-    curr_y += 66
+    if is_large:
+        # Title / header
+        draw.text((x0 + pad_x, y0 + 34), "POKEDREAMER STATUS", font=fonts.get(18, bold=True), fill=(100, 116, 139))
+        draw.line([(x0 + pad_x, y0 + 68), (x1 - pad_x, y0 + 68)], fill=(34, 45, 58), width=2)
 
-    # 3. Active Leg
-    draw.text((x0 + 30, curr_y), "ACTIVE NAVIGATION LEG", font=fonts.get(13), fill=(148, 163, 184))
-    leg_str = leg if leg else "—"
-    draw.text((x0 + 30, curr_y + 22), leg_str, font=fonts.get(20, bold=True), fill=(147, 197, 253))
-    curr_y += 66
+        curr_y = y0 + 104
+        step_y = 120 if progress_text else 140
 
-    # 4. Control Badge
-    draw.text((x0 + 30, curr_y), "CONTROL MODE", font=fonts.get(13), fill=(148, 163, 184))
-    badge_text, badge_bg, badge_border, badge_fg = get_hud_badge(in_battle, by)
-    badge_font = fonts.get(18, bold=True)
-    tb = draw.textbbox((0, 0), badge_text, font=badge_font)
-    bw, bh = tb[2] - tb[0], tb[3] - tb[1]
-    pill_w = bw + 32
-    pill_h = bh + 16
-    pill_y = curr_y + 22
-    draw.rounded_rectangle(
-        [x0 + 30, pill_y, x0 + 30 + pill_w, pill_y + pill_h],
-        radius=8,
-        fill=badge_bg,
-        outline=badge_border,
-        width=2,
-    )
-    draw.text((x0 + 30 + pill_w // 2, pill_y + pill_h // 2), badge_text, font=badge_font, fill=badge_fg, anchor="mm")
-    curr_y += 68
+        def _draw_section(label: str, val_text: str, default_size: int, fill: Tuple[int, int, int], is_bold: bool = True):
+            draw.text((x0 + pad_x, curr_y), label, font=fonts.get(16, bold=True), fill=(148, 163, 184))
+            sz = default_size
+            while sz > 16 and draw.textlength(val_text, font=fonts.get(sz, bold=is_bold)) > avail_w:
+                sz -= 2
+            draw.text((x0 + pad_x, curr_y + 28), val_text, font=fonts.get(sz, bold=is_bold), fill=fill)
 
-    # 5. Press Counter (step + 1)
-    draw.text((x0 + 30, curr_y), "PRESSES", font=fonts.get(13), fill=(148, 163, 184))
-    draw.text((x0 + 30, curr_y + 22), f"{step + 1:,}", font=fonts.get(30, bold=True), fill=(56, 189, 248))
-    curr_y += 66
+        # 1. Map name
+        _draw_section("CURRENT MAP", map_name or "—", default_size=36, fill=(248, 250, 252))
+        curr_y += step_y
 
-    # 6. Optional level progress (for montage)
-    if progress_text:
-        draw.text((x0 + 30, curr_y), "PROGRESS", font=fonts.get(13), fill=(148, 163, 184))
-        draw.text((x0 + 30, curr_y + 22), progress_text, font=fonts.get(20, bold=True), fill=(250, 204, 21))
+        # 2. System 2 Goal
+        _draw_section("SYSTEM 2 GOAL", str(goal).upper() if goal else "—", default_size=34, fill=(248, 250, 252))
+        curr_y += step_y
+
+        # 3. Active Leg
+        _draw_section("ACTIVE NAVIGATION LEG", leg if leg else "—", default_size=30, fill=(147, 197, 253))
+        curr_y += step_y
+
+        # 4. Control Badge
+        draw.text((x0 + pad_x, curr_y), "CONTROL MODE", font=fonts.get(16, bold=True), fill=(148, 163, 184))
+        badge_text, badge_bg, badge_border, badge_fg = get_hud_badge(in_battle, by)
+        badge_font = fonts.get(24, bold=True)
+        tb = draw.textbbox((0, 0), badge_text, font=badge_font)
+        bw, bh = tb[2] - tb[0], tb[3] - tb[1]
+        pill_w = bw + 40
+        pill_h = bh + 20
+        pill_y = curr_y + 28
+        draw.rounded_rectangle(
+            [x0 + pad_x, pill_y, x0 + pad_x + pill_w, pill_y + pill_h],
+            radius=10,
+            fill=badge_bg,
+            outline=badge_border,
+            width=2,
+        )
+        draw.text((x0 + pad_x + pill_w // 2, pill_y + pill_h // 2), badge_text, font=badge_font, fill=badge_fg, anchor="mm")
+        curr_y += step_y
+
+        # 5. Press Counter (step + 1)
+        draw.text((x0 + pad_x, curr_y), "PRESSES", font=fonts.get(16, bold=True), fill=(148, 163, 184))
+        draw.text((x0 + pad_x, curr_y + 28), f"{step + 1:,}", font=fonts.get(48, bold=True), fill=(56, 189, 248))
+        curr_y += step_y
+
+        # 6. Optional level progress (for montage)
+        if progress_text:
+            _draw_section("PROGRESS", progress_text, default_size=30, fill=(250, 204, 21))
+
+    else:
+        # Compact fallback for smaller scale/box
+        draw.text((x0 + 30, y0 + 26), "POKEDREAMER STATUS", font=fonts.get(14, bold=True), fill=(100, 116, 139))
+        draw.line([(x0 + 30, y0 + 52), (x1 - 30, y0 + 52)], fill=(34, 45, 58), width=1)
+
+        curr_y = y0 + 68
+
+        # 1. Map name
+        draw.text((x0 + 30, curr_y), "CURRENT MAP", font=fonts.get(13), fill=(148, 163, 184))
+        draw.text((x0 + 30, curr_y + 22), map_name or "—", font=fonts.get(22, bold=True), fill=(248, 250, 252))
+        curr_y += 66
+
+        # 2. System 2 Goal
+        draw.text((x0 + 30, curr_y), "SYSTEM 2 GOAL", font=fonts.get(13), fill=(148, 163, 184))
+        draw.text((x0 + 30, curr_y + 22), str(goal).upper() if goal else "—", font=fonts.get(22, bold=True), fill=(248, 250, 252))
+        curr_y += 66
+
+        # 3. Active Leg
+        draw.text((x0 + 30, curr_y), "ACTIVE NAVIGATION LEG", font=fonts.get(13), fill=(148, 163, 184))
+        leg_str = leg if leg else "—"
+        draw.text((x0 + 30, curr_y + 22), leg_str, font=fonts.get(20, bold=True), fill=(147, 197, 253))
+        curr_y += 66
+
+        # 4. Control Badge
+        draw.text((x0 + 30, curr_y), "CONTROL MODE", font=fonts.get(13), fill=(148, 163, 184))
+        badge_text, badge_bg, badge_border, badge_fg = get_hud_badge(in_battle, by)
+        badge_font = fonts.get(18, bold=True)
+        tb = draw.textbbox((0, 0), badge_text, font=badge_font)
+        bw, bh = tb[2] - tb[0], tb[3] - tb[1]
+        pill_w = bw + 32
+        pill_h = bh + 16
+        pill_y = curr_y + 22
+        draw.rounded_rectangle(
+            [x0 + 30, pill_y, x0 + 30 + pill_w, pill_y + pill_h],
+            radius=8,
+            fill=badge_bg,
+            outline=badge_border,
+            width=2,
+        )
+        draw.text((x0 + 30 + pill_w // 2, pill_y + pill_h // 2), badge_text, font=badge_font, fill=badge_fg, anchor="mm")
+        curr_y += 68
+
+        # 5. Press Counter (step + 1)
+        draw.text((x0 + 30, curr_y), "PRESSES", font=fonts.get(13), fill=(148, 163, 184))
+        draw.text((x0 + 30, curr_y + 22), f"{step + 1:,}", font=fonts.get(30, bold=True), fill=(56, 189, 248))
+        curr_y += 66
+
+        # 6. Optional level progress (for montage)
+        if progress_text:
+            draw.text((x0 + 30, curr_y), "PROGRESS", font=fonts.get(13), fill=(148, 163, 184))
+            draw.text((x0 + 30, curr_y + 22), progress_text, font=fonts.get(20, bold=True), fill=(250, 204, 21))
 
 
 def render_title_frame(
@@ -253,7 +421,7 @@ def render_title_frame(
 
     # Text lines
     title = text_lines[0] if len(text_lines) > 0 else "PokeDreamer"
-    draw.text((cx, cy - 90), title, font=fonts.get(56, bold=True), fill=(255, 255, 255), anchor="mm")
+    draw_heading(img, draw, fonts, cx=cx, cy=cy - 90, text=title, font_size=56, icon_size=48)
     draw.line([(cx - 250, cy - 40), (cx + 250, cy - 40)], fill=(45, 58, 75), width=1)
 
     if len(text_lines) > 1:
@@ -294,7 +462,7 @@ def render_end_frame(
     )
 
     # Title header
-    draw.text((cx, cy - 210), "POKEDREAMER // EXPERIMENT RESULTS", font=fonts.get(20, bold=True), fill=(100, 116, 139), anchor="mm")
+    draw_heading(img, draw, fonts, cx=cx, cy=cy - 210, text="POKEDREAMER // EXPERIMENT RESULTS", font_size=20, icon_size=22, fill=(100, 116, 139))
     draw.line([(cx - card_w // 2 + 50, cy - 180), (cx + card_w // 2 - 50, cy - 180)], fill=(34, 45, 58), width=1)
 
     colors = [
@@ -330,7 +498,7 @@ def render_play_frame(
     step: int,
     caption: str,
     fonts: FontManager,
-    scale: int = 4,
+    scale: int = PLAY_SCALE,
     progress_text: Optional[str] = None,
 ) -> np.ndarray:
     """Renders a standard play or montage frame with Game Boy canvas and left HUD."""
@@ -340,23 +508,30 @@ def render_play_frame(
     fw = 160 * scale
     fh = 144 * scale
 
-    if scale == 4:
-        fx = 640
-        fy = 190
-        hud_box = (100, 190, 560, 190 + fh)
-    else:  # scale == 5
+    if scale == 6:
+        fx = CANVAS_WIDTH - PLAY_OUTER_MARGIN - fw
+        fy = PLAY_FRAME_Y
+        hud_box = (PLAY_OUTER_MARGIN, fy, fx - PLAY_GAP, fy + fh)
+    elif scale == 5:
         fx = 760
         fy = 150
         hud_box = (80, 150, 680, 150 + fh)
+    else:  # scale == 4
+        fx = 640
+        fy = 190
+        hud_box = (100, 190, 560, 190 + fh)
 
-    # 1. Scale and paste game frame
+    # 1. Heading band at the top centre
+    draw_heading(img, draw, fonts, cx=CANVAS_WIDTH // 2, cy=HEADING_Y, text="PokeDreamer", font_size=HEADING_FONT_SIZE)
+
+    # 2. Scale and paste game frame
     scaled = cv2.resize(color_frame, (fw, fh), interpolation=cv2.INTER_NEAREST)
     img.paste(Image.fromarray(scaled), (fx, fy))
 
-    # 2. Rounded border around game frame
+    # 3. Rounded border around game frame
     draw.rounded_rectangle([fx - 3, fy - 3, fx + fw + 3, fy + fh + 3], radius=10, outline=(60, 75, 95), width=2)
 
-    # 3. HUD on the left column
+    # 4. HUD on the left column
     draw_hud_card(
         draw=draw,
         fonts=fonts,
@@ -370,10 +545,10 @@ def render_play_frame(
         progress_text=progress_text,
     )
 
-    # 4. Caption centred under the frame
+    # 5. Caption centred under the game frame
     if caption:
         cap_x = fx + fw // 2
-        cap_y = fy + fh + 60
+        cap_y = fy + fh + (58 if scale == 6 else 60)
         draw.text((cap_x, cap_y), caption, font=fonts.get(24, bold=True), fill=(241, 245, 249), anchor="mm")
 
     return np.asarray(img)
@@ -385,18 +560,23 @@ def render_split_frame(
     caption: str,
     fonts: FontManager,
     is_anchor_flashing: bool = False,
+    scale: int = SPLIT_SCALE,
 ) -> np.ndarray:
-    """Renders side-by-side real vs dream frame comparison (each 4x)."""
+    """Renders side-by-side real vs dream frame comparison (each 5x)."""
     img = Image.new("RGB", (CANVAS_WIDTH, CANVAS_HEIGHT), BG_COLOR)
     draw = ImageDraw.Draw(img)
 
-    fw, fh = 640, 576
-    lx, ly = 280, 190
-    rx, ry = 1000, 190
+    fw, fh = 160 * scale, 144 * scale
+    lx = SPLIT_MARGIN_X
+    rx = lx + fw + SPLIT_GAP
+    ly = ry = SPLIT_FRAME_Y
+
+    # Heading band at top centre
+    draw_heading(img, draw, fonts, cx=CANVAS_WIDTH // 2, cy=HEADING_Y, text="PokeDreamer", font_size=HEADING_FONT_SIZE)
 
     # 1. Labels above frames
-    draw.text((lx + fw // 2, ly - 40), "REAL GAME", font=fonts.get(26, bold=True), fill=(226, 232, 240), anchor="mm")
-    draw.text((rx + fw // 2, ly - 40), "WORLD MODEL'S IMAGINATION", font=fonts.get(26, bold=True), fill=(96, 165, 250), anchor="mm")
+    draw.text((lx + fw // 2, ly - 36), "REAL GAME", font=fonts.get(26, bold=True), fill=(226, 232, 240), anchor="mm")
+    draw.text((rx + fw // 2, ly - 36), "WORLD MODEL'S IMAGINATION", font=fonts.get(26, bold=True), fill=(96, 165, 250), anchor="mm")
 
     # 2. Real frame (left)
     scaled_real = cv2.resize(real_frame, (fw, fh), interpolation=cv2.INTER_NEAREST)
@@ -439,7 +619,7 @@ def render_split_frame(
 def compose_video(
     storyboard_path: str | Path,
     out_path: str | Path,
-    scale: int = 4,
+    scale: int = PLAY_SCALE,
     traj_color_path: str | Path = "work/video/traj/run_seed_100_color.npz",
     traj_grey_path: str | Path = "work/video/traj/run_seed_100.npz",
     dream_path: str | Path = "work/video/dream_4_8718_k10.npz",
@@ -724,11 +904,10 @@ def main():
     parser = argparse.ArgumentParser(description="Compose storyboard video for PokeDreamer")
     parser.add_argument("--storyboard", default="lab/video/storyboard.json", help="Path to storyboard JSON")
     parser.add_argument("--out", default="work/video/draft_v1.mp4", help="Path to output MP4")
-    parser.add_argument("--scale", type=int, default=4, choices=[4, 5], help="Game Boy frame scale factor")
     parser.add_argument("--traj-color", default="work/video/traj/run_seed_100_color.npz")
     parser.add_argument("--traj-grey", default="work/video/traj/run_seed_100.npz")
     parser.add_argument("--dream", default="work/video/dream_4_8718_k10.npz")
-    parser.add_argument("--stills-dir", default="work/video/draft_v1_stills")
+    parser.add_argument("--stills-dir", default=None, help="Directory to save stills")
     parser.add_argument("--fps", type=int, default=30)
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args()
@@ -736,7 +915,7 @@ def main():
     compose_video(
         storyboard_path=args.storyboard,
         out_path=args.out,
-        scale=args.scale,
+        scale=PLAY_SCALE,
         traj_color_path=args.traj_color,
         traj_grey_path=args.traj_grey,
         dream_path=args.dream,
