@@ -21,7 +21,7 @@ All numbers **measured** in the real game (Pokémon Red ROM, SHA-1 ea9bcae6...; 
 | MPC in the world model | 21 | **21/21 = 100% [84.5, 100]** | **27 (26-29)**, 23-49 |
 | Greedy with RAM | 200 | 195/200 = 97.5% [94.3, 98.9] | 36 (30-40), 24-59 |
 | Random | 200 | 0/200 = 0% (30/200 reached the 1st floor) | n/a |
-| (shortest route, scripted in `v1/scripts/make_save_state.py`) | n/a | n/a | ~22 |
+| (shortest route, scripted in `legacy/v1/scripts/make_save_state.py`) | n/a | n/a | ~22 |
 
 MPC needs **9 fewer presses** than greedy: median difference -9 [-10, -6] (bootstrap 95% CI); Mann-Whitney U=761, z=-4.73, p=2e-6. Both know where the exits are. The difference is foresight: the planner imagines which presses run into furniture or walls, while greedy has to bump into them to find out.
 

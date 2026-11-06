@@ -33,9 +33,9 @@ checkpoints/
 !checkpoints/**/*.png
 
 # v2 archive — exclude model weights, keep code + videos + images
-v2/checkpoints/**/*.pt
-!v2/checkpoints/**/*.mp4
-!v2/checkpoints/**/*.png
+legacy/v2/checkpoints/**/*.pt
+!legacy/v2/checkpoints/**/*.mp4
+!legacy/v2/checkpoints/**/*.png
 
 # Jupyter
 .ipynb_checkpoints/

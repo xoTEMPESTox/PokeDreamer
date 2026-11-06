@@ -63,7 +63,7 @@ Needs Priyanshu's sign-off (the project rules keep these off-limits to agents):
 - [ ] (P) New top-level `README.md`: abstract, headline results table, hero video, figure, how to run, honesty notes, citation (draft in `agent_notes/README_draft.md`)
 - [ ] (P) `LICENSE` (code) and a statement that no ROM or game assets are distributed
 - [ ] (P) `CITATION.cff`
-- [ ] (P) `v3.md` and `docs/v3.html` updated to the final numbers, or folded into the website paper
+- [ ] (P) `legacy/v3.md` (moved) and `docs/v3.html` updated to the final numbers, or folded into the website paper
 
 ## 7. Launch (after 1-6; needs Priyanshu throughout)
 - [ ] Portfolio case study page
