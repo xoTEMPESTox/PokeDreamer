@@ -20,7 +20,7 @@ Legend: [x] done · [~] in progress · [ ] open · (P) needs Priyanshu
 - [x] Native tile ids from the emulator per (tileset, tile): screen rebuilt at 99.94% pixel agreement (`lab/color/native.py`, 7c45f49)
 - [x] Stage 1 colorizer: exact per-tile colour on real frames; 107 tiles labelled by Claude (95% of non-battle pixels), rules for text, player, NPCs, battles (`lab/color/rules.py`, `labels.json`, `palette.json`); preview `work/color/demo/demo_v2.png`
 - [ ] (P) Review the colours (`work/color/demo/demo_v2.png`); palette direction
-- [~] Stage 2 colorizer: CNN predicting each pixel's class from the 72x80 frame, trained on stage-1 targets; held-out accuracy (agy `color_learned`)
+- [x] Stage 2 colorizer: per-pixel class CNN for 72x80 frames, held-out pixel accuracy 99.27% (`lab/color/learned.py`, 81cc078)
 - [ ] `lab/render.py`: one entry point, gray frame -> upsampled color frame; used by the video and the live-run recorder
 
 ## 3. Research visuals for the site (static PNG + SVG from `work/`)
@@ -32,9 +32,11 @@ Legend: [x] done · [~] in progress · [ ] open · (P) needs Priyanshu
 - [x] Source run recorded in colour: seed 100, best set, badge in 8,718 presses, every navigation press by a policy (fd8d7ea; `work/video/`)
 - [x] 4x colour preview + scene list (`work/video/preview_s100_color.mp4`, `scenes.json`)
 - [ ] (P) Storyboard approved (draft: `agent_notes/video_storyboard.md`)
-- [ ] Three 5-second voxel candidates of different areas rendered for the look decision (`lab/viz/`)
-- [ ] Full render (1080p, 24 fps; ~15 h CPU or ~2 h GPU)
-- [ ] Captions, timing overlay, badge ending; export `work/videos/v3_hero.mp4`
+- [x] World-model frames aligned with the run (`lab/video/dream.py`, K=10 = the imagination-RL horizon)
+- [x] Storyboard-driven 1080p composer (`lab/video/compose.py`, `storyboard.json`; 6fffa78)
+- [~] Draft 2 rendered: `work/video/draft_v2.mp4` (60 s, 1920x1080); (P) review
+- [ ] (P) Optional 5 s voxel opener (`lab/viz` Plan A)
+- [ ] Final render after review
 
 ## 5. Repo: clone and run
 - [x] `lab/WEIGHTS.md`, `lab/get_weights.py`, `lab/README.md` (4221ef3)
