@@ -5,9 +5,10 @@ Runs:
 2. fig_leg_failures
 3. fig_leg_success
 4. fig_door_warp
-5. fig_battle_fidelity
-6. fig_gpu_ledger
-7. fig_quest_presses
+5. fig_drift_permap
+6. fig_battle_fidelity
+7. fig_gpu_ledger
+8. fig_quest_presses
 
 Prints each caption and verifies output files.
 """
@@ -22,6 +23,7 @@ from lab.figures import (
     fig_battle_fidelity,
     fig_gpu_ledger,
     fig_quest_presses,
+    fig_drift_permap,
 )
 
 FIGURE_MODULES = [
@@ -29,6 +31,7 @@ FIGURE_MODULES = [
     ("fig_leg_failures", fig_leg_failures),
     ("fig_leg_success", fig_leg_success),
     ("fig_door_warp", fig_door_warp),
+    ("fig_drift_permap", fig_drift_permap),
     ("fig_battle_fidelity", fig_battle_fidelity),
     ("fig_gpu_ledger", fig_gpu_ledger),
     ("fig_quest_presses", fig_quest_presses),
