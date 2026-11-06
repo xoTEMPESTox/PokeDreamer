@@ -22,81 +22,87 @@ MANIFEST = {
     # --- Core Models ---
     "wm31": {
         "local": "work/runs/wm31/ckpt.pt",
-        "remote": "v3/runs/wm31/ckpt.pt",
+        "remote": "v3/release/runs/wm31/ckpt.pt",
         "desc": "DIAMOND diffusion world model checkpoint (114.8k steps, EDM denoiser U-Net)",
         "category": "core",
     },
     "probe_ext": {
         "local": "work/probe_ext/probe.pt",
-        "remote": "v3/probe_ext/probe.pt",
+        "remote": "v3/release/probe_ext/probe.pt",
         "desc": "CNN FrameProbe reading RAM labels (map ID, coordinates, battle flag) from 72x80 frame",
         "category": "core",
     },
     "upsampler": {
         "local": "work/upsampler/upsampler.pt",
-        "remote": "v3/upsampler/upsampler.pt",
+        "remote": "v3/release/upsampler/upsampler.pt",
         "desc": "0.7M-param CNN upsampler restoring 72x80 greyscale to native 144x160 4-shade frames",
+        "category": "core",
+    },
+    "colorizer": {
+        "local": "work/color/learned/model.pt",
+        "remote": "v3/release/color/learned/model.pt",
+        "desc": "Stage-2 colorizer (per-pixel tile-class CNN) for displaying 72x80 frames in colour; display only",
         "category": "core",
     },
 
     # --- 10 Best Leg Policies (5 travel legs + 5 movement legs) ---
     "to_route2_wm31_gate_s0": {
         "local": "work/agent_rl/to_route2_wm31_gate_s0/policy.pt",
-        "remote": "v3/agent_rl/to_route2_wm31_gate_s0/policy.pt",
+        "remote": "v3/release/agent_rl/to_route2_wm31_gate_s0/policy.pt",
         "desc": "Travel Leg 1: Viridian City -> Route 2 (move-gate reward, seed 0)",
         "category": "legs",
     },
     "to_gate_wm31_gate_s0": {
         "local": "work/agent_rl/to_gate_wm31_gate_s0/policy.pt",
-        "remote": "v3/agent_rl/to_gate_wm31_gate_s0/policy.pt",
+        "remote": "v3/release/agent_rl/to_gate_wm31_gate_s0/policy.pt",
         "desc": "Travel Leg 2: Route 2 -> Viridian Forest South Gate (move-gate reward, seed 0)",
         "category": "legs",
     },
     "forest_wm31_gate_s0": {
         "local": "work/agent_rl/forest_wm31_gate_s0/policy.pt",
-        "remote": "v3/agent_rl/forest_wm31_gate_s0/policy.pt",
+        "remote": "v3/release/agent_rl/forest_wm31_gate_s0/policy.pt",
         "desc": "Travel Leg 3: Viridian Forest maze (move-gate reward, seed 0)",
         "category": "legs",
     },
     "to_pewter_wm31_gate_s0": {
         "local": "work/agent_rl/to_pewter_wm31_gate_s0/policy.pt",
-        "remote": "v3/agent_rl/to_pewter_wm31_gate_s0/policy.pt",
+        "remote": "v3/release/agent_rl/to_pewter_wm31_gate_s0/policy.pt",
         "desc": "Travel Leg 4: North Gate -> Pewter City (move-gate reward, seed 0)",
         "category": "legs",
     },
     "to_gym_wm31_gate_s0": {
         "local": "work/agent_rl/to_gym_wm31_gate_s0/policy.pt",
-        "remote": "v3/agent_rl/to_gym_wm31_gate_s0/policy.pt",
+        "remote": "v3/release/agent_rl/to_gym_wm31_gate_s0/policy.pt",
         "desc": "Travel Leg 5: Pewter City -> Brock's Gym door (move-gate reward, seed 0)",
         "category": "legs",
     },
     "to_grass_wm31_gate_s0": {
         "local": "work/agent_rl/to_grass_wm31_gate_s0/policy.pt",
-        "remote": "v3/agent_rl/to_grass_wm31_gate_s0/policy.pt",
+        "remote": "v3/release/agent_rl/to_grass_wm31_gate_s0/policy.pt",
         "desc": "Movement Leg 1: Viridian City -> Route 1 grinding grass patch (move-gate, seed 0)",
         "category": "legs",
     },
     "to_viridian_pc_wm31_gate_s0": {
         "local": "work/agent_rl/to_viridian_pc_wm31_gate_s0/policy.pt",
-        "remote": "v3/agent_rl/to_viridian_pc_wm31_gate_s0/policy.pt",
+        "remote": "v3/release/agent_rl/to_viridian_pc_wm31_gate_s0/policy.pt",
         "desc": "Movement Leg 2: Route 1 grass -> Viridian PokeCenter (move-gate, seed 0)",
         "category": "legs",
     },
     "leave_viridian_pc_wm31_gate_s0": {
         "local": "work/agent_rl/leave_viridian_pc_wm31_gate_s0/policy.pt",
-        "remote": "v3/agent_rl/leave_viridian_pc_wm31_gate_s0/policy.pt",
+        "remote": "v3/release/agent_rl/leave_viridian_pc_wm31_gate_s0/policy.pt",
         "desc": "Movement Leg 3: Exit Viridian PokeCenter to street (move-gate, seed 0)",
         "category": "legs",
     },
     "to_pewter_pc_wm31_gate_it1800_s0": {
         "local": "work/agent_rl/to_pewter_pc_wm31_gate_it1800_s0/policy.pt",
-        "remote": "v3/agent_rl/to_pewter_pc_wm31_gate_it1800_s0/policy.pt",
+        "remote": "v3/release/agent_rl/to_pewter_pc_wm31_gate_it1800_s0/policy.pt",
         "desc": "Movement Leg 4: Pewter City -> Pewter PokeCenter (move-gate, 1800 it, seed 0)",
         "category": "legs",
     },
     "leave_pewter_pc_wm31_gate_mc_s0": {
         "local": "work/agent_rl/leave_pewter_pc_wm31_gate_mc_s0/policy.pt",
-        "remote": "v3/agent_rl/leave_pewter_pc_wm31_gate_mc_s0/policy.pt",
+        "remote": "v3/release/agent_rl/leave_pewter_pc_wm31_gate_mc_s0/policy.pt",
         "desc": "Movement Leg 5: Exit Pewter PokeCenter to street (move-gate, merged centers, seed 0)",
         "category": "legs",
     },
@@ -104,19 +110,19 @@ MANIFEST = {
     # --- 3 Headline v3 Agent Navigation Policies ---
     "leave_house": {
         "local": "work/agent_rl/leave_house/policy.pt",
-        "remote": "v3/agent_rl/leave_house/policy.pt",
+        "remote": "v3/release/agent_rl/leave_house/policy.pt",
         "desc": "Imagination RL: Red bedroom -> Pallet Town exit (it 640; 100/100 success)",
         "category": "headline_agent",
     },
     "route1": {
         "local": "work/agent_rl/route1/policy.pt",
-        "remote": "v3/agent_rl/route1/policy.pt",
+        "remote": "v3/release/agent_rl/route1/policy.pt",
         "desc": "Imagination RL: Pallet Town -> Route 1 (100/100 success, 22 median presses)",
         "category": "headline_agent",
     },
     "viridian_geo_clip": {
         "local": "work/agent_rl/viridian_geo_clip/policy.pt",
-        "remote": "v3/agent_rl/viridian_geo_clip/policy.pt",
+        "remote": "v3/release/agent_rl/viridian_geo_clip/policy.pt",
         "desc": "Imagination RL: Pallet Town -> Viridian City (geodesic + clip; 100/100 success)",
         "category": "headline_agent",
     },
@@ -124,61 +130,61 @@ MANIFEST = {
     # --- 10 PPO Real-Game Baselines ---
     "ppo_leave_house": {
         "local": "work/ppo_real/leave_house/policy.pt",
-        "remote": "v3/agent_rl/ppo_real_leave_house/policy.pt",
+        "remote": "v3/release/agent_rl/ppo_real_leave_house/policy.pt",
         "desc": "PPO real-game baseline: leave_house (seed 42; 100/100 success)",
         "category": "ppo",
     },
     "ppo_leave_house_s1": {
         "local": "work/ppo_real/leave_house_s1/policy.pt",
-        "remote": "v3/agent_rl/ppo_real_leave_house_s1/policy.pt",
+        "remote": "v3/release/agent_rl/ppo_real_leave_house_s1/policy.pt",
         "desc": "PPO real-game baseline: leave_house (seed 1; 100/100 success)",
         "category": "ppo",
     },
     "ppo_leave_house_s2": {
         "local": "work/ppo_real/leave_house_s2/policy.pt",
-        "remote": "v3/agent_rl/ppo_real_leave_house_s2/policy.pt",
+        "remote": "v3/release/agent_rl/ppo_real_leave_house_s2/policy.pt",
         "desc": "PPO real-game baseline: leave_house (seed 2; 100/100 success)",
         "category": "ppo",
     },
     "ppo_route1": {
         "local": "work/ppo_real/route1/policy.pt",
-        "remote": "v3/agent_rl/ppo_real_route1/policy.pt",
+        "remote": "v3/release/agent_rl/ppo_real_route1/policy.pt",
         "desc": "PPO real-game baseline: route1 (seed 42; 98/100 success)",
         "category": "ppo",
     },
     "ppo_route1_s1": {
         "local": "work/ppo_real/route1_s1/policy.pt",
-        "remote": "v3/agent_rl/ppo_real_route1_s1/policy.pt",
+        "remote": "v3/release/agent_rl/ppo_real_route1_s1/policy.pt",
         "desc": "PPO real-game baseline: route1 (seed 1; 100/100 success)",
         "category": "ppo",
     },
     "ppo_route1_s2": {
         "local": "work/ppo_real/route1_s2/policy.pt",
-        "remote": "v3/agent_rl/ppo_real_route1_s2/policy.pt",
+        "remote": "v3/release/agent_rl/ppo_real_route1_s2/policy.pt",
         "desc": "PPO real-game baseline: route1 (seed 2; 100/100 success)",
         "category": "ppo",
     },
     "ppo_viridian": {
         "local": "work/ppo_real/viridian/policy.pt",
-        "remote": "v3/agent_rl/ppo_real_viridian/policy.pt",
+        "remote": "v3/release/agent_rl/ppo_real_viridian/policy.pt",
         "desc": "PPO real-game baseline: viridian (Manhattan reward, seed 42; 100/100 success)",
         "category": "ppo",
     },
     "ppo_viridian_s1": {
         "local": "work/ppo_real/viridian_s1/policy.pt",
-        "remote": "v3/agent_rl/ppo_real_viridian_s1/policy.pt",
+        "remote": "v3/release/agent_rl/ppo_real_viridian_s1/policy.pt",
         "desc": "PPO real-game baseline: viridian (seed 1; 100/100 success)",
         "category": "ppo",
     },
     "ppo_viridian_s2": {
         "local": "work/ppo_real/viridian_s2/policy.pt",
-        "remote": "v3/agent_rl/ppo_real_viridian_s2/policy.pt",
+        "remote": "v3/release/agent_rl/ppo_real_viridian_s2/policy.pt",
         "desc": "PPO real-game baseline: viridian (seed 2; 99/100 success)",
         "category": "ppo",
     },
     "ppo_viridian_geo": {
         "local": "work/ppo_real/viridian_geo/policy.pt",
-        "remote": "v3/agent_rl/ppo_real_viridian_geo/policy.pt",
+        "remote": "v3/release/agent_rl/ppo_real_viridian_geo/policy.pt",
         "desc": "PPO real-game baseline: viridian (geodesic reward, seed 42; 95/100 success)",
         "category": "ppo",
     },
@@ -186,7 +192,7 @@ MANIFEST = {
     # --- Route Save States Index ---
     "route_states_index": {
         "local": "work/route_states/index.json",
-        "remote": "v3/route_states/index.json",
+        "remote": "v3/release/route_states/index.json",
         "desc": "Index metadata for route save states (seed, map_id, x, y, level, hp)",
         "category": "route_states",
     },
@@ -237,7 +243,7 @@ for _st in _ROUTE_STATES:
     _key = f"state_{Path(_st).stem}"
     MANIFEST[_key] = {
         "local": f"work/route_states/{_st}",
-        "remote": f"v3/route_states/{_st}",
+        "remote": f"v3/release/route_states/{_st}",
         "desc": f"PyBoy emulator route save state: {_st}",
         "category": "route_states",
     }
