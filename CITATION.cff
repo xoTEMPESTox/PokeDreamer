@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this code or its results, please cite it as below."
+title: "PokeDreamer: measuring a diffusion world model of Pokémon Red with RAM ground truth"
+authors:
+  - family-names: Sah
+    given-names: Priyanshu
+    alias: xoTEMPESTox
+repository-code: "https://github.com/xoTEMPESTox/PokeDreamer"
+url: "https://pokedreamer.priyanshusah.com"
+license: MIT
+version: "v3"
+keywords:
+  - world models
+  - model-based reinforcement learning
+  - diffusion models
+  - game AI
+  - Pokémon Red
