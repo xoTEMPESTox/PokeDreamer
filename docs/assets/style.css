@@ -1426,3 +1426,105 @@ figure.glass-card figcaption {
     padding: 2px 0;
   }
 }
+
+/* v3 complete (2026-11-07) */
+.hero {
+  min-height: auto;
+  padding: calc(var(--nav-h) + 32px) 0 48px;
+}
+
+@media (min-width: 769px) {
+  .hero-stats {
+    max-width: 860px;
+  }
+  .stat-item {
+    padding: 0 16px;
+  }
+}
+
+.hero-media video {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  display: block;
+}
+
+.hero-stats-note {
+  max-width: 700px;
+  margin: 12px auto 0 auto;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.hero-stats-note a {
+  color: var(--accent-light);
+  text-decoration: underline;
+}
+
+.hero-stats .stat-label {
+  white-space: normal;
+  text-align: center;
+  max-width: 150px;
+  line-height: 1.3;
+}
+
+.callout-success {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: var(--success);
+  color: var(--text-secondary);
+}
+
+.callout-note {
+  background: rgba(124, 58, 237, 0.08);
+  border-color: var(--primary-light);
+  color: var(--text-secondary);
+}
+
+.gifs-grid {
+  display: grid;
+  grid-template-columns: 38fr 62fr;
+  gap: 20px;
+  align-items: center;
+  margin-top: 24px;
+}
+
+.gifs-grid figure {
+  margin: 0;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.gifs-grid figcaption {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .gifs-grid {
+    grid-template-columns: 1fr;
+  }
+  .table-wrapper .data-table {
+    min-width: 560px;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    padding: 16px;
+  }
+  .hero-stats .stat-divider {
+    display: none;
+  }
+  .hero-stats .stat-item {
+    padding: 0 8px;
+  }
+}

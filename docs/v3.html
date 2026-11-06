@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PokéDreamer v3 (in progress): diffusion world model + System 1 trained in imagination</title>
-  <meta name="description" content="PokéDreamer v3 (in progress): diffusion world model + System 1 trained in imagination. Phase 1 measured: 100 / 100 real-game episodes, median 28 presses, trained only in imagination." />
+  <title>PokéDreamer v3: Diffusion World Model + Dream-Trained Agent</title>
+  <meta name="description" content="PokéDreamer v3: A diffusion world model of Pokémon Red and ten dream-trained navigation skills carry an agent to the Boulder Badge in the real game in 30 of 30 runs." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/style.css?v=1.4" />
+  <link rel="stylesheet" href="assets/style.css?v=1.5" />
   <script>
     (function() {
       const theme = localStorage.getItem('theme') || 'light';
@@ -24,7 +24,7 @@
         <li><a href="index.html" class="nav-link">Home</a></li>
         <li><a href="v1.html" class="nav-link">v1 - VAE+GRU</a></li>
         <li><a href="v2.html" class="nav-link">v2 - RSSM</a></li>
-        <li><a href="v3.html" class="nav-link active">v3 - In progress</a></li>
+        <li><a href="v3.html" class="nav-link active">v3 - Diffusion</a></li>
         <li><a href="api.html" class="nav-link">Code Reference</a></li>
         <li><a href="https://priyanshusah.com/projects/pokedreamer-rl" target="_blank" class="nav-link">Case Study</a></li>
         <li><a href="https://github.com/xoTEMPESTox/PokeDreamer" target="_blank" class="nav-link nav-cta">
@@ -45,17 +45,17 @@
       <div class="breadcrumb">
         <a href="index.html">Home</a>
         <span class="breadcrumb-sep">›</span>
-        <span>v3 - In progress</span>
+        <span>v3 - Diffusion</span>
       </div>
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-        <span class="version-badge v3-badge">In Progress: Phase 1 Done 🚀</span>
+        <span class="version-badge v3-badge">Completed ✓</span>
         <span style="font-size:0.8rem; color:var(--text-muted); font-family:var(--font-mono);">v3.md</span>
       </div>
       <h1 class="page-title">
-        <span style="background: linear-gradient(135deg, #f59e0b, #ef4444, #9d5ff5); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">PokéWorld v3</span><br>Diffusion World Model + System 1
+        <span style="background: linear-gradient(135deg, #f59e0b, #ef4444, #9d5ff5); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">PokéDreamer v3</span><br>Diffusion World Model + Dream-Trained Agent
       </h1>
       <p class="page-subtitle">
-        Diffusion world model + System 1 trained in imagination. Policy trained entirely inside the model's imagination and tested in the real game.
+        A diffusion world model of Pokémon Red, navigation policies trained entirely inside its imagination, and an agent that wins the Boulder Badge in 30 of 30 runs in the real game.
       </p>
     </div>
   </div>
@@ -63,15 +63,23 @@
   <div class="docs-layout">
     <aside class="docs-sidebar">
       <nav class="sidebar-nav">
-        <div class="sidebar-title">v3 (In Progress)</div>
-        <a href="#headline" class="sidebar-link active">Headline Results</a>
+        <div class="sidebar-title">v3 (Completed)</div>
+        <a href="#final-results" class="sidebar-link active">Final Results</a>
+        <a href="#badge-quest" class="sidebar-link">The Badge Quest</a>
+        <a href="#system2-bakeoff" class="sidebar-link">LLMs as System 2</a>
+        <a href="#battles-eval" class="sidebar-link">Battles Fidelity (Path B)</a>
+        <a href="#seen-in-colour" class="sidebar-link">Seen in Colour</a>
+        <a href="#compute" class="sidebar-link">Compute &amp; Model Sizes</a>
+        <a href="#phase1-results" class="sidebar-link">Phase 1 Results (2026-11-01)</a>
         <a href="#diffusion-world-model" class="sidebar-link">1. Diffusion World Model</a>
         <a href="#ram-eval" class="sidebar-link">2. RAM-Grounded Eval</a>
         <a href="#real-game" class="sidebar-link">3. Real Game Ground Truth</a>
         <a href="#ablation" class="sidebar-link">4. Ablation Study</a>
         <a href="#negative-result" class="sidebar-link">5. Negative Result</a>
+        <a href="#hybrid" class="sidebar-link">6. RAM-Conditioned Hybrid</a>
         <div class="sidebar-title">Roadmap &amp; Details</div>
-        <a href="#not-done-yet" class="sidebar-link">What Is Not Done Yet</a>
+        <a href="#status-completion" class="sidebar-link">Status at completion</a>
+        <a href="#phase-2-plan" class="sidebar-link">Phase 2 Plan (2026-11-01)</a>
         <a href="#reproducing" class="sidebar-link">Reproducing Phase 1</a>
         <a href="#caveats" class="sidebar-link">Caveats</a>
         <a href="#original-plan" class="sidebar-link">Original Plan &amp; Status</a>
@@ -80,23 +88,329 @@
     </aside>
 
     <main class="docs-content prose">
-      <!-- Status banner (the first thing on the page) -->
-      <div class="callout callout-warn" style="margin-top:0;">
-        <div class="callout-title" style="font-size:1.05rem;">In progress: Phase 1 done</div>
+      <!-- Status banners: Complete and Path B note -->
+      <div class="callout callout-success" style="margin-top:0;">
+        <div class="callout-title" style="font-size:1.05rem;">Complete</div>
         <p style="margin-bottom:0;">
-          Phase 1 (world model, real-game evaluation, a System 1 agent trained inside the model) is done and measured. System 2 (the LLM planner), longer tasks and the RAM-conditioned world model continue <strong>within v3</strong>; see <a href="#not-done-yet">What is not done yet</a>. Last updated 2026-11-01.
+          v3 is complete (2026-11-07). A diffusion world model of Pokémon Red (wm31, 16.7M parameters) and ten navigation skills trained only inside it carry an agent to the Boulder Badge in the real game in 30 of 30 runs (3 policy seeds × 10 quests); in 14 of the 30, every navigation leg was a world-model policy, with no fallback anywhere. Battles and goal sequencing are rules; local LLMs were also tested as the planner (5 of 6 reach 10/10 badges). All v3 training took 50.0 GPU-hours on one RTX 4090, ablations and failed recipes included. What is learned: how to walk between places. What is hand-written: battles and the choice of what to do next. This is not a sample-efficiency result: model-free PPO in the fast emulator reaches ≥95% on three of the navigation tasks within 10.8k-41.5k real steps (<a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_agent.md" target="_blank" rel="noopener">v3_agent.md</a>); the world model's value is as a measured object and a simulator you can train in without the game.
+        </p>
+      </div>
+
+      <div class="callout callout-note" style="margin-top:16px;">
+        <div class="callout-title" style="font-size:1.05rem;">Possible future work (Path B)</div>
+        <p style="margin-bottom:0;">
+          Teaching the agent to battle inside the dream was not attempted in v3. In v3, navigation is learned in imagination while battles and goal choice are rules. We measured whether battles could be learned the same way, and for this world model the answer is no: imagined battles end early in 74.6% of 8,913 held-out battle windows (the frame probe on real frames: 1.1%), and imagined battle screens are worse than simply repeating the last frame from 2 steps on. A model that tracks battle state over many more frames (a longer context, or battle dynamics learned from RAM) could make it possible. That is future work, not part of v3. See <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_battle_fidelity.md" target="_blank" rel="noopener">v3_battle_fidelity.md</a>.
         </p>
       </div>
 
       <p>
-        v3 is the step this project has been building toward: a <strong>DIAMOND-style diffusion world model</strong> of Pokémon Red, and an agent whose policy is trained <strong>entirely inside that model's imagination</strong> and then tested in the real game. It also introduces a measurement method: Pokémon Red's RAM gives exact ground truth (map, tile position, battle state), so imagination can be scored in game units (tiles, maps), not just pixels.
+        v3 is the step this project has been building toward: a <strong>DIAMOND-style diffusion world model</strong> of Pokémon Red, and an agent whose navigation policies were trained <strong>entirely inside that model's imagination</strong> and then tested in the real game. It also introduces a measurement method: Pokémon Red's RAM gives exact ground truth (map, tile position, battle state), so imagination can be scored in game units (tiles, maps), not just pixels.
       </p>
 
       <p>
         <strong>Units:</strong> a <em>step</em> is one button press followed by 24 Game Boy frames (≈0.4 s, the time to walk one tile). 32 steps ≈ 13 s of gameplay. These are not video frames.
       </p>
 
-      <h2 id="headline">Headline results (Phase 1, measured)</h2>
+      <!-- Final results (measured) -->
+      <h2 id="final-results">Final results (measured)</h2>
+      <p>
+        The headline numbers for v3: how reliably the dream-trained walking works in the real game, how robust it is to where it starts, whether battles could be learned the same way (no), and whether a local LLM can replace the rule-based planner. All results are measured against the emulator's RAM as ground truth.
+      </p>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Scope / Task</th>
+              <th>Result</th>
+              <th>Page</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Boulder Badge, real game, 10-leg agent</td>
+              <td><strong>30/30 runs</strong> (3 seeds × 10)</td>
+              <td><a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_gym.md" target="_blank" rel="noopener">v3_gym</a></td>
+            </tr>
+            <tr>
+              <td>Runs where every navigation leg is a world-model policy (no fallback anywhere)</td>
+              <td><strong>14/30</strong></td>
+              <td><a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_gym.md" target="_blank" rel="noopener">v3_gym</a></td>
+            </tr>
+            <tr>
+              <td>Navigation legs at 100/100 on all 3 seeds</td>
+              <td>7 of 10; to_pewter_pc 100/0/100, forest 100/69/97</td>
+              <td><a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_gym.md" target="_blank" rel="noopener">v3_gym</a></td>
+            </tr>
+            <tr>
+              <td>Start-tile robustness after fixing a reward hack (move gate)</td>
+              <td><strong>2,339/2,340</strong> episodes over 26 start tiles</td>
+              <td><a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_tile_sweep.md" target="_blank" rel="noopener">v3_tile_sweep</a></td>
+            </tr>
+            <tr>
+              <td>Can battles be trained inside this world model?</td>
+              <td><strong>No:</strong> imagined battles end early in 74.6% of held-out windows (real-frame probe: 1.1%)</td>
+              <td><a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_battle_fidelity.md" target="_blank" rel="noopener">v3_battle_fidelity</a></td>
+            </tr>
+            <tr>
+              <td>Local LLMs as System 2</td>
+              <td>5 of 6 reach 10/10 badges</td>
+              <td><a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_system2.md" target="_blank" rel="noopener">v3_system2</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- The badge quest -->
+      <h2 id="badge-quest">The badge quest</h2>
+      <p>
+        The gym quest asks whether the System 1/2 agent (learned walking, rule-based battles and goal choice) can earn the Boulder Badge (defeating Gym Leader Brock) in the real Game Boy emulator with no human input, starting from Charmander L8 in Viridian City. The agent operates under a System 1 / System 2 architecture: System 2 serves as the high-level planner over Game Boy RAM status (sequencing grinding, healing, route traversal, and gym challenges), while System 1 executes low-level navigation and battle moves. In the headline configuration with all 10 navigation legs driven by policies trained entirely inside the diffusion world model's imagination, the agent achieves <strong>30/30 badges</strong> across three policy-training seeds (10 quests each, quest seeds 100-109), with <strong>14 of 30 quests</strong> completing the full journey from Viridian City through Brock without triggering privileged pathfinding fallback anywhere. Seven of the ten navigation legs achieve 100/100 success across all three seeds; the only legs not reaching 100/100 on all seeds are <code>to_pewter_pc</code> (100 / 0 / 100, where seed 1 enters a local optimum on the Center door tile) and <code>forest</code> (100 / 69 / 97, where seed 1 stalls at an Antidote item ball that training data barely covers). See <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_gym.md" target="_blank" rel="noopener">v3_gym.md</a>.
+      </p>
+
+      <div class="gifs-grid">
+        <figure class="glass-card">
+          <img src="assets/v3/gameplay_colour.gif" alt="The agent in the real game" class="img-pixelated" loading="lazy" />
+          <figcaption>The real game: walking is a policy trained only in the world model; battles are rules.</figcaption>
+        </figure>
+        <figure class="glass-card">
+          <img src="assets/v3/real_vs_dream.gif" alt="Real game next to the world model's imagination" class="img-pixelated" loading="lazy" />
+          <figcaption>Left, the real game. Right, the world model imagining the same moments from 4 real frames and the same buttons (re-anchored every 10 steps).</figcaption>
+        </figure>
+      </div>
+
+      <figure class="glass-card" style="margin: 24px 0; padding: 16px; overflow: hidden;">
+        <img src="assets/v3/fig_door_warp.png" alt="Imagined vs real map changes per button around Pokémon Center doors and mats" style="width: 100%; border-radius: var(--radius-md); display: block;" />
+        <figcaption style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+          Policies exploit the model's errors, and RAM is what reveals it: the frame probe confuses the identical-looking Pokémon Center interiors, so pressing <em>right</em> on the Pewter Center mat looked like an exit in imagination; treating Center reads as one interior took leave_pewter_pc from 72/68/100 to 100/100/100.
+        </figcaption>
+      </figure>
+
+      <!-- Game harness: local LLMs as System 2 -->
+      <h2 id="system2-bakeoff">Game harness: local LLMs as System 2</h2>
+      <p>
+        The game harness cleanly separates high-level planning from low-level execution: System 2 selects the current sub-goal from Game Boy RAM state (e.g., when to grind, heal, travel, or enter the gym), while System 1 executes locomotion and battles. In the bake-off below the planner is the only variable: navigation is the map-reading BFS planner and battles are rules for every row, so the badge rate measures planning on top of a fixed, non-learned System 1. Only the one-run full harness demo further down combines an LLM planner with the dream-trained legs.
+      </p>
+
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Planner</th>
+              <th>Badges</th>
+              <th>Median presses</th>
+              <th>Rejected decisions</th>
+              <th>Blackouts</th>
+              <th>s per decision</th>
+              <th>Peak GPU mem</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>rules (reference)</td>
+              <td>10/10</td>
+              <td>8,508.5</td>
+              <td>–</td>
+              <td>1</td>
+              <td>–</td>
+              <td>–</td>
+            </tr>
+            <tr>
+              <td>gemma4:26b (MoE)</td>
+              <td><strong>8/10</strong></td>
+              <td>9,930.5 (8 badge runs)</td>
+              <td>2 malformed</td>
+              <td>8</td>
+              <td>8.0</td>
+              <td>20.9 GB</td>
+            </tr>
+            <tr>
+              <td>qwen3.6:35b-a3b (MoE)</td>
+              <td>10/10</td>
+              <td>8,355</td>
+              <td>18 malformed</td>
+              <td>17</td>
+              <td>34.6</td>
+              <td>22.4 GB</td>
+            </tr>
+            <tr>
+              <td>gpt-oss:20b</td>
+              <td>10/10</td>
+              <td><strong>6,233</strong></td>
+              <td>8 malformed, 3 unexecutable, 1 gym outside Pewter</td>
+              <td>14</td>
+              <td>15.3</td>
+              <td>14.4 GB</td>
+            </tr>
+            <tr>
+              <td><strong>gemma4:31b</strong></td>
+              <td><strong>10/10</strong></td>
+              <td>7,239</td>
+              <td><strong>0</strong></td>
+              <td>3</td>
+              <td>13.0</td>
+              <td>22.4 GB</td>
+            </tr>
+            <tr>
+              <td>gemma4:12b</td>
+              <td>10/10</td>
+              <td>8,145</td>
+              <td>7 malformed</td>
+              <td>4</td>
+              <td>11.7</td>
+              <td><strong>10.2 GB</strong></td>
+            </tr>
+            <tr>
+              <td>qwen3.5:9b</td>
+              <td>10/10</td>
+              <td>10,246.5</td>
+              <td>5 malformed</td>
+              <td><strong>2</strong></td>
+              <td>45.4</td>
+              <td><strong>7.8 GB</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p><strong>Key takeaways:</strong></p>
+      <ul>
+        <li><strong><code>gemma4:31b</code> is the cleanest planner:</strong> Every one of its 89 decisions passed validation without a single rejection, earning 10/10 badges with only 3 blackouts and 7,239 median presses vs 8,508.5 for the rules (10 runs each, no confidence intervals).</li>
+        <li><strong><code>gemma4:12b</code> is the practical candidate for planner + world model on one GPU:</strong> It achieves 10/10 badges in 8,145 presses with a 10.2 GB peak GPU memory footprint, which would leave room for the world model on a 24 GB card (not tested together).</li>
+      </ul>
+
+      <p>
+        Full harness demo (one run, not a measurement): with both halves swapped in, gemma4:31b as the planner and the ten dream-trained navigation skills, the agent won the badge in 7,045 presses (the rule planner with the same skills and seed: 8,718). All 8 decisions were the LLM's own (none rejected, 13.7 s each on average), and every navigation press came from a world-model policy. See <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_system2.md#full-harness-demo-llm-system-2--dream-trained-system-1-one-run-not-a-measurement" target="_blank" rel="noopener">v3_system2.md (§ Full harness demo) →</a>
+      </p>
+
+      <!-- Battles fidelity -->
+      <h2 id="battles-eval">Battles: measured, and out of reach for this model</h2>
+      <p>
+        To determine whether Pokémon battle policies could also be trained purely inside the diffusion world model (Path B), wm31 was evaluated on held-out battle windows against RAM ground truth. On the full sample of 8,913 eligible held-out battle windows (29 episodes), the empirical measurements demonstrated:
+      </p>
+      <ul>
+        <li><strong>Battles end early:</strong> In 74.6% of held-out windows, the imagined battle ends more than 3 steps before the real one (compared to only 1.1% for the frame probe on real frames). A battle policy trained in this dream would learn that encounters terminate spontaneously within ~9 steps regardless of button choices.</li>
+        <li><strong>Battle screens degrade below copy-last from step k=2:</strong> Imagined battle frames lose to the trivial copy-last baseline for all horizons k ≥ 2 (pixel MSE 0.0629 vs 0.0556 at k=2 with non-overlapping 95% bootstrap CIs; 0.2099 vs 0.1431 at k=32), showing that a 4-frame visual context fails to preserve battle state like HP bars and menus.</li>
+        <li><strong>Onset is roughly right, but duration is wrong:</strong> The world model initiates battles in 53–74% of windows when real encounters occur on grass routes, but because battle frames look visually similar across turns, the 4-frame window cannot track battle progress over time.</li>
+      </ul>
+      <p>
+        Full analysis and architectural options are detailed in <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_battle_fidelity.md" target="_blank" rel="noopener">v3_battle_fidelity.md</a>.
+      </p>
+
+      <!-- Seen in colour -->
+      <h2 id="seen-in-colour">Seen in colour</h2>
+      <p>
+        The native-resolution upsampler (0.72M parameters) restores 72×80 greyscale frames back to native 144×160 4-shade Game Boy frames with 99.980% pixel accuracy on held-out in-distribution test episodes (<code>test_id</code>, with 91.4% of frames 100% exact); it functions purely as a display post-processor and is not used by any evaluation metric (<a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/upsampler.md" target="_blank" rel="noopener">upsampler.md</a>).
+      </p>
+      <p>
+        The stage-2 learned colorizer (1.91M parameters) predicts per-pixel colour classes for 144×160 frames with 99.27% pixel class accuracy on held-out save states, serving strictly for visualization in figures and demo videos without any evaluation metric depending on it (<a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/colorizer.md" target="_blank" rel="noopener">colorizer.md</a>).
+      </p>
+
+      <!-- Compute -->
+      <h2 id="compute">Compute</h2>
+      <p>
+        All v3 training ran on a single desktop GPU (RTX 4090) and its CPU. Training time tallies every logged v3 training run, ablations and failed recipes included (76 GPU runs total, 50.0 GPU-hours); the shipped world model took 3.6 GPU-hours and each navigation skill 14.5–48.1 minutes (<a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/compute.md" target="_blank" rel="noopener">compute.md</a>).
+      </p>
+
+      <h3 style="font-size:1.1rem; margin-top:20px; color:var(--text-primary);">Training time (all v3 experiments, including ablations and failed recipes)</h3>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>what</th>
+              <th>device</th>
+              <th>runs</th>
+              <th>hours</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>diffusion world models</td>
+              <td>GPU</td>
+              <td>6</td>
+              <td>8.4</td>
+            </tr>
+            <tr>
+              <td>imagination-RL navigation policies</td>
+              <td>GPU</td>
+              <td>66</td>
+              <td>40.4</td>
+            </tr>
+            <tr>
+              <td>upsampler</td>
+              <td>GPU</td>
+              <td>2</td>
+              <td>0.8</td>
+            </tr>
+            <tr>
+              <td>colorizer (stage 2)</td>
+              <td>GPU</td>
+              <td>2</td>
+              <td>0.4</td>
+            </tr>
+            <tr>
+              <td><strong>training total</strong></td>
+              <td>GPU</td>
+              <td>76</td>
+              <td><strong>50.0</strong></td>
+            </tr>
+            <tr>
+              <td>System 2 LLM quests (bake-off, including aborted runs)</td>
+              <td>GPU (LLM) + CPU (game)</td>
+              <td>61</td>
+              <td>3.9</td>
+            </tr>
+            <tr>
+              <td>real-game PPO baseline</td>
+              <td>CPU</td>
+              <td>29</td>
+              <td>3.2</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="font-size:1.1rem; margin-top:24px; color:var(--text-primary);">What the shipped pipeline cost</h3>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>model</th>
+              <th>parameters</th>
+              <th>training</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>world model <code>wm31</code> (DIAMOND-style EDM U-Net, 72×80 greyscale)</td>
+              <td>16.7M</td>
+              <td>3.6 h: 63.7 min (<code>noaug</code>, the initialisation) + 150.1 min</td>
+            </tr>
+            <tr>
+              <td>10 navigation legs (imagination RL, one policy per leg)</td>
+              <td>1.58M each</td>
+              <td>6.4 h in total, 14.5-48.1 min per leg</td>
+            </tr>
+            <tr>
+              <td>frame probe (map and position from a frame; used for rewards)</td>
+              <td>3.1M</td>
+              <td>–</td>
+            </tr>
+            <tr>
+              <td>upsampler 72×80 → 144×160</td>
+              <td>0.72M</td>
+              <td>25 min</td>
+            </tr>
+            <tr>
+              <td>colorizer stage 2 (per-pixel colour class)</td>
+              <td>1.91M</td>
+              <td>25 min</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Phase 1 results (2026-11-01, measured) -->
+      <a id="headline"></a>
+      <h2 id="phase1-results">Phase 1 results (2026-11-01, measured)</h2>
       <p>
         <strong>An agent trained only inside the world model leaves the house in the real game.</strong> Task: start in Red's bedroom and reach Pallet Town (bedroom stairs, then the 1st floor, then the front door). Real game (PyBoy), 60-press cap:
       </p>
@@ -322,9 +636,10 @@
         <strong>Reading:</strong> the symbolic state model solves state tracking: it almost never loses the map and beats "nothing moves" on position at every horizon, which confirms that the failure was memory, not pixels. The <strong>renderer only partly follows the state it is given</strong>: rendered frames still show the wrong map 26% of the time at 32 steps (CIs overlap with the pixel-only model at this sample size). Making the renderer obey its conditioning is the next step.
       </p>
 
-      <h2 id="not-done-yet">What is not done yet</h2>
+      <a id="not-done-yet"></a>
+      <h2 id="status-completion">Status at completion (2026-11-07)</h2>
       <p>
-        v3's goal remains a System 1 + System 2 agent that makes real progress in Pokémon Red. Still to do, <strong>within v3</strong>:
+        Summary of planned v3 items at project completion:
       </p>
 
       <div class="table-wrapper">
@@ -338,33 +653,34 @@
           <tbody>
             <tr>
               <td>RAM-conditioned "hybrid" world model (symbolic state dynamics + diffusion renderer) to remove map hallucination</td>
-              <td>first result: state tracking solved (1.1% wrong map at 32 steps); renderer still drifts (26%); next: stronger conditioning, then retrain the agent on it</td>
+              <td>out of scope: first result: state tracking solved (1.1% wrong map at 32 steps); renderer still drifts (26%); the final shipped agent uses the pixel diffusion world model wm31</td>
             </tr>
             <tr>
               <td>Longer tasks without hand-given exit tiles (e.g. reach Route 1, Viridian City)</td>
-              <td>planned (Phase 2, step 2); the starter-Pokémon save state is generated by script</td>
+              <td>partly done: 10 navigation legs trained purely in imagination carry the agent from Viridian City (plus the Route 1 grind) through Route 2 and Viridian Forest to the Pewter Gym; each leg's training reward still uses hand-specified exit tiles, and goal-conditioned rewards were not done (<a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_gym.md" target="_blank" rel="noopener">v3_gym.md</a>)</td>
             </tr>
             <tr>
               <td>Multi-task System 1 (navigation, battles, menus) with goal conditioning</td>
-              <td>planned</td>
+              <td>out of scope: navigation is trained across 10 specialized leg policies; battle simulation was measured and shown to be out of reach for this model (<a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_battle_fidelity.md" target="_blank" rel="noopener">v3_battle_fidelity.md</a>), so battles remain rule-based</td>
             </tr>
             <tr>
               <td>System 2: LLM/VLM planner setting sub-goals from screenshots + RAM state</td>
-              <td>planned</td>
+              <td>done for the RAM-state half (no screenshots / VLM): local LLM planner bake-off over a text prompt of RAM state, 6 open-weight models; 5 of 6 achieve 10/10 badges, with gemma4:31b achieving zero rejected decisions (<a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_system2.md" target="_blank" rel="noopener">v3_system2.md</a>)</td>
             </tr>
             <tr>
               <td>Behaviour-cloning warm start from human play</td>
-              <td>planned</td>
+              <td>not done (out of scope): navigation policies trained from scratch in imagination via RL without BC</td>
             </tr>
             <tr>
               <td>Original targets: ≥2 badges, ≥10 Pokédex species, 50-step drift &lt; 5 tiles</td>
-              <td class="warn-cell">not reached</td>
+              <td><span class="warn-cell">not done</span>: 1 badge reached (Boulder Badge, 30/30 in <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_gym.md" target="_blank" rel="noopener">v3_gym.md</a>; catch quest reaches 10 catches but only 3 species (<a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_catch.md" target="_blank" rel="noopener">v3_catch.md</a>); drift target not reached and not measured at 50 steps: at 32 steps imagined position error is 6.84 tiles on Viridian City and 25.07 in Viridian Forest (<a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_dwm_eval.md" target="_blank" rel="noopener">v3_dwm_eval.md</a>))</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <h3 id="phase-2-plan">Phase 2 plan (work in progress)</h3>
+      <h3 id="phase-2-plan">Phase 2 plan (as written 2026-11-01)</h3>
+      <p><em>Outcome: step 1 (classifier-free guidance on the hybrid) was tried and was negative (<a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_dwm_eval.md" target="_blank" rel="noopener">v3_dwm_eval.md</a>); step 2 done (<a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_agent.md" target="_blank" rel="noopener">v3_agent.md</a>, <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_gym.md" target="_blank" rel="noopener">v3_gym.md</a>); step 3 (the agent on the hybrid) not done; step 4 (rewards without hand-given exits) not done; step 5 done for an LLM over RAM state, without screenshots (<a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_system2.md" target="_blank" rel="noopener">v3_system2.md</a>).</em></p>
       <p>Ordered; each step has a measurable success criterion, judged in the real game where possible.</p>
       <ol>
         <li><strong>Make the renderer obey its state.</strong> Fine-tune the hybrid model with classifier-free guidance on the RAM conditioning (train with the state dropped ~15% of the time; at sampling, push the prediction toward the conditioned one). <em>Success:</em> rendered wrong-map rate at 32 steps well below the current 25.9%, approaching the state model's 1.1%, without losing pixel quality.</li>
@@ -405,7 +721,7 @@ python -m lab.play --run main                        # play inside the world mod
 
       <h2 id="original-plan">Original v3 plan (2026-06) and status</h2>
       <p>
-        The original plan below is kept for reference; the status column reflects 2026-11-01.
+        The original plan below is kept for reference; the status column reflects 2026-11-07.
       </p>
 
       <div class="table-wrapper">
@@ -423,7 +739,7 @@ python -m lab.play --run main                        # play inside the world mod
             </tr>
             <tr>
               <td>Policy trained in imagination</td>
-              <td><strong>done (proof of concept)</strong>: 100/100 on one navigation task</td>
+              <td><strong>done</strong>: 10 navigation legs, 30/30 badges</td>
             </tr>
             <tr>
               <td>RAM state in the world model</td>
@@ -431,15 +747,15 @@ python -m lab.play --run main                        # play inside the world mod
             </tr>
             <tr>
               <td>System 1: BC warm start, PPO/GRPO, multi-task reward</td>
-              <td>planned</td>
+              <td>not done as planned: one actor-critic policy per leg, trained in imagination; no BC warm start, no multi-task reward</td>
             </tr>
             <tr>
               <td>System 2: multimodal LLM planner, goal tokens</td>
-              <td>planned</td>
+              <td>done for an LLM over RAM state (5 of 6 models 10/10); not multimodal</td>
             </tr>
             <tr>
               <td>End-to-end: Pallet Town → Cerulean City, ≥2 badges</td>
-              <td>planned</td>
+              <td>not reached: 1 badge (30/30)</td>
             </tr>
           </tbody>
         </table>

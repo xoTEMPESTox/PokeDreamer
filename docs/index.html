@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/style.css?v=1.4" />
+  <link rel="stylesheet" href="assets/style.css?v=1.5" />
   <script>
     (function() {
       const theme = localStorage.getItem('theme') || 'light';
@@ -32,7 +32,7 @@
         <li><a href="index.html" class="nav-link active">Home</a></li>
         <li><a href="v1.html" class="nav-link">v1 - VAE+GRU</a></li>
         <li><a href="v2.html" class="nav-link">v2 - RSSM</a></li>
-        <li><a href="v3.html" class="nav-link">v3 - In progress</a></li>
+        <li><a href="v3.html" class="nav-link">v3 - Diffusion</a></li>
         <li><a href="api.html" class="nav-link">Code Reference</a></li>
         <li><a href="https://priyanshusah.com/projects/pokedreamer-rl" target="_blank" class="nav-link">Case Study</a></li>
         <li><a href="https://github.com/xoTEMPESTox/PokeDreamer" target="_blank" class="nav-link nav-cta">
@@ -68,16 +68,14 @@
       <h1 class="hero-title">
         <span class="gradient-text">PokéDreamer</span>
       </h1>
-      <p class="hero-subtitle">Model-Based Reinforcement Learning in Pokémon Red</p>
+      <p class="hero-subtitle">Dreams the game. Learns to walk in the dream. Plays for real.</p>
       <p class="hero-desc">
-        An experimental research project applying <strong>Dreamer-style model-based RL</strong> to play 
-        Pokémon Red on a Game Boy emulator. Built from scratch - iterating from a simple VAE+GRU dynamics 
-        model to a discrete Recurrent State-Space Model trained on native-resolution pixels.
+        A world model (a diffusion network) learned to imagine Pokémon Red one screen at a time from recorded play. Ten navigation skills were trained only inside that imagination, never in the real game, and then carried an agent to the first gym badge in the real game in 30 of 30 runs, 14 of them with no fallback to map-reading navigation (battles are played by rules). The game's own memory is the ground truth that measures, in tiles and maps, where the dream is right and where it drifts.
       </p>
       <div class="hero-actions">
-        <a href="v2.html" class="btn btn-primary">
+        <a href="v3.html" class="btn btn-primary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
-          Explore v2 RSSM
+          Explore v3
         </a>
         <a href="https://priyanshusah.com/projects/pokedreamer-rl" target="_blank" class="btn btn-secondary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
@@ -90,33 +88,85 @@
         </a>
       </div>
       <figure class="glass-card hero-media">
-        <img src="assets/v3/agent_trained_in_imagination.gif" alt="v3: a policy trained only inside the diffusion world model, playing the real game" class="img-pixelated" />
+        <video id="heroVideo" class="hero-video" src="assets/v3/hook_3d.mp4" poster="assets/v3/hook_3d.jpg" autoplay muted loop playsinline></video>
         <figcaption>
-          v3: a policy trained only inside the diffusion world model, playing the real game (one episode; 100/100 successes, median 28 presses).
+          Viridian City rebuilt in 3D from the game's map data, following the agent's recorded path (procedural render in Blender).
         </figcaption>
       </figure>
+      <script>
+        (function() {
+          const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+          function handleMotion(e) {
+            const v = document.getElementById('heroVideo');
+            if (!v) return;
+            if (e.matches) {
+              v.removeAttribute('autoplay');
+              v.pause();
+              v.currentTime = 0;
+            }
+          }
+          handleMotion(mq);
+          mq.addEventListener('change', handleMotion);
+        })();
+      </script>
       <!-- Stats bar -->
       <div class="hero-stats">
         <div class="stat-item">
-          <span class="stat-value">97.8%</span>
-          <span class="stat-label">Map ID Accuracy</span>
+          <span class="stat-value">30/30</span>
+          <span class="stat-label">runs won the first gym badge (real game)</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
-          <span class="stat-value">1.29</span>
-          <span class="stat-label">Tiles Coord Error</span>
+          <span class="stat-value">10</span>
+          <span class="stat-label">walking skills learned only inside the dream</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
-          <span class="stat-value">3×</span>
-          <span class="stat-label">Drift Reduction (SS vs TF)</span>
+          <span class="stat-value">16.7M</span>
+          <span class="stat-label">world-model parameters</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
-          <span class="stat-value">160×144</span>
-          <span class="stat-label">Native Resolution</span>
+          <span class="stat-value">50 GPU-h</span>
+          <span class="stat-label">of training in total, one desktop GPU</span>
         </div>
       </div>
+      <p class="hero-stats-note">
+        Compute counts every logged v3 training run, ablations and failed recipes included; the shipped world model took 3.6 GPU-hours and each navigation skill 15-48 minutes. <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/compute.md" target="_blank" rel="noopener">compute details →</a>
+      </p>
+    </div>
+    <div class="hero-scroll-indicator">
+      <div class="scroll-arrow"></div>
+    </div>
+  </section>
+
+  <!-- In 30 seconds block -->
+  <section class="section" id="in-30-seconds">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Summary</span>
+        <h2 class="section-title">In 30 seconds</h2>
+      </div>
+      <div class="glass-card" style="padding: 24px 28px; margin-bottom: 24px;">
+        <ul style="display: flex; flex-direction: column; gap: 14px; font-size: 1.02rem; line-height: 1.6;">
+          <li>• <strong>A world model of a real game.</strong> A diffusion model learned to predict Pokémon Red frame by frame from recorded play: you press a button, it imagines the next screen.</li>
+          <li>• <strong>An agent that learned inside the dream.</strong> Ten navigation skills were trained purely in that imagination, with zero real-game steps, then dropped into the real game, where the agent wins the Boulder Badge in <strong>30/30</strong> runs.</li>
+          <li>• <strong>Measured, not eyeballed.</strong> The game's own memory says exactly where the agent and the imagined world really are, so every claim below is a number: where the dream drifts, which shortcuts the agent learned to exploit, and why battles can't be learned this way.</li>
+          <li>• <strong>Seen in colour.</strong> A neural upscaler and colorizer turn the 72x80 greyscale frames into full-resolution colour for display (99.27% per-pixel accuracy on held-out frames).</li>
+        </ul>
+      </div>
+      <div class="gifs-grid">
+        <figure class="glass-card">
+          <img src="assets/v3/gameplay_colour.gif" alt="The agent in the real game" class="img-pixelated" loading="lazy" />
+          <figcaption>The real game: walking is a policy trained only in the world model; battles are rules.</figcaption>
+        </figure>
+        <figure class="glass-card">
+          <img src="assets/v3/real_vs_dream.gif" alt="Real game next to the world model's imagination" class="img-pixelated" loading="lazy" />
+          <figcaption>Left, the real game. Right, the world model imagining the same moments from 4 real frames and the same buttons (re-anchored every 10 steps).</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
     </div>
     <div class="hero-scroll-indicator">
       <div class="scroll-arrow"></div>
@@ -130,30 +180,29 @@
         <span class="section-tag">Overview</span>
         <h2 class="section-title">What is PokéDreamer?</h2>
         <p class="section-desc">
-          PokéDreamer is a research project that teaches an agent to build an internal <em>world model</em> 
-          of Pokémon Red - then reason, plan, and act inside that imagined world rather than the real emulator.
+          PokéDreamer is a research project on world models for game agents - teaching an agent to imagine Pokémon Red, train skills inside that imagination, and measure where the dream matches the emulator's memory.
         </p>
       </div>
       <div class="concept-grid">
         <div class="concept-card glass-card">
           <div class="concept-icon">🧠</div>
           <h3>World Model</h3>
-          <p>A neural network that learns the transition dynamics of the game: given the current pixel observation and an action, predict the next frame - entirely in a compressed latent space.</p>
+          <p>A neural network that learns the game's dynamics: given recent frames and a button press, predict the next frame. v1 and v2 predict in a compressed latent space; v3 is a diffusion model that imagines the pixels directly.</p>
         </div>
         <div class="concept-card glass-card">
           <div class="concept-icon">🎮</div>
-          <h3>Imagination-Based Planning</h3>
-          <p>Instead of repeatedly stepping the emulator to explore, the agent "dreams" future trajectories inside the world model at high speed. The RSSM prior enables pure latent rollouts.</p>
+          <h3>Imagination-Based Training</h3>
+          <p>Instead of stepping the emulator, the agent practises inside the world model. v3's navigation policies were trained only on imagined rollouts, then tested zero-shot in the real game.</p>
         </div>
         <div class="concept-card glass-card">
           <div class="concept-icon">📡</div>
-          <h3>Dreamer Lineage</h3>
-          <p>Architecturally inspired by Hafner et al.'s DreamerV2/V3 - using a Recurrent State-Space Model (RSSM) with discrete categorical latents and Gumbel-Softmax straight-through gradients.</p>
+          <h3>Lineage</h3>
+          <p>v1 and v2 follow Hafner et al.'s Dreamer (a recurrent state-space model with discrete latents); v3 follows DIAMOND (Alonso et al., 2024), a diffusion world model.</p>
         </div>
         <div class="concept-card glass-card">
           <div class="concept-icon">🔬</div>
-          <h3>Research-Grade</h3>
-          <p>Built from scratch to understand every component - from the VAE bottleneck to KL-balancing in the RSSM. Not a wrapper around existing frameworks.</p>
+          <h3>Measured Against RAM</h3>
+          <p>The emulator's memory gives ground truth for every imagined frame (map, tile, battle state), so every claim is a number on held-out episodes, compared with simple baselines.</p>
         </div>
       </div>
     </div>
@@ -214,14 +263,14 @@
           </div>
           <div class="timeline-content glass-card">
             <div class="timeline-header">
-              <span class="version-badge v3-badge">In Progress: Phase 1 Done 🚀</span>
-              <h3>Diffusion World Model + Imagination RL</h3>
+              <span class="version-badge v3-badge">Completed ✓</span>
+              <h3>Diffusion World Model + Dream-Trained Agent</h3>
             </div>
-            <p>v3 is the step this project has been building toward: a DIAMOND-style diffusion world model of Pokémon Red, and an agent whose policy is trained entirely inside that model's imagination and then tested in the real game. Phase 1 is done and measured: an agent trained only inside the world model leaves the house in the real game (100 / 100 real-game episodes, median 28 presses, trained only in imagination).</p>
+            <p>A DIAMOND-style diffusion world model of Pokémon Red, and an agent whose navigation was learned entirely inside it. Ten navigation skills trained in imagination carry the agent to the Boulder Badge in the real game in 30 of 30 runs; battles and goal choice are rules, and six local LLMs were tested as the planner. Whether battles can also be trained inside the world model was measured: not with this model. It is left as future work.</p>
             <div class="timeline-metrics">
-              <div class="metric"><span class="metric-val">100 / 100</span><span class="metric-lbl">Real-Game Success</span></div>
-              <div class="metric"><span class="metric-val">28</span><span class="metric-lbl">Median Presses</span></div>
+              <div class="metric"><span class="metric-val">30/30</span><span class="metric-lbl">Boulder Badges</span></div>
               <div class="metric"><span class="metric-val">16.7M</span><span class="metric-lbl">Model Params</span></div>
+              <div class="metric"><span class="metric-val">50 GPU-h</span><span class="metric-lbl">Total Training</span></div>
               <div class="metric"><span class="metric-val">72×80</span><span class="metric-lbl">Resolution</span></div>
             </div>
             <a href="v3.html" class="timeline-link">Full v3 Documentation →</a>
@@ -297,8 +346,64 @@
       <div class="section-header">
         <span class="section-tag">Results</span>
         <h2 class="section-title">Key Experimental Findings</h2>
-        <p class="section-desc">Quantitative results from training and evaluation across both completed versions.</p>
+        <p class="section-desc">Quantitative results from training and evaluation across all three versions.</p>
       </div>
+
+      <!-- v3 (final) -->
+      <div class="results-block">
+        <h3 class="results-subtitle">
+          <span class="result-icon">🏆</span>
+          v3 (final): Headline Results (measured)
+        </h3>
+        <p class="results-desc">
+          Empirical findings grounded in Game Boy RAM state across the diffusion world model, imagination-trained navigation policies, start-tile sweeps, battle fidelity, and local LLM planners.
+        </p>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Scope / Task</th>
+                <th>Result</th>
+                <th>Page</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Boulder Badge, real game, 10-leg agent</td>
+                <td><strong>30/30 runs</strong> (3 seeds × 10)</td>
+                <td><a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_gym.md" target="_blank" rel="noopener">v3_gym</a></td>
+              </tr>
+              <tr>
+                <td>Runs where every navigation leg is a world-model policy (no fallback anywhere)</td>
+                <td><strong>14/30</strong></td>
+                <td><a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_gym.md" target="_blank" rel="noopener">v3_gym</a></td>
+              </tr>
+              <tr>
+                <td>Navigation legs at 100/100 on all 3 seeds</td>
+                <td>7 of 10; to_pewter_pc 100/0/100, forest 100/69/97</td>
+                <td><a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_gym.md" target="_blank" rel="noopener">v3_gym</a></td>
+              </tr>
+              <tr>
+                <td>Start-tile robustness after fixing a reward hack (move gate)</td>
+                <td><strong>2,339/2,340</strong> episodes over 26 start tiles</td>
+                <td><a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_tile_sweep.md" target="_blank" rel="noopener">v3_tile_sweep</a></td>
+              </tr>
+              <tr>
+                <td>Can battles be trained inside this world model?</td>
+                <td><strong>No:</strong> imagined battles end early in 74.6% of held-out windows (real-frame probe: 1.1%)</td>
+                <td><a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_battle_fidelity.md" target="_blank" rel="noopener">v3_battle_fidelity</a></td>
+              </tr>
+              <tr>
+                <td>Local LLMs as System 2</td>
+                <td>5 of 6 reach 10/10 badges</td>
+                <td><a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_system2.md" target="_blank" rel="noopener">v3_system2</a></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <h3 class="results-subtitle" style="margin-top: 40px;">v1-v2 (earlier world models)</h3>
 
       <!-- Drift Table -->
       <div class="results-block">
@@ -597,7 +702,7 @@ python legacy/v2/scripts/collect_data.py --episodes 20 --out-dir data</code></pr
               <li><a href="index.html">Home</a></li>
               <li><a href="v1.html">v1 - VAE+GRU</a></li>
               <li><a href="v2.html">v2 - RSSM</a></li>
-              <li><a href="v3.html">v3 - In progress</a></li>
+              <li><a href="v3.html">v3 - Diffusion</a></li>
               <li><a href="api.html">Code Reference</a></li>
             </ul>
           </div>
