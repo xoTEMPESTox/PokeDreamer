@@ -44,8 +44,8 @@ Legend: [x] done · [~] in progress · [ ] open · (P) needs Priyanshu
 - [x] `lab/export_weights.py` (8d0bc63): 718.7 -> 227.6 MB staged in `work/hf_stage/`, verified to load
 - [ ] Point `lab/README.md` and `lab/WEIGHTS.md` at `lab/results/` instead of the working notes
 - [ ] Reproduce commands tested from a fresh clone (ROM supplied by the user)
-- [ ] (P) Upload final weights to the existing HF repos (wm31, probe, upsampler, colorizer, 10 leg policies, PPO baseline)
-- [ ] (P) Route save states: publish or not (emulator states of a session on the user's own ROM)
+- [x] HF release published 2026-11-07: `v3/release/` (65 files, 241 MB) + model and dataset cards; verified by anonymous download (88b39e4)
+- [x] Route save states published under `v3/release/route_states/` (owner's decision)
 
 ## 6. Research-repo structure (before any launch work)
 The repo must read like a research artifact on its own, since the website and posts will link to it.
