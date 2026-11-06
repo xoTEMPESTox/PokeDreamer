@@ -9,7 +9,7 @@ This page evaluates whether the diffusion world model (`wm31`) accurately simula
 
 ---
 
-Question: could a battle policy be trained inside `wm31`, the way the navigation legs were? Every number below is measured on held-out `test_ext` episodes, with RAM as the ground truth. Run: `work/chain_battle_eval.sh`, log `work/chain_battle_eval.log`.
+Question: could a battle policy be trained inside `wm31`, the way the navigation legs were? Every number below is measured on held-out `test_ext` episodes, with RAM as the ground truth. Run: [`../experiments/battle_eval.sh`](../experiments/battle_eval.sh), log `work/chain_battle_eval.log`.
 
 ## 1. Battle onset: `lab.dwm.battle_onset --run wm31 --data ext`
 Files: `work/eval/battle_onset_wm31_map{12,13,51}_ext.json`. Settings: horizon 10, 4 samples, 3 denoising steps.

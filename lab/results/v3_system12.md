@@ -34,7 +34,7 @@ Reading: healing earlier cuts blackouts by two thirds (9 to 3) for ~8% more pres
 Each run takes ~4 s of CPU (headless PyBoy), so planner variants can be compared over many runs cheaply.
 
 ## Heal-threshold sweep, 50 runs per threshold (fresh seeds 200-249, target L12, budget 6,000)
-Raw: `work/system12_sweep/h*/summary.json`; summary with bootstrap 95% CIs: `work/sweep_cpu_summary.json`; script `work/sweep_cpu.sh`.
+Raw: `work/system12_sweep/h*/summary.json`; summary with bootstrap 95% CIs: `work/sweep_cpu_summary.json`; script `work/sweep_cpu.sh` (internal run script; not published).
 
 | heal below | reached L12 | presses, mean [95% CI] | blackouts per run [95% CI] | runs with ≥1 blackout | heals per run (all succeeded) |
 |---|---|---|---|---|---|

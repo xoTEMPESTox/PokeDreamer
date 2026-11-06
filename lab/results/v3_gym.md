@@ -88,7 +88,7 @@ The "gate to_route2" rows swap only the to_route2 policy for the `--move-gate 2`
 - Caveat: gate seed 2 trained in bursts between pauses. Its iteration count, 1,780, is unchanged.
 
 ## All five travel legs on the gate reward (measured)
-to_gate, to_pewter and to_gym retrained with `--move-gate 2`, seeds 0-2, with the same iteration budgets as the step-clip runs (`work/chain_gate_legs.sh`, then `work/chain_resume_1105.sh`).
+to_gate, to_pewter and to_gym retrained with `--move-gate 2`, seeds 0-2, with the same iteration budgets as the step-clip runs ([`../experiments/travel_legs.sh`](../experiments/travel_legs.sh), then `work/chain_resume_1105.sh` (internal run script; not published)).
 
 Own evals (100 episodes, seed 200, cap 1000; `work/agent/eval_<leg>_wm31_<variant>.log`): successes/100 (median presses), seeds 0/1/2.
 
@@ -113,7 +113,7 @@ Gym quest with all five gate legs (`work/gym_learned_gateall_s{0,1,2}`). The gri
 - Note on seed 2: The initial seed-2 quest (kept in `work/gym_learned_gateall_s2_partial_to_grass`) loaded a partially trained `to_grass` checkpoint through default fallback while that leg was training, which inflated the grind presses (mean 8,670 vs 5,932). The final re-run passes the five movement legs as BFS, matching seeds 0 and 1. To reproduce any quest in this file now that movement policies exist, pass every leg explicitly.
 
 ## Learned grind and heal movement: all 10 navigation legs (measured)
-Five movement legs trained in imagination with `--move-gate 2`, seeds 0-2 (`work/chain_moves.sh`).
+Five movement legs trained in imagination with `--move-gate 2`, seeds 0-2 ([`../experiments/movement_legs.sh`](../experiments/movement_legs.sh)).
 - Iterations: to_grass and to_viridian_pc 1,800; to_pewter_pc 900; the two leave legs 600.
 - Own evals (100 episodes, seed 200, cap 1000; `work/agent/eval_<leg>_wm31_gate_s<S>.log`): successes/100 (median presses), seeds 0/1/2.
 - Greedy-geodesic baseline: `work/agent/<leg>_greedy_geo_s200.json`.
@@ -150,7 +150,7 @@ Gym quest with all 10 navigation legs on world-model policies (`work/gym_learned
   - An imagined-rollout audit near the door (`work/eval/door_rollout_audit.log`) shows the s1 policy also steps sideways in imagination (up 1 of 86 presses on the door tile), and there it earns less than s2: return 1.11 vs 3.63.
   - Up on the door tile enters in imagination 100% of the time from every arrival direction (`work/eval/door_arrival_wm31.log`).
   - So this is a local optimum of the policy optimisation, not a sim-to-real gap.
-- **Retrains, one change per leg, same iterations (`work/chain_pewter_fix.sh`; `work/agent/eval_<leg>_wm31_gate_{wd0,mc}_s<S>.log`):**
+- **Retrains, one change per leg, same iterations (`work/chain_pewter_fix.sh` (internal run script; not published); `work/agent/eval_<leg>_wm31_gate_{wd0,mc}_s<S>.log`):**
 
 | leg | old reward s0/s1/s2 | fixed s0/s1/s2 |
 |---|---|---|
@@ -164,7 +164,7 @@ Gym quest with all 10 navigation legs on world-model policies (`work/gym_learned
   - **leave_pewter_pc is the opposite case.** The old-reward control s0 at 1,200 iterations gets 87/100, median 269 (`work/agent/eval_leave_pewter_pc_wm31_gate_it1200_s0.log`), against 100/100, median 5 for `--merge-centers` at 600. More training doesn't remove the mat-loitering that the probe misread rewards.
 
 ### Best leg set (measured)
-Leg set: to_pewter_pc continued to 1,800 iterations (old reward) and leave_pewter_pc `--merge-centers`; the other 8 legs as in the moves quests. All 10 legs are passed explicitly. Runs: `work/gym_learned_best_s{0,1,2}`, script `work/chain_pewter_1800.sh`, summary `work/agg_moves.py`.
+Leg set: to_pewter_pc continued to 1,800 iterations (old reward) and leave_pewter_pc `--merge-centers`; the other 8 legs as in the moves quests. All 10 legs are passed explicitly. Runs: `work/gym_learned_best_s{0,1,2}`, script [`../experiments/quests.sh`](../experiments/quests.sh), summary `work/agg_moves.py`.
 
 | seed | badges | median presses [min, max] | blackouts | to_pewter_pc by policy | leave_pewter_pc by policy | forest by policy | BFS press share | runs with no fallback anywhere |
 |---|---|---|---|---|---|---|---|---|

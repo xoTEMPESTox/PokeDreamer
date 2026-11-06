@@ -87,7 +87,7 @@ Same start state; success: Viridian City (map 1). Route 1 has tall grass (wild b
 - **The 300-press cap is too tight once there is grass.** A 5-episode smoke test of greedy with the geodesic field gave 2/5. The 3 failures had used 220-248 of their 300 presses on battle A-presses, and their field values were consistent.
 - **The world model almost never imagines wild encounters** (see `v3_dwm_eval.md`, encounter section): battle onset within 10 steps is 27% real vs 3% imagined. So the policy cannot learn in imagination that grass costs time.
 
-**1,000-press evaluation (`work/chain_night4.sh`, protocol written before any result; 100 episodes, seed 200; `work/agent/viridian_*_s200.json`):**
+**1,000-press evaluation (`work/chain_night4.sh` (internal run script; not published), protocol written before any result; 100 episodes, seed 200; `work/agent/viridian_*_s200.json`):**
 
 | policy (real game) | success | presses: median (outside battle) |
 |---|---|---|
@@ -106,7 +106,7 @@ The geodesic field is right: privileged greedy on it solves the task every time.
 
 So learning failed despite a correct reward. 15-20% of imagined rollouts in that region contain a single-step reward of -26..-31 (probe misread / hallucinated jump), and the run's value loss was 3-6x higher. Hypothesis: those spikes break the advantage estimates.
 
-Fix: `--step-clip 1`; a press moves at most one tile. **Result, `viridian_geo_clip`** (geodesic + clip, 45 min imagination RL, 0 real steps; `work/chain_clip.sh`, same pre-declared eval; `work/agent/viridian_learned_viridian_geo_clip_s200.json`):
+Fix: `--step-clip 1`; a press moves at most one tile. **Result, `viridian_geo_clip`** (geodesic + clip, 45 min imagination RL, 0 real steps; [`../experiments/headline_rl.sh`](../experiments/headline_rl.sh), same pre-declared eval; `work/agent/viridian_learned_viridian_geo_clip_s200.json`):
 - **100/100** real-game successes Pallet -> Viridian, median 284 presses (95 outside battle);
 - every episode reached and crossed Route 1;
 - comparable to real-game PPO (100/100, 249 / 85, 54k real steps) and privileged greedy-geodesic (100/100, 266 / 97);
@@ -145,7 +145,7 @@ Final evaluations (100 episodes, seed 200, cap 1000):
 
 Files: `work/agent/viridian_learned_ppo_real_viridian{,_geo}_s200.json`; curves in `work/ppo_real/viridian{,_geo}/eval.jsonl`.
 
-**PPO across seeds** (Manhattan reward, the same as the imagination policies; seed 42 evaluated every 25k steps, so its "first ≥95%" is an upper bound; seeds 1-2 every 5k (viridian 10k); `work/ppo_real/<task>{,_s1,_s2}/eval.jsonl`, `work/agent/*_ppo_real_*_s200.json`, `work/chain_ppo2.sh`):
+**PPO across seeds** (Manhattan reward, the same as the imagination policies; seed 42 evaluated every 25k steps, so its "first ≥95%" is an upper bound; seeds 1-2 every 5k (viridian 10k); `work/ppo_real/<task>{,_s1,_s2}/eval.jsonl`, `work/agent/*_ppo_real_*_s200.json`, `work/chain_ppo2.sh` (internal run script; not published)):
 
 | task | env steps to first ≥95% (seed 42 / 1 / 2) | final 100 eps (success) | median presses |
 |---|---|---|---|

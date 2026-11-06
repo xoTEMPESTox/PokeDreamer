@@ -77,7 +77,7 @@ Full run, 64 recorded contexts per tile, on GPU with imagine_rl's exact sampling
 - probe misreads earn nothing, which was the reason for the clip, and closed loops earn exactly 0. Tested on the real field values around the ledge: the clip pays more than 3.5 for the loop, the gate pays 0.
 - Both misreads above, (18,19) and (19,8), are more than 2 tiles from the last accepted tile, so the gate rejects them.
 
-Retrained `to_route2` with `--move-gate 2`, seeds 0-2, the same 1,800 iterations and everything else unchanged (`work/chain_gate.sh`, `work/agent_rl/to_route2_wm31_gate_s{0,1,2}`, about 44 min each at the 300 W cap). Real game, 100 episodes, seed 200, cap 1000:
+Retrained `to_route2` with `--move-gate 2`, seeds 0-2, the same 1,800 iterations and everything else unchanged ([`../experiments/travel_legs.sh`](../experiments/travel_legs.sh), `work/agent_rl/to_route2_wm31_gate_s{0,1,2}`, about 44 min each at the 300 W cap). Real game, 100 episodes, seed 200, cap 1000:
 
 | policy | standard start (29,23) | quest tile (23,26) |
 |---|---|---|

@@ -123,7 +123,7 @@ For a complete manifest of file sizes, paths, and result mappings, see [`lab/WEI
 
 ## 3. Reproduction Commands (Public Results)
 
-Each command below is copied directly from the production chain scripts (`work/chain_*.sh`) and maps to a specific result table in `lab/results/`.
+Each command below is copied directly from the experiment scripts (`experiments/*.sh`) and maps to a specific result table in `lab/results/`.
 
 ### 3.1 Brock Gym Quest: 10/10 Badges with BFS Navigation
 - **Command:**
@@ -134,7 +134,7 @@ Each command below is copied directly from the production chain scripts (`work/c
 - **Result Table:** [`lab/results/v3_gym.md`](results/v3_gym.md) (10/10 badges, 8,791 ± 696 mean presses).
 
 ### 3.2 Brock Gym Quest with 5 Learned World-Model Travel Legs
-- **Command (from [`work/chain_gate_legs.sh`](../work/chain_gate_legs.sh#L18-L21)):**
+- **Command (from [`experiments/quests.sh`](experiments/quests.sh)):**
   ```bash
   python -m lab.agent.gym_quest --runs 10 --seed 100 --target-level 14 --nav learned \
     --leg-policies "to_route2=work/agent_rl/to_route2_wm31_gate_s0/policy.pt,to_gate=work/agent_rl/to_gate_wm31_gate_s0/policy.pt,forest=work/agent_rl/forest_wm31_gate_s0/policy.pt,to_pewter=work/agent_rl/to_pewter_wm31_gate_s0/policy.pt,to_gym=work/agent_rl/to_gym_wm31_gate_s0/policy.pt" \
@@ -144,17 +144,17 @@ Each command below is copied directly from the production chain scripts (`work/c
 - **Result Table:** [`lab/results/v3_gym.md`](results/v3_gym.md) (10/10 badges; 9/10 runs with zero travel fallback).
 
 ### 3.3 Brock Gym Quest with All 10 Learned Legs (5 Travel + 5 Movement)
-- **Command (from [`work/chain_pewter_1800.sh`](../work/chain_pewter_1800.sh#L27-L29)):**
+- **Command (from [`experiments/quests.sh`](experiments/quests.sh)):**
   ```bash
   python -m lab.agent.gym_quest --runs 10 --seed 100 --target-level 14 --nav learned \
     --leg-policies "to_route2=work/agent_rl/to_route2_wm31_gate_s0/policy.pt,to_gate=work/agent_rl/to_gate_wm31_gate_s0/policy.pt,forest=work/agent_rl/forest_wm31_gate_s0/policy.pt,to_pewter=work/agent_rl/to_pewter_wm31_gate_s0/policy.pt,to_gym=work/agent_rl/to_gym_wm31_gate_s0/policy.pt,to_grass=work/agent_rl/to_grass_wm31_gate_s0/policy.pt,to_viridian_pc=work/agent_rl/to_viridian_pc_wm31_gate_s0/policy.pt,leave_viridian_pc=work/agent_rl/leave_viridian_pc_wm31_gate_s0/policy.pt,to_pewter_pc=work/agent_rl/to_pewter_pc_wm31_gate_it1800_s0/policy.pt,leave_pewter_pc=work/agent_rl/leave_pewter_pc_wm31_gate_mc_s0/policy.pt" \
     --work-dir work/gym_learned_best_s0
   ```
 - **Output Files:** `work/gym_learned_best_s0/summary.json`
-- **Result Table:** [`lab/results/v3_gym.md`](results/v3_gym.md) & [`work/chain_pewter_1800.sh`](../work/chain_pewter_1800.sh).
+- **Result Table:** [`lab/results/v3_gym.md`](results/v3_gym.md) & [`experiments/quests.sh`](experiments/quests.sh).
 
 ### 3.4 Standalone Travel Leg Real-Game Evaluation (Viridian Forest)
-- **Command (from [`work/chain_moves.sh`](../work/chain_moves.sh#L28)):**
+- **Command (from [`experiments/travel_legs.sh`](experiments/travel_legs.sh)):**
   ```bash
   python -m lab.agent.mpc --task forest --policy learned --rl-name forest_wm31_gate_s0 --episodes 100 --max-steps 1000 --seed 200 --device cpu
   ```
@@ -183,10 +183,10 @@ Each command below is copied directly from the production chain scripts (`work/c
   python -m lab.agent.mpc --task viridian --policy learned --rl-name viridian_geo_clip --episodes 100 --max-steps 1000 --seed 200 --device cpu
   ```
 - **Output Files:** `work/agent/viridian_learned_viridian_geo_clip_s200.json`
-- **Result Table:** [`lab/results/v3_agent.md`](results/v3_agent.md,L120) (100/100 successes, median 284 presses).
+- **Result Table:** [`lab/results/v3_agent.md`](results/v3_agent.md#L120) (100/100 successes, median 284 presses).
 
 ### 3.8 Model-Free PPO in the Real Game (Viridian Geodesic)
-- **Command (from [`work/chain_ppo.sh`](../work/chain_ppo.sh#L8)):**
+- **Command (from [`experiments/ppo_real.sh`](experiments/ppo_real.sh)):**
   ```bash
   python -m lab.agent.ppo_real --task viridian --name viridian_geo --geodesic --cap 1000 --envs 12 --minutes 90 --max-env-steps 3000000
   ```
@@ -206,7 +206,7 @@ Each command below is copied directly from the production chain scripts (`work/c
 - **Result Tables:** [`lab/results/v3_dwm_eval.md`](results/v3_dwm_eval.md); [`lab/results/v3_battle_fidelity.md`](results/v3_battle_fidelity.md).
 
 ### 3.10 Battle Onset Evaluation (wm31 on Tall Grass)
-- **Command (from [`work/chain_battle_eval.sh`](../work/chain_battle_eval.sh#L10)):**
+- **Command (from [`experiments/battle_eval.sh`](experiments/battle_eval.sh)):**
   ```bash
   python -m lab.dwm.battle_onset --run wm31 --data ext --map 13
   ```
@@ -214,7 +214,7 @@ Each command below is copied directly from the production chain scripts (`work/c
 - **Result Table:** [`lab/results/v3_battle_fidelity.md`](results/v3_battle_fidelity.md).
 
 ### 3.11 Battle Fidelity Evaluation (Inside Battle Screens)
-- **Command (from [`work/chain_battle_eval.sh`](../work/chain_battle_eval.sh#L11)):**
+- **Command (from [`experiments/battle_eval.sh`](experiments/battle_eval.sh)):**
   ```bash
   python -m lab.dwm.battle_fidelity --run wm31 --data ext --max-windows 1024
   ```
