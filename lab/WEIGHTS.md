@@ -6,8 +6,8 @@ This manifest documents all model checkpoints, policies, and environment states 
 
 ## Hugging Face Repositories
 
-- **Model Repository:** [`xxxTEMPESTxxx/PokeDreamer`](https://huggingface.co/xxxTEMPESTxxx/PokeDreamer) (cited in [README.md](../README.md#L3), [agent_notes/AUDIT.md](../agent_notes/AUDIT.md#L9), and [work/backup_hf.py](../work/backup_hf.py#L11))
-- **Dataset Repository:** [`xxxTEMPESTxxx/PokeDreamer`](https://huggingface.co/datasets/xxxTEMPESTxxx/PokeDreamer) (`repo_type="dataset"`, cited in [README.md](../README.md#L4), [agent_notes/AUDIT.md](../agent_notes/AUDIT.md#L6), and [work/backup_hf.py](../work/backup_hf.py#L11))
+- **Model Repository:** [`xxxTEMPESTxxx/PokeDreamer`](https://huggingface.co/xxxTEMPESTxxx/PokeDreamer) (cited in [README.md](../README.md#L3), and [work/backup_hf.py](../work/backup_hf.py#L11))
+- **Dataset Repository:** [`xxxTEMPESTxxx/PokeDreamer`](https://huggingface.co/datasets/xxxTEMPESTxxx/PokeDreamer) (`repo_type="dataset"`, cited in [README.md](../README.md#L4), and [work/backup_hf.py](../work/backup_hf.py#L11))
 - **HF Directory Prefix:** All v3 assets are proposed under the `v3/` prefix (e.g. `v3/runs/wm31/ckpt.pt`) to keep existing archived v1 and v2 checkpoints intact without filename collisions (cited in [work/backup_hf.py](../work/backup_hf.py#L1-L26)).
 
 ---
