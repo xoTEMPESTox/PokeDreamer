@@ -175,14 +175,17 @@ def get_hud_badge(
     Priority:
     1. in_battles -> "rules: battle" (amber)
     2. by == "bfs" -> "path-finding fallback" (grey)
-    3. otherwise -> "world-model policy" (green)
+    3. by == "policy" -> "world-model policy" (green)
+    4. otherwise (no navigation leg pressing) -> "scripted: menus, talking" (grey)
     """
     if in_battle:
         return "rules: battle", (75, 45, 12), (180, 110, 25), (252, 211, 77)
     elif str(by).lower() == "bfs":
         return "path-finding fallback", (45, 55, 68), (100, 116, 139), (203, 213, 225)
-    else:
+    elif str(by).lower() == "policy":
         return "world-model policy", (18, 65, 36), (46, 125, 50), (110, 231, 145)
+    else:  # no navigation leg is pressing: menus, dialogue, the nurse-counter walk, grind pacing (scripted)
+        return "scripted: menus, talking", (40, 46, 56), (90, 100, 115), (190, 198, 210)
 
 
 class FontManager:

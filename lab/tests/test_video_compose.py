@@ -303,3 +303,11 @@ def test_heading_band_present_in_rendered_frames():
     heading_region_montage = montage_frame[HEADING_Y - 15 : HEADING_Y + 15, CANVAS_WIDTH // 2 - 150 : CANVAS_WIDTH // 2 + 150]
     diff_from_bg_montage = np.abs(heading_region_montage.astype(int) - np.array(BG_COLOR))
     assert np.any(diff_from_bg_montage > 30), "Montage frame heading region must contain rendered heading"
+
+
+def test_hud_badge_does_not_credit_the_policy_for_scripted_steps():
+    # by == "" outside battle means no navigation leg is pressing (menus, dialogue, the nurse-counter walk, grind
+    # pacing): 2,757 of the 8,718 recorded steps. Showing "world-model policy" there would overclaim.
+    text, _, _, _ = get_hud_badge(in_battle=False, by="")
+    assert "policy" not in text.lower() and "scripted" in text.lower()
+    assert "policy" in get_hud_badge(in_battle=False, by="policy")[0].lower()
