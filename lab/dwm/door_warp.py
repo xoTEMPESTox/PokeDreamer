@@ -30,6 +30,8 @@ CASES = {
     "viridian_pc door": (1, [(23, 26), (22, 26), (24, 26), (23, 27)]),
     "pewter_pc mat": (58, [(3, 7), (4, 7), (2, 7), (5, 7), (3, 6), (4, 6)]),
     "viridian_pc mat": (41, [(3, 7), (4, 7), (2, 7), (5, 7), (3, 6), (4, 6)]),
+    # to_pewter_pc's start tile (18,35) on Pewter's south edge: down leaves for Route 2 (13) with no fade
+    "pewter south edge": (2, [(18, 35), (17, 35), (18, 34)]),
 }
 NAMES = ["down", "left", "right", "up"]
 
