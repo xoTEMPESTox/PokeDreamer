@@ -70,7 +70,7 @@
         <a href="#dataset" class="sidebar-link">dataset.py</a>
         <a href="#gamestate" class="sidebar-link">game_state.py</a>
         <a href="#ramaddresses" class="sidebar-link">ram_addresses.py</a>
-        <div class="sidebar-title">scripts/</div>
+        <div class="sidebar-title">legacy/v2/scripts/</div>
         <a href="#collect-data" class="sidebar-link">collect_data.py</a>
         <a href="#train-rssm" class="sidebar-link">train_rssm.py</a>
         <a href="#generate-demo" class="sidebar-link">generate_demo_video_v2.py</a>
@@ -82,7 +82,7 @@
     <main class="docs-content prose">
 
       <!-- ── models.py ─────────────────────────────────────── -->
-      <h2 id="models">src/models.py</h2>
+      <h2 id="models">legacy/v2/src/models.py</h2>
       <p>
         Contains all neural network modules for the v2 RSSM world model system. All classes are <code>torch.nn.Module</code> subclasses. Import with:
       </p>
@@ -309,7 +309,7 @@
       </div>
 
       <!-- ── dataset.py ─────────────────────────────────────── -->
-      <h2 id="dataset">src/dataset.py</h2>
+      <h2 id="dataset">legacy/v2/src/dataset.py</h2>
 
       <div class="api-class">
         <div class="api-class-header">
@@ -357,7 +357,7 @@
       </div>
 
       <!-- ── game_state.py ─────────────────────────────────── -->
-      <h2 id="gamestate">src/game_state.py</h2>
+      <h2 id="gamestate">legacy/v2/src/game_state.py</h2>
       <p>Provides the <code>GameState</code> dataclass and extraction utilities for reading synchronized RAM + screen state from a live PyBoy instance.</p>
 
       <div class="api-class">
@@ -425,7 +425,7 @@
       </div>
 
       <!-- ── ram_addresses.py ─────────────────────────────── -->
-      <h2 id="ramaddresses">src/ram_addresses.py</h2>
+      <h2 id="ramaddresses">legacy/v2/src/ram_addresses.py</h2>
       <p>
         Defines all WRAM address constants for Pokémon Red (USA/Europe). Addresses are verified against documented memory maps. All addresses are integers in the <code>0xC000–0xDFFF</code> range.
       </p>
@@ -448,13 +448,13 @@
       </div>
 
       <!-- ── Scripts ─────────────────────────────────────── -->
-      <h2 id="collect-data">scripts/collect_data.py</h2>
+      <h2 id="collect-data">legacy/v2/scripts/collect_data.py</h2>
       <p>
         Runs the PyBoy emulator with the PWhiddy frozen PPO checkpoint as behavior policy, collecting native-resolution transition data into NPZ files.
       </p>
       <div class="code-block">
         <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-        <pre><code>python scripts/collect_data.py \
+        <pre><code>python legacy/v2/scripts/collect_data.py \
     --episodes 20 \          # number of episodes to collect
     --out-dir data \         # output directory for NPZ files
     --rom path/to/rom.gb \   # path to Pokémon Red ROM
@@ -462,11 +462,11 @@
       </div>
       <p>Output: one <code>transitions_{i:04d}.npz</code> per episode, each containing obs, actions, rewards, episode_starts, and all RAM fields.</p>
 
-      <h2 id="train-rssm">scripts/train_rssm.py</h2>
+      <h2 id="train-rssm">legacy/v2/scripts/train_rssm.py</h2>
       <p>Trains the full RSSM world model - encoder, RSSMCell, decoder, reward predictor, continue predictor - with the multi-task loss including KL balancing.</p>
       <div class="code-block">
         <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-        <pre><code>python scripts/train_rssm.py \
+        <pre><code>python legacy/v2/scripts/train_rssm.py \
     --data-dir data \             # NPZ dataset directory
     --epochs 12 \                 # training epochs
     --batch-size 64 \             # batch size
@@ -476,39 +476,39 @@
     --category-num 32 \           # classes per variable
     --kl-alpha 0.8 \              # KL balancing weight
     --lr 3e-4 \                   # learning rate
-    --out-dir checkpoints/rssm_v2 # output directory</code></pre>
+    --out-dir legacy/v2/checkpoints/rssm_v2 # output directory</code></pre>
       </div>
       <p>Saves per-epoch checkpoints, reconstruction grids, and the best model by validation reconstruction loss.</p>
 
-      <h2 id="generate-demo">scripts/generate_demo_video_v2.py</h2>
+      <h2 id="generate-demo">legacy/v2/scripts/generate_demo_video_v2.py</h2>
       <p>Generates the side-by-side demo video: real emulator (left) vs. RSSM imagination (right). The imagination panel runs purely from the RSSM prior - no emulator access.</p>
       <div class="code-block">
         <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-        <pre><code>python scripts/generate_demo_video_v2.py \
-    --checkpoint checkpoints/rssm_v2/best_world_model.pt \
+        <pre><code>python legacy/v2/scripts/generate_demo_video_v2.py \
+    --checkpoint legacy/v2/checkpoints/rssm_v2/best_world_model.pt \
     --save-state saves/intro_done.state \
     --steps 200 \                 # number of steps to record
     --out-video output/demo.mp4</code></pre>
       </div>
 
-      <h2 id="upload-hf">scripts/upload_to_hf.py</h2>
+      <h2 id="upload-hf">legacy/v2/scripts/upload_to_hf.py</h2>
       <p>Utility script for uploading checkpoints and datasets to Hugging Face Hub.</p>
       <div class="code-block">
         <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-        <pre><code>python scripts/upload_to_hf.py \
-    --checkpoint checkpoints/rssm_v2/best_world_model.pt \
+        <pre><code>python legacy/v2/scripts/upload_to_hf.py \
+    --checkpoint legacy/v2/checkpoints/rssm_v2/best_world_model.pt \
     --repo xxxTEMPESTxxx/PokeDreamer \
     --token $HF_TOKEN</code></pre>
       </div>
 
-      <h2 id="train-policy">scripts/train_policy.py</h2>
+      <h2 id="train-policy">legacy/v2/scripts/train_policy.py</h2>
       <p>
         v3 preparation script - trains the Actor-Critic policy inside RSSM imagination rollouts. Currently under development.
       </p>
       <div class="code-block">
         <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-        <pre><code>python scripts/train_policy.py \
-    --world-model checkpoints/rssm_v2/best_world_model.pt \
+        <pre><code>python legacy/v2/scripts/train_policy.py \
+    --world-model legacy/v2/checkpoints/rssm_v2/best_world_model.pt \
     --imagination-horizon 15 \
     --epochs 50 \
     --out-dir checkpoints/policy_v3</code></pre>

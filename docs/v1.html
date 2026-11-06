@@ -137,7 +137,7 @@
       </ul>
 
       <div class="code-block" style="margin: 20px 0;">
-        <div class="code-header"><span class="code-title">v1/src/vae.py (lines 30-51)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <div class="code-header"><span class="code-title">legacy/v1/src/vae.py (lines 30-51)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
         <pre><code>    def encode(self, x: torch.Tensor) -&gt; tuple[torch.Tensor, torch.Tensor]:
         """
         Encode the input image tensor to latents.
@@ -164,7 +164,7 @@
       <h3>Training Configuration</h3>
       <div class="code-block">
         <div class="code-header"><span class="code-lang">text</span></div>
-        <pre><code>Checkpoint:    checkpoints/vae/best_vae.pt
+        <pre><code>Checkpoint:    legacy/v1/checkpoints/vae/best_vae.pt
 Epochs:        15
 latent_dim:    32
 beta (KL):     1.0
@@ -193,7 +193,7 @@ batch_size:    128</code></pre>
       </div>
 
       <div class="code-block" style="margin: 20px 0;">
-        <div class="code-header"><span class="code-title">v1/scripts/train_dynamics.py (lines 130-140)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <div class="code-header"><span class="code-title">legacy/v1/scripts/train_dynamics.py (lines 130-140)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
         <pre><code>    for epoch in range(1, args.epochs + 1):
         # Calculate teacher forcing ratio
         if args.no_scheduled_sampling:
@@ -215,7 +215,7 @@ batch_size:    128</code></pre>
       </ul>
 
       <div class="code-block" style="margin: 20px 0;">
-        <div class="code-header"><span class="code-title">v1/src/dynamics.py (lines 82-94)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <div class="code-header"><span class="code-title">legacy/v1/src/dynamics.py (lines 82-94)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
         <pre><code>            # Concatenate latent state and action embedding
             gru_input = torch.cat([current_z, act_t], dim=-1)
             

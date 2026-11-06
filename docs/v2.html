@@ -49,7 +49,7 @@
       </div>
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
         <span class="version-badge v2-badge">Completed &amp; Archived ✓</span>
-        <span style="font-size:0.8rem; color:var(--text-muted); font-family:var(--font-mono);">v2/ · src/models.py</span>
+        <span style="font-size:0.8rem; color:var(--text-muted); font-family:var(--font-mono);">v2/ · legacy/v2/src/models.py</span>
       </div>
       <h1 class="page-title">
         <span class="gradient-text">v2: Discrete RSSM</span><br>World Model
@@ -102,7 +102,7 @@
 
       <h2 id="encoder">Residual CNN Encoder</h2>
       <p>
-        The encoder (<code><a href="api.html#encoder">src/models.py · Encoder</a></code>) maps a raw 160×144×3 Game Boy frame to a 512-dimensional embedding vector. It uses 4 downsampling convolutional layers with residual blocks at each scale.
+        The encoder (<code><a href="api.html#encoder">legacy/v2/src/models.py · Encoder</a></code>) maps a raw 160×144×3 Game Boy frame to a 512-dimensional embedding vector. It uses 4 downsampling convolutional layers with residual blocks at each scale.
       </p>
       <h3>Architecture</h3>
       <div class="code-block">
@@ -129,7 +129,7 @@ Output: (B, 512)  ← encoder embedding e_t</code></pre>
 
       <h2 id="rssm">RSSM Architecture</h2>
       <p>
-        The Recurrent State-Space Model (<code><a href="api.html#rssm">src/models.py · RSSMCell</a></code>) maintains two interacting components at each time step:
+        The Recurrent State-Space Model (<code><a href="api.html#rssm">legacy/v2/src/models.py · RSSMCell</a></code>) maintains two interacting components at each time step:
       </p>
       <ul>
         <li><strong>Deterministic path h_t</strong>: A GRU hidden state (512-dim) that carries temporal context across steps</li>
@@ -158,7 +158,7 @@ latent = concat([h_t, s_t])  # (B, 512 + 1024 = 1536)</code></pre>
       </div>
 
       <div class="code-block" style="margin: 20px 0;">
-        <div class="code-header"><span class="code-title">src/models.py (lines 153-169)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <div class="code-header"><span class="code-title">legacy/v2/src/models.py (lines 153-169)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
         <pre><code>        # 1. Deterministic update
         gru_input = torch.cat([prev_s, action], dim=-1)
         h = self.gru_cell(gru_input, prev_h)
@@ -207,7 +207,7 @@ latent = concat([h_t, s_t])  # (B, 512 + 1024 = 1536)</code></pre>
       <h3>Gumbel-Softmax Sampling</h3>
       <div class="code-block">
         <div class="code-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-        <pre><code># From src/models.py · RSSMCell.sample_stochastic()
+        <pre><code># From legacy/v2/src/models.py · RSSMCell.sample_stochastic()
 logits = logits.reshape(batch_size, self.category_num, self.class_num)
 # → (B, 32, 32)
 
@@ -266,7 +266,7 @@ sigmoid → output in [0, 1]</code></pre>
       </div>
 
       <div class="code-block" style="margin: 20px 0;">
-        <div class="code-header"><span class="code-title">scripts/train_rssm.py (lines 206-218)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+        <div class="code-header"><span class="code-title">legacy/v2/scripts/train_rssm.py (lines 206-218)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
         <pre><code>            # KL loss with KL-balancing
             prior_logits_res = prior_logits.reshape(B, T, 32, 32)
             post_logits_res = post_logits.reshape(B, T, 32, 32)
@@ -284,12 +284,12 @@ sigmoid → output in [0, 1]</code></pre>
       <h3>Training Configuration</h3>
       <div class="code-block">
         <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-        <pre><code>python scripts/train_rssm.py \
+        <pre><code>python legacy/v2/scripts/train_rssm.py \
     --data-dir data \
     --epochs 12 \
     --batch-size 64 \
     --seq-len 15 \
-    --out-dir checkpoints/rssm_v2</code></pre>
+    --out-dir legacy/v2/checkpoints/rssm_v2</code></pre>
       </div>
 
       <h2 id="dataset">Dataset</h2>
@@ -314,7 +314,7 @@ sigmoid → output in [0, 1]</code></pre>
       <h3>Data Collection</h3>
       <div class="code-block">
         <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-        <pre><code>python scripts/collect_data.py --episodes 20 --out-dir data</code></pre>
+        <pre><code>python legacy/v2/scripts/collect_data.py --episodes 20 --out-dir data</code></pre>
       </div>
 
       <h2 id="results">Training Results</h2>
@@ -341,7 +341,7 @@ sigmoid → output in [0, 1]</code></pre>
 
       <h2 id="reconstruction">Reconstruction Quality</h2>
       <p>
-        Reconstruction grids are saved during training to <code>checkpoints/rssm_v2/</code> - each grid shows a row of real Game Boy frames alongside their RSSM reconstructions. The best epoch produces visually recognizable reconstructions of the overworld, buildings, and UI elements at native 160×144 resolution.
+        Reconstruction grids are saved during training to <code>legacy/v2/checkpoints/rssm_v2/</code> - each grid shows a row of real Game Boy frames alongside their RSSM reconstructions. The best epoch produces visually recognizable reconstructions of the overworld, buildings, and UI elements at native 160×144 resolution.
       </p>
 
       <figure class="glass-card">
@@ -358,10 +358,10 @@ sigmoid → output in [0, 1]</code></pre>
       <div class="code-block">
         <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
         <pre><code># Generate side-by-side: real emulator (left) vs. RSSM imagination (right)
-python scripts/generate_demo_video_v2.py \
-    --checkpoint checkpoints/rssm_v2/best_world_model.pt \
+python legacy/v2/scripts/generate_demo_video_v2.py \
+    --checkpoint legacy/v2/checkpoints/rssm_v2/best_world_model.pt \
     --save-state saves/intro_done.state \
-    --out-video checkpoints/rssm_v2/side_by_side_demo_v2.mp4</code></pre>
+    --out-video legacy/v2/checkpoints/rssm_v2/side_by_side_demo_v2.mp4</code></pre>
       </div>
       <p>The output MP4 shows left panel (real emulator stepping actions) vs. right panel (RSSM prior imagination of the same action sequence).</p>
 
@@ -405,10 +405,10 @@ hardware:
         <table class="data-table">
           <thead><tr><th>File</th><th>Description</th></tr></thead>
           <tbody>
-            <tr><td><code>checkpoints/rssm_v2/best_world_model.pt</code></td><td>Best validation checkpoint (epoch 4, val recon 0.1003)</td></tr>
-            <tr><td><code>checkpoints/rssm_v2/rssm_epoch_*.pt</code></td><td>Per-epoch snapshots</td></tr>
-            <tr><td><code>checkpoints/rssm_v2/recon_grid_epoch_*.png</code></td><td>Reconstruction visualization grids</td></tr>
-            <tr><td><code>checkpoints/rssm_v2/side_by_side_demo_v2.mp4</code></td><td>Imagination vs. real emulator demo video</td></tr>
+            <tr><td><code>legacy/v2/checkpoints/rssm_v2/best_world_model.pt</code></td><td>Best validation checkpoint (epoch 4, val recon 0.1003)</td></tr>
+            <tr><td><code>legacy/v2/checkpoints/rssm_v2/rssm_epoch_*.pt</code></td><td>Per-epoch snapshots</td></tr>
+            <tr><td><code>legacy/v2/checkpoints/rssm_v2/recon_grid_epoch_*.png</code></td><td>Reconstruction visualization grids</td></tr>
+            <tr><td><code>legacy/v2/checkpoints/rssm_v2/side_by_side_demo_v2.mp4</code></td><td>Imagination vs. real emulator demo video</td></tr>
           </tbody>
         </table>
       </div>

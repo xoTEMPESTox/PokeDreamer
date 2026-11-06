@@ -479,7 +479,7 @@ conda activate pokemon-rl</code></pre>
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
               </div>
               <pre><code># Collect data (optional - dataset available on HF)
-python scripts/collect_data.py --episodes 20 --out-dir data</code></pre>
+python legacy/v2/scripts/collect_data.py --episodes 20 --out-dir data</code></pre>
             </div>
           </div>
         </div>
@@ -493,11 +493,11 @@ python scripts/collect_data.py --episodes 20 --out-dir data</code></pre>
                 <span class="code-lang">bash</span>
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
               </div>
-              <pre><code>python scripts/train_rssm.py \
+              <pre><code>python legacy/v2/scripts/train_rssm.py \
     --data-dir data \
     --epochs 12 \
     --batch-size 64 \
-    --out-dir checkpoints/rssm_v2</code></pre>
+    --out-dir legacy/v2/checkpoints/rssm_v2</code></pre>
             </div>
           </div>
         </div>
@@ -512,10 +512,10 @@ python scripts/collect_data.py --episodes 20 --out-dir data</code></pre>
                 <span class="code-lang">bash</span>
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
               </div>
-              <pre><code>python scripts/generate_demo_video_v2.py \
-    --checkpoint checkpoints/rssm_v2/best_world_model.pt \
+              <pre><code>python legacy/v2/scripts/generate_demo_video_v2.py \
+    --checkpoint legacy/v2/checkpoints/rssm_v2/best_world_model.pt \
     --save-state saves/intro_done.state \
-    --out-video checkpoints/rssm_v2/side_by_side_demo_v2.mp4</code></pre>
+    --out-video legacy/v2/checkpoints/rssm_v2/side_by_side_demo_v2.mp4</code></pre>
             </div>
           </div>
         </div>
