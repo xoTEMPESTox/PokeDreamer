@@ -9,7 +9,7 @@
 <p align="center"><img src="docs/assets/v3/opener_3d.gif" width="80%" alt="The 3D opening of the showcase video"><br><sub>The showcase's 3D opening: the first town rebuilt from the game's map data, the neural upscaler and colorizer restoring the screen, and a System 1 policy trained only in the world model walking the first leg.</sub></p>
 
 <p align="center">
-  <a href="docs/assets/v3/pokedreamer_v3_showcase.mp4"><strong>Watch showcase video (2:11)</strong></a> · <a href="https://pokedreamer.priyanshusah.com/v3.html#showcase"><strong>Interactive showcase with chapters</strong></a>
+  <a href="docs/assets/v3/pokedreamer_v3_showcase.mp4"><strong>Watch showcase video </strong></a> · <a href="https://pokedreamer.priyanshusah.com/v3.html#showcase"><strong>Interactive showcase with chapters</strong></a>
 </p>
 
 ## In 30 seconds
