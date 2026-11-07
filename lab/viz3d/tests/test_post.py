@@ -52,7 +52,7 @@ def test_grain_deterministic():
 
 
 def test_insert_replacement_range():
-    """Verify 2D swipe insert replaces exactly frames 255..290."""
+    """Verify 2D swipe insert replaces exactly frames 351..440 (shot 2d); 255 is the 3D sweep now."""
     fonts = FontManager()
     vignette = create_vignette_mask(1080, 1920)
     chroma_maps = create_chromatic_maps(1080, 1920)
@@ -61,33 +61,37 @@ def test_insert_replacement_range():
     dummy_3d = np.full((1080, 1920, 3), 50, dtype=np.uint8)
     dummy_2d = np.full((1080, 1920, 3), 200, dtype=np.uint8)
 
-    # Frame 254: should be 3D
+    # Frame 350: should be 3D
     out_254 = compose_single_frame(
-        254, dummy_3d, fonts, captions, vignette, chroma_maps, insert_2d_frame=dummy_2d
+        350, dummy_3d, fonts, captions, vignette, chroma_maps, insert_2d_frame=dummy_2d
     )
     assert abs(float(out_254[540, 960].mean()) - 50.0) < 5.0
 
-    # Frame 255: should be 2D insert
+    # Frame 351: should be 2D insert
     out_255 = compose_single_frame(
-        255, dummy_3d, fonts, captions, vignette, chroma_maps, insert_2d_frame=dummy_2d
+        351, dummy_3d, fonts, captions, vignette, chroma_maps, insert_2d_frame=dummy_2d
     )
     assert abs(float(out_255[540, 960].mean()) - 200.0) < 5.0
 
-    # Frame 290: should be 2D insert
+    # Frame 440: should be 2D insert
     out_290 = compose_single_frame(
-        290, dummy_3d, fonts, captions, vignette, chroma_maps, insert_2d_frame=dummy_2d
+        440, dummy_3d, fonts, captions, vignette, chroma_maps, insert_2d_frame=dummy_2d
     )
     assert abs(float(out_290[540, 960].mean()) - 200.0) < 5.0
 
-    # Frame 291: should be 3D
+    # Frame 255 (mid 3D sweep) and 441: should be 3D
+    out_old = compose_single_frame(
+        255, dummy_3d, fonts, captions, vignette, chroma_maps, insert_2d_frame=dummy_2d
+    )
+    assert abs(float(out_old[540, 960].mean()) - 50.0) < 5.0
     out_291 = compose_single_frame(
-        291, dummy_3d, fonts, captions, vignette, chroma_maps, insert_2d_frame=dummy_2d
+        441, dummy_3d, fonts, captions, vignette, chroma_maps, insert_2d_frame=dummy_2d
     )
     assert abs(float(out_291[540, 960].mean()) - 50.0) < 5.0
 
 
 def test_battle_frame_wipe():
-    """Verify battle frame wipes in during frames 578..590."""
+    """Verify battle frame wipes in during frames 728..740 only (584 is mid-walk now)."""
     fonts = FontManager()
     vignette = create_vignette_mask(1080, 1920)
     chroma_maps = create_chromatic_maps(1080, 1920)
@@ -96,22 +100,67 @@ def test_battle_frame_wipe():
     dummy_3d = np.full((1080, 1920, 3), 40, dtype=np.uint8)
     dummy_battle = np.full((1080, 1920, 3), 220, dtype=np.uint8)
 
-    # Frame 577: no wipe yet
+    # Frame 727: no wipe yet
     out_577 = compose_single_frame(
-        577, dummy_3d, fonts, captions, vignette, chroma_maps, battle_frame=dummy_battle
+        727, dummy_3d, fonts, captions, vignette, chroma_maps, battle_frame=dummy_battle
     )
-    assert abs(float(out_577[540, 100].mean()) - 40.0) < 5.0
+    assert float(out_577[540, 100].mean()) < 100.0  # 3D (graded darker near the end), not the battle frame (220)
 
-    # Frame 584 (half-way wipe): left side is battle frame (220), right side is 3D (31 with vignette)
-    out_584 = compose_single_frame(
+    # Frame 584 (mid-walk): no wipe
+    out_mid = compose_single_frame(
         584, dummy_3d, fonts, captions, vignette, chroma_maps, battle_frame=dummy_battle
+    )
+    assert float(out_mid[540, 100].mean()) < 100.0  # 3D, not the battle frame (220)
+
+    # Frame 734 (half-way wipe): left side is battle frame (220), right side is 3D (31 with vignette)
+    out_584 = compose_single_frame(
+        734, dummy_3d, fonts, captions, vignette, chroma_maps, battle_frame=dummy_battle
     )
     assert abs(float(out_584[540, 100].mean()) - 220.0) < 5.0
     assert 25.0 < float(out_584[540, 1800].mean()) < 40.0
 
-    # Frame 590 (final frame): full battle frame
+    # Frame 740 (final frame): full battle frame
     out_590 = compose_single_frame(
-        590, dummy_3d, fonts, captions, vignette, chroma_maps, battle_frame=dummy_battle
+        740, dummy_3d, fonts, captions, vignette, chroma_maps, battle_frame=dummy_battle
     )
     assert abs(float(out_590[540, 100].mean()) - 220.0) < 5.0
     assert abs(float(out_590[540, 1800].mean()) - 220.0) < 5.0
+
+
+def test_caption_anchor_moves_text():
+    """Verify changing caption anchor moves rendered text on a toy frame."""
+    from PIL import Image
+    from lab.viz3d.post import draw_caption
+
+    fonts = FontManager()
+    cap_top = {
+        "headline": "Test Anchor Headline",
+        "sub": "Subtext line",
+        "anchor": "top_center",
+        "dx": 0,
+        "dy": 0,
+        "size": 24,
+    }
+    cap_bot = {
+        "headline": "Test Anchor Headline",
+        "sub": "Subtext line",
+        "anchor": "bottom_center",
+        "dx": 0,
+        "dy": 0,
+        "size": 24,
+    }
+
+    img_top = Image.new("RGBA", (1920, 1080), (0, 0, 0, 255))
+    draw_caption(img_top, cap_top, fonts)
+    arr_top = np.array(img_top)
+    y_coords_top = np.where(arr_top[..., 0] > 100)[0]
+
+    img_bot = Image.new("RGBA", (1920, 1080), (0, 0, 0, 255))
+    draw_caption(img_bot, cap_bot, fonts)
+    arr_bot = np.array(img_bot)
+    y_coords_bot = np.where(arr_bot[..., 0] > 100)[0]
+
+    assert len(y_coords_top) > 0 and len(y_coords_bot) > 0
+    # Top center text must be in top quarter, bottom center in bottom quarter
+    assert np.mean(y_coords_top) < 300.0
+    assert np.mean(y_coords_bot) > 700.0

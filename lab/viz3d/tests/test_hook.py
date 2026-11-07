@@ -11,18 +11,18 @@ def test_hook_tracks_structure_and_counts():
     tracks = compute_hook_tracks()
 
     total_frames = len(tracks["cam_pos"])
-    assert total_frames == 591
+    assert total_frames == 741
 
     shot_id = tracks["shot_id"]
-    # Check storyboard frame counts per shot
+    # Check storyboard frame counts per shot (741-frame timeline)
     expected_counts = {
         "1a": 24,
         "1b": 105,
         "1c": 21,
         "2a": 24,
-        "2b": 23,
-        "2c": 58,
-        "2d": 36,
+        "2b": 54,
+        "2c": 123,
+        "2d": 90,
         "3a": 30,
         "3b": 84,
         "3c": 165,
@@ -43,8 +43,8 @@ def test_player_positions_and_door():
     np.testing.assert_allclose(player[0, :2], [3.76, -4.24], atol=1e-3)
     assert player[0, 2] == 75.0
 
-    # Frame 590: Route 1 tall grass at step 110
-    assert player[590, 2] == 110.0
+    # Frame 740: Route 1 tall grass at step 110
+    assert player[740, 2] == 110.0
 
 
 def test_camera_clearance_and_boundaries():
@@ -70,25 +70,107 @@ def test_reveal_edges():
     edge_a = tracks["edge_a"]
     edge_b = tracks["edge_b"]
 
-    # In shot 2c (frames 197..254), edges are active
-    for f in range(197, 255):
+    # In shot 2c (frames 228..350), edges are active
+    for f in range(228, 351):
         assert edge_b[f] <= edge_a[f] + 1e-4, f"Frame {f}: edge_b ({edge_b[f]}) overtook edge_a ({edge_a[f]})"
 
-    # Edits leave visible range on both sides (x_min <= 2.4, x_max >= 5.0)
-    assert edge_a[197] <= 2.41
-    assert edge_a[245] >= 5.00
-    assert edge_b[254] >= 5.00
+    # Edges sweep across visible ground (x_min <= 2.4, x_max >= 5.0)
+    assert edge_a[228] <= 2.41
+    assert edge_a[317] >= 5.00
+    assert edge_b[329] >= 5.00
 
 
 def test_map_transition_and_focus_ids():
-    """Verify map transition 88->89 occurs at frame 405 and focus object IDs are valid."""
+    """Verify map transition 88->89 occurs at frame 555 and focus object IDs are valid."""
     tracks = compute_hook_tracks()
     player = tracks["player_track"]
     focus_ids = tracks["focus_object_id"]
 
-    # Transition from Viridian (step 88) to Route 1 (step 89) at frame 404 -> 405
-    assert int(player[404, 2]) == 88
-    assert int(player[405, 2]) == 89
+    # Transition from Viridian (step 88) to Route 1 (step 89) at frame 554 -> 555
+    assert int(player[554, 2]) == 88
+    assert int(player[555, 2]) == 89
 
     # Valid focus object IDs (0: Title, 1: PC Door, 2: Player)
     assert set(np.unique(focus_ids)).issubset({0, 1, 2})
+
+
+def test_walk_continuity_and_hop():
+    """Verify max per-frame jump <= 0.2 tile and hop within [0, 0.004] m."""
+    tracks = compute_hook_tracks()
+    player = tracks["player_track"]
+    hop = tracks["player_hop"]
+
+    # Check max per-frame jump
+    pos_xy = player[:, :2]
+    diffs = np.linalg.norm(np.diff(pos_xy, axis=0), axis=1) / 0.16
+    assert np.max(diffs) <= 0.20, f"Max per-frame jump exceeded 0.2 tile: {np.max(diffs):.4f}"
+
+    # Hop height is between 0 and 0.004 m
+    assert np.all(hop >= 0.0)
+    assert np.max(hop) <= 0.0041
+    # Hop is 0 when player is still (f < 461 and f >= 720)
+    assert np.all(hop[:461] == 0.0)
+    assert np.all(hop[720:] == 0.0)
+
+
+def test_sprite_validation():
+    """Verify step 78 split sprite is replaced by step 77 sprite."""
+    tracks = compute_hook_tracks()
+    sprites_cls = tracks["player_sprites_cls"]
+    distinct = list(tracks["distinct_steps"])
+
+    if 77 in distinct and 78 in distinct:
+        idx_77 = distinct.index(77)
+        idx_78 = distinct.index(78)
+        # Step 78 sprite must match step 77 sprite
+        np.testing.assert_array_equal(sprites_cls[idx_78], sprites_cls[idx_77])
+
+
+def test_title_margins_and_scale():
+    """Assert title + ball coverage >= 55% from frame 60 and margins >= 5% across frames 60-128."""
+    from lab.viz3d.shots import project_point_to_frame
+
+    tracks_path = Path("work/viz3d/v2/hook_tracks.npz")
+    assert tracks_path.exists()
+    tracks = np.load(tracks_path)
+    cam_pos = tracks["cam_pos"]
+    cam_aim = tracks["cam_aim"]
+
+    pond_center = np.array([1.76, -4.16, 0.0], dtype=np.float32)
+    yaw_deg = 35.0
+    rad_yaw = np.radians(yaw_deg)
+    u_r = np.array([np.cos(rad_yaw), np.sin(rad_yaw), 0.0], dtype=np.float32)
+    u_up = np.array([0.0, 0.0, 1.0], dtype=np.float32)
+
+    for f in range(60, 129):
+        t = (f - 60) / 68.0
+        ease = 3.0 * t * t - 2.0 * t * t * t
+        s_xy = 0.55 + (0.25 - 0.55) * ease
+
+        # title + ball span in font units, measured on the render: text ~3.5 wide (r4_f128.png: 795 px at s_xy 0.152),
+        # gap 0.15, ball 0.61; the group is centred on the pond centre
+        half_w = 2.13 * s_xy
+        p_left = pond_center - half_w * u_r + 0.12 * u_up
+        p_right = pond_center + half_w * u_r + 0.12 * u_up
+
+        u_l, _ = project_point_to_frame(p_left, cam_pos[f], cam_aim[f], lens=40.0)
+        u_r_proj, _ = project_point_to_frame(p_right, cam_pos[f], cam_aim[f], lens=40.0)
+
+        u_min = min(u_l, u_r_proj)
+        u_max = max(u_l, u_r_proj)
+        coverage = u_max - u_min
+        left_margin = u_min
+        right_margin = 1.0 - u_max
+
+        assert coverage >= 0.55, f"Frame {f}: coverage {coverage:.1%} < 55%"
+        assert left_margin >= 0.05, f"Frame {f}: left margin {left_margin:.1%} < 5%"
+        assert right_margin >= 0.05, f"Frame {f}: right margin {right_margin:.1%} < 5%"
+
+    # Frame 128 should be around 80% coverage
+    s128 = 0.25
+    half_w128 = 2.13 * s128
+    u_l128, _ = project_point_to_frame(pond_center - half_w128 * u_r + 0.12 * u_up, cam_pos[128], cam_aim[128], lens=40.0)
+    u_r128, _ = project_point_to_frame(pond_center + half_w128 * u_r + 0.12 * u_up, cam_pos[128], cam_aim[128], lens=40.0)
+    cov128 = abs(u_r128 - u_l128)
+    assert 0.75 <= cov128 <= 0.85, f"Frame 128: coverage {cov128:.1%} not ~80%"
+

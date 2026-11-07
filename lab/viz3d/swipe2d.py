@@ -69,10 +69,17 @@ def composite_swipe_frame(
     disp_w: int = 640,
     disp_h: int = 576,
     active_labels: Tuple[bool, bool, bool] = (True, True, True),
+    bg_image: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Composite a single 1920x1080 2D swipe frame in composer play layout with labels."""
-    # Background canvas: (15, 20, 25) in BGR = (25, 20, 15)
-    canvas = np.full((frame_h, frame_w, 3), (25, 20, 15), dtype=np.uint8)
+    """Composite a single 1920x1080 2D swipe frame in composer play layout (no text overlay)."""
+    # Background canvas: blurred 3D frame if provided, else (25, 20, 15) in BGR
+    if bg_image is not None:
+        if bg_image.shape[:2] != (frame_h, frame_w):
+            canvas = cv2.resize(bg_image, (frame_w, frame_h), interpolation=cv2.INTER_LINEAR)
+        else:
+            canvas = bg_image.copy()
+    else:
+        canvas = np.full((frame_h, frame_w, 3), (25, 20, 15), dtype=np.uint8)
 
     # Build the 640x576 composited game screen
     # Local coordinate x in [0, disp_w] corresponds to canvas X in [origin_x, origin_x + disp_w]
@@ -130,51 +137,13 @@ def composite_swipe_frame(
         thickness=2,
     )
 
-    # Draw two-tier labels under the frame per COPY_REVIEW.md §4
-    # Headline at y = 800, sub-line at y = 835
-    img_pil = Image.fromarray(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
-    draw = ImageDraw.Draw(img_pil)
-
-    # Use standard DejaVu font if available, else default
-    try:
-        font_headline = ImageFont.truetype("DejaVuSans-Bold.ttf", 24)
-        font_sub = ImageFont.truetype("DejaVuSans.ttf", 17)
-    except Exception:
-        try:
-            font_headline = ImageFont.truetype("arialbd.ttf", 24)
-            font_sub = ImageFont.truetype("arial.ttf", 17)
-        except Exception:
-            font_headline = ImageFont.load_default()
-            font_sub = ImageFont.load_default()
-
-    col_white = (240, 245, 250)
-    col_grey = (148, 163, 184)
-    col_dim = (71, 85, 105)
-
-    # Headline text
-    text_headline = "The real screen, restored by two small networks"
-    bbox_h = draw.textbbox((0, 0), text_headline, font=font_headline)
-    text_w_h = bbox_h[2] - bbox_h[0]
-    draw.text(((frame_w - text_w_h) // 2, 795), text_headline, fill=col_white, font=font_headline)
-
-    # Three-part technical sub-line
-    p1 = "72x80 input"
-    p2 = "detail: 91% of held-out frames pixel-exact"
-    p3 = "colour: 99.27% of pixels right"
-    sub_text = f"{p1}  ·  {p2}  ·  {p3}"
-
-    bbox_s = draw.textbbox((0, 0), sub_text, font=font_sub)
-    text_w_s = bbox_s[2] - bbox_s[0]
-    draw.text(((frame_w - text_w_s) // 2, 832), sub_text, fill=col_grey, font=font_sub)
-
-    out_bgr = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
-    return out_bgr
+    return canvas
 
 
 def build_all_2d_swipe_frames(
     out_dir: str | Path = "work/viz3d/v2",
 ) -> Tuple[Path, Path, float]:
-    """Generate all 36 frames (255-290), swipe_strip.png, and report step-75 agreement."""
+    """Generate all 90 frames for frames 351-440 (3.0s), swipe_strip.png, and report agreement."""
     out_path = Path(out_dir).resolve()
     frames_2d_dir = out_path / "frames_2d"
     frames_2d_dir.mkdir(parents=True, exist_ok=True)
@@ -187,43 +156,72 @@ def build_all_2d_swipe_frames(
     cv2.imwrite(str(strip_path), strip)
     print(f"Saved swipe strip to {strip_path}")
 
-    # 2. Generate 36 frames for 255..290 (1.2 s)
-    # Origin X = 640, frame width 640 -> sweeps from x = 640 to 1280
-    # Over 0.9 s (27 frames, 255..281):
-    # Edge A: frames 255..275 (sweep over 20 frames)
-    # Edge B: frames 263..283 (follows 8 frames behind)
-    # Hold at full colour for frames 284..290 (7 frames)
+    # Find nearest rendered 3D frame for blurred background
+    bg_candidate = None
+    for cand_path in [
+        out_path / "frames" / "frame_0250.png",
+        out_path / "frames" / "frame_0254.png",
+        out_path / "checks_r4" / "r4_f280.png",
+        out_path / "checks_r4" / "r4_f200.png",
+        out_path.parent / "checks" / "frame_0270.png",
+    ]:
+        if cand_path.exists():
+            bg_candidate = cv2.imread(str(cand_path))
+            break
+
+    darkened_bg = None
+    if bg_candidate is not None:
+        blurred = cv2.GaussianBlur(bg_candidate, (51, 51), 25)
+        darkened_bg = np.clip(blurred.astype(np.float32) * 0.60, 0, 255).astype(np.uint8)
+
     origin_x = 640
     disp_w = 640
-    total_frames = 36  # frames 255 to 290 inclusive
 
-    for i, frame_idx in enumerate(range(255, 291)):
-        # Calculate edge A position
-        if i <= 20:
-            t_a = i / 20.0
-            edge_a = origin_x + t_a * disp_w
-        else:
-            edge_a = origin_x + disp_w + 10.0
-
-        # Calculate edge B position (starts at frame index 8 = frame 263)
-        if i < 8:
+    # 2. Generate 90 frames for 351..440 (3.0 s)
+    # Frames 351..380 (30 frames): 72x80 input screen
+    # Frames 381..395 (15 frames): Edge A sweeps across screen
+    # Frames 396..410 (15 frames): Hold on upscaler (crisp)
+    # Frames 411..425 (15 frames): Edge B sweeps across screen
+    # Frames 426..440 (15 frames): Hold on colorizer
+    total_frames = 90
+    for i, frame_idx in enumerate(range(351, 441)):
+        if i < 30:
+            edge_a = origin_x - 10.0
             edge_b = origin_x - 10.0
-        elif i <= 28:
-            t_b = (i - 8) / 20.0
+        elif i < 45:
+            t_a = (i - 30) / 14.0
+            edge_a = origin_x + t_a * disp_w
+            edge_b = origin_x - 10.0
+        elif i < 60:
+            edge_a = origin_x + disp_w + 10.0
+            edge_b = origin_x - 10.0
+        elif i < 75:
+            t_b = (i - 60) / 14.0
+            edge_a = origin_x + disp_w + 10.0
             edge_b = origin_x + t_b * disp_w
         else:
+            edge_a = origin_x + disp_w + 10.0
             edge_b = origin_x + disp_w + 10.0
-
-        act_labels = (True, i >= 2, i >= 8)
 
         frame_bgr = composite_swipe_frame(
             raw_bgr, crisp_bgr, color_bgr,
             edge_a_x=edge_a, edge_b_x=edge_b,
-            active_labels=act_labels,
+            bg_image=darkened_bg,
         )
-
         out_frame_file = frames_2d_dir / f"frame_{frame_idx:04d}.png"
         cv2.imwrite(str(out_frame_file), frame_bgr)
+
+    # Also keep legacy frames 255..290 for backwards compatibility
+    for i, frame_idx in enumerate(range(255, 291)):
+        t_edge = i / 35.0
+        edge_a = origin_x + t_edge * disp_w
+        edge_b = origin_x + max(0.0, (t_edge - 0.3) * disp_w)
+        frame_bgr = composite_swipe_frame(
+            raw_bgr, crisp_bgr, color_bgr,
+            edge_a_x=edge_a, edge_b_x=edge_b,
+            bg_image=darkened_bg,
+        )
+        cv2.imwrite(str(frames_2d_dir / f"frame_{frame_idx:04d}.png"), frame_bgr)
 
     print(f"Generated {total_frames} 2D swipe frames in {frames_2d_dir}")
     print(f"Step 75 native-shade agreement: {agreement_pct:.2f}%")

@@ -47,9 +47,6 @@ def is_gpu_busy(ignore_pids: list[int] | None = None) -> tuple[bool, str]:
                     return True, f"Python process (PID {pid}): {parts[1].strip()}"
                 if "blender" in pname_lower:
                     return True, f"Blender process (PID {pid}): {parts[1].strip()}"
-                for game in ("warframe", "valorant", "helldivers"):
-                    if game in pname_lower:
-                        return True, f"Game active: {game}"
         return False, "Clear"
     except Exception as e:
         print(f"Warning: could not query compute apps: {e}")

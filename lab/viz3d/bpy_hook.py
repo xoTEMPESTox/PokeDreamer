@@ -403,7 +403,8 @@ def build_solid_buildings(cls_map: np.ndarray, ground_mat: bpy.types.Material) -
     H_px, W_px = cls_map.shape
     H_tiles, W_tiles = H_px // 8, W_px // 8
 
-    wall_names = {"building_wall", "door", "sign"}
+    # "sign" tiles are standing boards now (build_sign_posts); as walls they became building-height pillars
+    wall_names = {"building_wall", "door"}
     roof_names = {"roof_red", "roof_blue"}
 
     is_wall = np.zeros((H_tiles, W_tiles), dtype=bool)
@@ -571,9 +572,120 @@ def build_solid_buildings(cls_map: np.ndarray, ground_mat: bpy.types.Material) -
     return bldg_obj
 
 
-def build_sign_posts(sign_tiles: np.ndarray, ground_mat: bpy.types.Material) -> bpy.types.Collection | None:
-    """Build small 3D sign posts with round post and textured board."""
-    if len(sign_tiles) == 0:
+def build_voxel_player_hook(
+    player_track: np.ndarray,
+    player_sprites_cls: np.ndarray,
+    player_sprites_shade: np.ndarray,
+    distinct_steps: np.ndarray,
+    player_hop: np.ndarray | None = None,
+) -> bpy.types.Object:
+    """Build standup voxel character with stage-1 red palette and continuous walk/hop animation."""
+    player_cls_idx = CLASS_NAMES.index("sprite_player")
+    ramp = PALETTE_SRGB["sprite_player"]
+
+    mat = bpy.data.materials.new("PlayerMat")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+    vc = nt.nodes.new("ShaderNodeVertexColor")
+    vc.layer_name = "col"
+    nt.links.new(vc.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.65
+
+    player_obj = bpy.data.objects.new("Player", None)
+    player_obj.empty_display_type = "PLAIN_AXES"
+    player_obj.empty_display_size = 0.05
+    bpy.context.scene.collection.objects.link(player_obj)
+
+    unique_sprites = {}
+    step_to_sprite = {}
+
+    for st_idx, step_val in enumerate(distinct_steps):
+        cls_crop = player_sprites_cls[st_idx]
+        shade_crop = player_sprites_shade[st_idx]
+        key = (cls_crop.tobytes(), shade_crop.tobytes())
+
+        if key not in unique_sprites:
+            active_voxels = np.where(cls_crop == player_cls_idx)
+            verts = []
+            faces = []
+            cols = []
+            v_idx = 0
+
+            for r_px, c_px in zip(*active_voxels):
+                sh = shade_crop[r_px, c_px]
+                lin_col = srgb_to_linear(ramp[sh])
+                rgba = [lin_col[0], lin_col[1], lin_col[2], 1.0]
+
+                z0 = (15 - r_px) * S
+                z1 = (16 - r_px) * S
+                x0 = (c_px - 8) * S
+                x1 = (c_px - 7) * S
+
+                for d in range(4):
+                    y0 = (d - 2) * S
+                    y1 = (d - 1) * S
+
+                    verts.extend([
+                        (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
+                        (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1),
+                    ])
+                    quad = [(0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]
+                    for q in quad:
+                        faces.append((v_idx + q[0], v_idx + q[1], v_idx + q[2], v_idx + q[3]))
+                    v_idx += 8
+                    cols.extend([rgba] * 24)
+
+            me = bpy.data.meshes.new(f"PlayerVoxelMesh_{len(unique_sprites)}")
+            me.from_pydata(verts, [], faces)
+            me.update(calc_edges=True)
+
+            col_attr = me.color_attributes.new("col", "FLOAT_COLOR", "CORNER")
+            col_attr.data.foreach_set("color", np.array(cols, dtype=np.float32).reshape(-1))
+            me.materials.append(mat)
+
+            s_obj = bpy.data.objects.new(f"PlayerSprite_{len(unique_sprites)}", me)
+            s_obj.parent = player_obj
+            bpy.context.scene.collection.objects.link(s_obj)
+            unique_sprites[key] = s_obj
+
+        step_to_sprite[int(step_val)] = unique_sprites[key]
+
+    F = len(player_track)
+    for f in range(F):
+        px, py, facing_step = player_track[f][:3]
+        hop = float(player_hop[f]) if player_hop is not None else 0.0
+
+        if abs(px) < 20.0:
+            x_m, y_m = float(px), float(py)
+        else:
+            x_m, y_m = float(px * S), float(-py * S)
+
+        player_obj.location = (x_m, y_m, hop + 0.005)
+        player_obj.keyframe_insert(data_path="location", frame=f)
+
+        cur_step = int(facing_step)
+        active_s = step_to_sprite.get(cur_step, next(iter(unique_sprites.values())) if unique_sprites else None)
+        for s_obj in unique_sprites.values():
+            hide = (s_obj != active_s)
+            s_obj.hide_render = hide
+            s_obj.hide_viewport = hide
+            s_obj.keyframe_insert(data_path="hide_render", frame=f)
+            s_obj.keyframe_insert(data_path="hide_viewport", frame=f)
+
+    return player_obj
+
+
+def build_sign_posts(
+    sign_tiles: np.ndarray,
+    sign_boards: np.ndarray | None = None,
+    world_dir: Path | None = None,
+    ground_mat: bpy.types.Material | None = None,
+) -> bpy.types.Collection | None:
+    """Build low wooden posts for ledge markers and standing 3D sign boards for real signs."""
+    has_tiles = sign_tiles is not None and len(sign_tiles) > 0
+    has_boards = sign_boards is not None and len(sign_boards) > 0
+    if not has_tiles and not has_boards:
         return None
 
     sign_coll = bpy.data.collections.new("SignPosts")
@@ -582,32 +694,91 @@ def build_sign_posts(sign_tiles: np.ndarray, ground_mat: bpy.types.Material) -> 
     post_mat = bpy.data.materials.new("SignPostMat")
     post_mat.use_nodes = True
     bsdf = post_mat.node_tree.nodes["Principled BSDF"]
-    bsdf.inputs["Base Color"].default_value = (0.40, 0.28, 0.16, 1.0)
+    bsdf.inputs["Base Color"].default_value = (0.35, 0.22, 0.12, 1.0)
     bsdf.inputs["Roughness"].default_value = 0.80
 
-    for idx, (cx, cy, r_tile, c_tile) in enumerate(sign_tiles):
-        bpy.ops.mesh.primitive_cylinder_add(
-            radius=0.005, depth=0.040, location=(cx, cy, 0.020)
-        )
-        post_obj = bpy.context.active_object
-        post_obj.name = f"SignPost_{idx}"
-        post_obj.data.materials.append(post_mat)
+    # 1. Low wooden posts for ledge markers (24 instances)
+    if has_tiles:
+        for idx, (cx, cy, r_tile, c_tile) in enumerate(sign_tiles):
+            bpy.ops.mesh.primitive_cylinder_add(
+                radius=0.006, depth=0.035, location=(float(cx), float(cy), 0.0175)
+            )
+            post_obj = bpy.context.active_object
+            post_obj.name = f"LedgePost_{idx}"
+            post_obj.data.materials.append(post_mat)
 
-        bpy.ops.mesh.primitive_cube_add(
-            size=1.0, location=(cx, cy, 0.042)
-        )
-        board_obj = bpy.context.active_object
-        board_obj.name = f"SignBoard_{idx}"
-        board_obj.scale = (0.035, 0.005, 0.022)
-        board_obj.data.materials.append(ground_mat)
+            if post_obj.name not in sign_coll.objects:
+                sign_coll.objects.link(post_obj)
+            if post_obj.name in bpy.context.scene.collection.objects:
+                bpy.context.scene.collection.objects.unlink(post_obj)
 
-        for obj in (post_obj, board_obj):
-            if obj.name not in sign_coll.objects:
-                sign_coll.objects.link(obj)
-            if obj.name in bpy.context.scene.collection.objects:
-                bpy.context.scene.collection.objects.unlink(obj)
+    # 2. Standing 3D sign boards on wooden post (5 instances)
+    if has_boards:
+        sign_face_mat = bpy.data.materials.new("SignFaceMat")
+        sign_face_mat.use_nodes = True
+        s_nt = sign_face_mat.node_tree
+        s_bsdf = s_nt.nodes["Principled BSDF"]
+        s_bsdf.inputs["Roughness"].default_value = 0.70
+
+        sign_tex_path = ((world_dir / "sign_texture.png") if world_dir else Path("work/viz3d/v2/world/sign_texture.png")).resolve()
+        if sign_tex_path.exists():
+            tex_img = bpy.data.images.load(str(sign_tex_path))
+            img_node = s_nt.nodes.new("ShaderNodeTexImage")
+            img_node.image = tex_img
+            img_node.interpolation = "Closest"
+            tex_coord = s_nt.nodes.new("ShaderNodeTexCoord")
+            s_nt.links.new(tex_coord.outputs["UV"], img_node.inputs["Vector"])
+            s_nt.links.new(img_node.outputs["Color"], s_bsdf.inputs["Base Color"])
+        else:
+            s_bsdf.inputs["Base Color"].default_value = (0.78, 0.68, 0.52, 1.0)
+
+        for idx, (cx, cy, r_top, c_left) in enumerate(sign_boards):
+            # Cylinder post: radius 0.008, depth 0.060, location z = 0.030
+            bpy.ops.mesh.primitive_cylinder_add(
+                radius=0.008, depth=0.060, location=(float(cx), float(cy), 0.030)
+            )
+            post_obj = bpy.context.active_object
+            post_obj.name = f"SignBoardPost_{idx}"
+            post_obj.data.materials.append(post_mat)
+
+            # Thin box board: 0.16 x 0.012 x 0.16 m, location z = 0.110
+            bpy.ops.mesh.primitive_cube_add(
+                size=1.0, location=(float(cx), float(cy), 0.110)
+            )
+            board_obj = bpy.context.active_object
+            board_obj.name = f"SignBoard_{idx}"
+            board_obj.scale = (0.16, 0.012, 0.16)
+            bpy.ops.object.transform_apply(scale=True)
+
+            board_obj.data.materials.append(post_mat)       # slot 0: wood
+            board_obj.data.materials.append(sign_face_mat)  # slot 1: sign face
+
+            me = board_obj.data
+            if not me.uv_layers:
+                uv_layer = me.uv_layers.new(name="UVMap")
+            else:
+                uv_layer = me.uv_layers.active
+
+            for poly in me.polygons:
+                if poly.normal.y < -0.5:
+                    poly.material_index = 1
+                    for loop_idx in poly.loop_indices:
+                        v = me.vertices[me.loops[loop_idx].vertex_index]
+                        # v.co is in world space: transform_apply(scale=True) also applies location (its default)
+                        u = (v.co.x - (float(cx) - 0.08)) / 0.16
+                        v_coord = (v.co.z - (0.110 - 0.08)) / 0.16
+                        uv_layer.data[loop_idx].uv = (float(np.clip(u, 0.0, 1.0)), float(np.clip(v_coord, 0.0, 1.0)))
+                else:
+                    poly.material_index = 0
+
+            for obj in (post_obj, board_obj):
+                if obj.name not in sign_coll.objects:
+                    sign_coll.objects.link(obj)
+                if obj.name in bpy.context.scene.collection.objects:
+                    bpy.context.scene.collection.objects.unlink(obj)
 
     return sign_coll
+
 
 
 def build_tree_prototypes() -> bpy.types.Object:
@@ -1343,65 +1514,103 @@ def setup_hook_compositor(sun_pos_track: np.ndarray | None = None):
     tree.links.new(mix_beams.outputs["Image"], composite.inputs["Image"])
 
 
-def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.16, 0.0), total_frames: int = 591):
-    """Build 3D extruded title 'PokeDreamer' and stylized Pokéball icon rising from pond per DESIGN §2.7.
+def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.16, 0.0), total_frames: int = 741):
+    """Build 3D extruded title 'PokeDreamer' and stylized Pokéball icon rising from pond per DESIGN §2.7 and Round 4 review.
     
-    Fixed per FEEDBACK_2:
-    - Text faces camera squarely at yaw 35 deg, reading left-to-right 'PokeDreamer'
-    - Text and Pokéball scaled and positioned to preserve >= 8% frame margins at closest approach
-    - Keyframed across all 591 frames: completely submerged/hidden at f < 24 and f >= 145
+    Round 4 Owner Review:
+    - Font: C:/Windows/Fonts/segoeuib.ttf (Segoe UI Bold)
+    - Poké Ball split shader on letters (red top, 7% black middle line, white bottom), emission ~0.50
+    - Black outline around every letter (child text object with curve.offset = 0.035, black mat, -0.003 m on extrusion axis)
+    - Slower rise: rises 24-60 (1.2 s), fully risen at 60, held to 128, sinks 129-144, submerged f < 24 and f >= 145
+    - In-plane scaling (X, Y) covers >= 55% at f=60 and ~80% at f=128, side margins >= 5% across 60-128
+    - Extrusion depth (Z) scale remains CONSTANT at 0.18 (depth 0.018 m never grows!)
     """
     title_coll = bpy.data.collections.new("Title3D")
     bpy.context.scene.collection.children.link(title_coll)
 
+    yaw_deg = 35.0
+    u_rx = math.cos(math.radians(yaw_deg))
+    u_ry = math.sin(math.radians(yaw_deg))
+
     # 1. 3D Text 'PokeDreamer'
     font_curve = bpy.data.curves.new(name="PokeDreamerFont", type="FONT")
     font_curve.body = "PokeDreamer"
-    # FEEDBACK_3: Blender's default font in off-white was illegible over the pale hills; a heavy face with a
-    # visible extrusion (0.02 was 3.6 mm at render scale) reads at hook size.
-    font_curve.font = bpy.data.fonts.load("C:/Windows/Fonts/seguibl.ttf")  # Segoe UI Black
+    font_curve.font = bpy.data.fonts.load("C:/Windows/Fonts/segoeuib.ttf")  # Segoe UI Bold
     font_curve.extrude = 0.10
     font_curve.bevel_depth = 0.012
     font_curve.align_x = "CENTER"
     font_curve.align_y = "BOTTOM"
 
     text_obj = bpy.data.objects.new("TitleText", font_curve)
-    # Camera in Shot 1 azimuth is +40 deg easing to +22 deg (SE looking NW).
-    # Setting yaw = 35 deg points the text front face directly at the camera (South-East),
-    # so 'PokeDreamer' reads left to right cleanly.
-    yaw_deg = 35.0
     text_obj.rotation_euler = (math.radians(90.0), 0.0, math.radians(yaw_deg))
-
-    # Center over pond
-    text_x = pond_center[0] + 0.10
-    text_y = pond_center[1] + 0.05
-    text_obj.location = (text_x, text_y, -0.20)
+    text_obj.location = (pond_center[0], pond_center[1], -0.20)
     title_coll.objects.link(text_obj)
 
+    # Poké Ball split material for text
     mat_text = bpy.data.materials.new("TitleTextMat")
     mat_text.use_nodes = True
     t_nt = mat_text.node_tree
     t_bsdf = t_nt.nodes["Principled BSDF"]
-    # The site's violet (#7c3aed, linear RGB); the emission keeps it saturated, since the camera sees the face that
-    # points away from the low sun.
-    violet = (0.202, 0.042, 0.846, 1.0)
-    t_bsdf.inputs["Base Color"].default_value = violet
+
+    tex_coord = t_nt.nodes.new("ShaderNodeTexCoord")
+    sep_pos = t_nt.nodes.new("ShaderNodeSeparateXYZ")
+    t_nt.links.new(tex_coord.outputs["Object"], sep_pos.inputs["Vector"])
+
+    div_h = t_nt.nodes.new("ShaderNodeMath")
+    div_h.operation = "DIVIDE"
+    div_h.inputs[1].default_value = 0.75  # Segoe UI Bold cap height in object space
+    t_nt.links.new(sep_pos.outputs["Y"], div_h.inputs[0])
+
+    t_ramp = t_nt.nodes.new("ShaderNodeValToRGB")
+    t_ramp.color_ramp.interpolation = "CONSTANT"
+    # Bottom white: sRGB #F4F4F4 -> linear (0.909, 0.909, 0.909, 1.0)
+    t_ramp.color_ramp.elements[0].position = 0.0
+    t_ramp.color_ramp.elements[0].color = (0.909, 0.909, 0.909, 1.0)
+    # Middle black: 7% of cap height centered at 0.50 (0.465 to 0.535)
+    el_mid = t_ramp.color_ramp.elements.new(0.465)
+    el_mid.color = (0.01, 0.01, 0.01, 1.0)
+    # Top red: sRGB #E3350D -> linear (0.768, 0.036, 0.003, 1.0)
+    el_top = t_ramp.color_ramp.elements.new(0.535)
+    el_top.color = (0.768, 0.036, 0.003, 1.0)
+
+    t_nt.links.new(div_h.outputs["Value"], t_ramp.inputs["Fac"])
+    t_nt.links.new(t_ramp.outputs["Color"], t_bsdf.inputs["Base Color"])
     t_bsdf.inputs["Roughness"].default_value = 0.25
+
     if "Emission Color" in t_bsdf.inputs:
-        t_bsdf.inputs["Emission Color"].default_value = violet
-        t_bsdf.inputs["Emission Strength"].default_value = 0.8
+        t_nt.links.new(t_ramp.outputs["Color"], t_bsdf.inputs["Emission Color"])
+        t_bsdf.inputs["Emission Strength"].default_value = 0.50
+    elif "Emission" in t_bsdf.inputs:
+        t_nt.links.new(t_ramp.outputs["Color"], t_bsdf.inputs["Emission"])
+
     text_obj.data.materials.append(mat_text)
 
-    # 2. Stylized Pokéball Sphere (UV sphere r 5.5 cm)
-    # Placed to the left of the 'P' along the camera's right axis
-    rad_ball = 0.055
-    u_rx = math.cos(math.radians(yaw_deg))
-    u_ry = math.sin(math.radians(yaw_deg))
-    ball_x = text_x - 0.61 * u_rx
-    ball_y = text_y - 0.61 * u_ry
+    # 2. Black outline child text object
+    font_curve_outline = bpy.data.curves.new(name="PokeDreamerOutlineFont", type="FONT")
+    font_curve_outline.body = "PokeDreamer"
+    font_curve_outline.font = font_curve.font
+    font_curve_outline.extrude = font_curve.extrude
+    font_curve_outline.bevel_depth = font_curve.bevel_depth
+    font_curve_outline.offset = 0.035
+    font_curve_outline.align_x = "CENTER"
+    font_curve_outline.align_y = "BOTTOM"
 
+    outline_obj = bpy.data.objects.new("TitleTextOutline", font_curve_outline)
+    outline_obj.parent = text_obj
+    outline_obj.location = (0.0, 0.0, -0.003 / 0.18)  # -0.003 m on extrusion axis
+    title_coll.objects.link(outline_obj)
+
+    mat_outline = bpy.data.materials.new("TitleOutlineMat")
+    mat_outline.use_nodes = True
+    o_bsdf = mat_outline.node_tree.nodes["Principled BSDF"]
+    o_bsdf.inputs["Base Color"].default_value = (0.01, 0.01, 0.01, 1.0)
+    o_bsdf.inputs["Roughness"].default_value = 0.80
+    outline_obj.data.materials.append(mat_outline)
+
+    # 3. Stylized Pokéball Sphere (UV sphere r 5.5 cm)
+    rad_ball = 0.055
     bpy.ops.mesh.primitive_uv_sphere_add(
-        segments=24, ring_count=16, radius=rad_ball, location=(ball_x, ball_y, -0.20)
+        segments=24, ring_count=16, radius=rad_ball, location=(pond_center[0], pond_center[1], -0.20)
     )
     ball_obj = bpy.context.active_object
     ball_obj.name = "PokeBallSphere"
@@ -1420,12 +1629,12 @@ def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.
 
     b_ramp = b_nt.nodes.new("ShaderNodeValToRGB")
     b_ramp.color_ramp.interpolation = "CONSTANT"
-    b_ramp.color_ramp.elements[0].position = 0.46
-    b_ramp.color_ramp.elements[0].color = (0.95, 0.95, 0.95, 1.0)
-    el_mid = b_ramp.color_ramp.elements.new(0.48)
-    el_mid.color = (0.02, 0.02, 0.02, 1.0)
-    el_top = b_ramp.color_ramp.elements.new(0.52)
-    el_top.color = (0.85, 0.08, 0.08, 1.0)
+    b_ramp.color_ramp.elements[0].position = 0.465
+    b_ramp.color_ramp.elements[0].color = (0.909, 0.909, 0.909, 1.0)
+    b_el_mid = b_ramp.color_ramp.elements.new(0.485)
+    b_el_mid.color = (0.01, 0.01, 0.01, 1.0)
+    b_el_top = b_ramp.color_ramp.elements.new(0.535)
+    b_el_top.color = (0.768, 0.036, 0.003, 1.0)
 
     b_math_add = b_nt.nodes.new("ShaderNodeMath")
     b_math_add.operation = "ADD"
@@ -1440,6 +1649,10 @@ def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.
     b_nt.links.new(b_ramp.outputs["Color"], b_bsdf.inputs["Base Color"])
     b_bsdf.inputs["Roughness"].default_value = 0.25
 
+    if "Emission Color" in b_bsdf.inputs:
+        b_nt.links.new(b_ramp.outputs["Color"], b_bsdf.inputs["Emission Color"])
+        b_bsdf.inputs["Emission Strength"].default_value = 0.50
+
     ball_obj.data.materials.append(mat_ball)
 
     drv_spin = ball_obj.driver_add("rotation_euler", 2)
@@ -1447,52 +1660,53 @@ def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.
 
     # Keyframing across all frames:
     # 0..23: submerged (z = -0.20), scale = 0, hide_render = True
-    # 24..42: rises out of pond water, scales 0 -> 0.18, hide_render = False
-    # 43..128: full size, steady (the camera's push-in ends at 128, so the title is seen at its largest)
-    # 129..144: sinks into pond, scales down to 0 (storyboard 1c: fade out 4.3-4.8 s)
+    # 24..60: rises out of pond water (1.2 s), scales 0 -> 0.55 in-plane, z -> target_z
+    # 60..128: full size, steady crane push-in (s_xy 0.55 -> 0.25, s_z = 0.18 constant!)
+    # Sizes measured on the render (r4_f128.png: text 795 px = 41% of the frame at s_xy 0.152, so the text is
+    # ~3.5 font units wide); title + ball now cover ~57% at frame 60 and ~79% at frame 128 (lab/viz3d/tests/test_hook.py).
+    # 129..144: sinks into pond, scales down to 0
     # 145+: hidden (z = -0.20, scale = 0, hide_render = True)
-    base_scale_text = 0.18
     target_z_text = 0.12
     target_z_ball = 0.14
 
     for f in range(total_frames):
         if f < 24:
-            s_t = 0.0
+            s_xy = 0.0
             z_t = -0.20
-            s_b = 0.0
             z_b = -0.20
             hide = True
-        elif f <= 42:
-            t = (f - 24) / 18.0
-            s = 3.0 * t * t - 2.0 * t * t * t
-            s_t = s * base_scale_text
-            z_t = -0.15 + s * (target_z_text - (-0.15))
-            s_b = s
-            z_b = -0.15 + s * (target_z_ball - (-0.15))
+        elif f <= 60:
+            t = (f - 24) / 36.0
+            ease = 3.0 * t * t - 2.0 * t * t * t
+            s_xy = ease * 0.55
+            z_t = -0.15 + ease * (target_z_text - (-0.15))
+            z_b = -0.15 + ease * (target_z_ball - (-0.15))
             hide = False
         elif f <= 128:
-            s_t = base_scale_text
+            t = (f - 60) / 68.0
+            ease = 3.0 * t * t - 2.0 * t * t * t
+            s_xy = 0.55 + (0.25 - 0.55) * ease
             z_t = target_z_text
-            s_b = 1.0
             z_b = target_z_ball
             hide = False
         elif f <= 144:
             t = (144 - f) / 16.0
             s = max(0.0, 3.0 * t * t - 2.0 * t * t * t)
-            s_t = s * base_scale_text
+            s_xy = s * 0.25
             z_t = s * target_z_text - (1.0 - s) * 0.15
-            s_b = s
             z_b = s * target_z_ball - (1.0 - s) * 0.15
             hide = False
         else:
-            s_t = 0.0
+            s_xy = 0.0
             z_t = -0.20
-            s_b = 0.0
             z_b = -0.20
             hide = True
 
-        text_obj.scale = (s_t, s_t, s_t)
-        text_obj.location.z = z_t
+        # Position text and ball so assembly is perfectly centered on pond_center
+        tx = pond_center[0] + 0.380 * s_xy * u_rx
+        ty = pond_center[1] + 0.380 * s_xy * u_ry
+        text_obj.location = (tx, ty, z_t)
+        text_obj.scale = (s_xy, s_xy, 0.18)
         text_obj.hide_render = hide
         text_obj.hide_viewport = hide
         text_obj.keyframe_insert(data_path="scale", frame=f)
@@ -1500,8 +1714,18 @@ def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.
         text_obj.keyframe_insert(data_path="hide_render", frame=f)
         text_obj.keyframe_insert(data_path="hide_viewport", frame=f)
 
-        ball_obj.scale = (s_b, s_b, s_b)
-        ball_obj.location.z = z_b
+        outline_obj.hide_render = hide
+        outline_obj.hide_viewport = hide
+        outline_obj.keyframe_insert(data_path="hide_render", frame=f)
+        outline_obj.keyframe_insert(data_path="hide_viewport", frame=f)
+
+        # ball centre: text half-width 1.75 + gap 0.15 + ball radius 0.31 (font units) left of the text centre
+        bx = tx - 2.21 * s_xy * u_rx
+        by = ty - 2.21 * s_xy * u_ry
+        bz = z_b + 0.38 * s_xy
+        s_ball = (s_xy / 0.18) if s_xy > 0.0 else 0.0
+        ball_obj.location = (bx, by, bz)
+        ball_obj.scale = (s_ball, s_ball, s_ball)
         ball_obj.hide_render = hide
         ball_obj.hide_viewport = hide
         ball_obj.keyframe_insert(data_path="scale", frame=f)
@@ -1510,6 +1734,7 @@ def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.
         ball_obj.keyframe_insert(data_path="hide_viewport", frame=f)
 
     return text_obj, ball_obj
+
 
 
 def build_hook_camera(
@@ -1702,7 +1927,8 @@ def main():
     build_hook_water_surface(cls_map)
     build_solid_buildings(cls_map, ground_mat)
     build_fences(cls_map)
-    build_sign_posts(sign_tiles, ground_mat)
+    sign_boards = w_data.get("sign_boards", np.empty((0, 4), dtype=np.float32))
+    build_sign_posts(sign_tiles, sign_boards=sign_boards, world_dir=world_dir, ground_mat=ground_mat)
 
     tree_proto = build_tree_prototypes()
     tree_pc_obj = build_tree_instances(tree_blocks, tree_proto)
@@ -1712,7 +1938,10 @@ def main():
         p_sprites_cls = t_data["player_sprites_cls"]
         p_sprites_sh = t_data["player_sprites_shade"]
         distinct_steps = t_data["distinct_steps"]
-        player_obj = build_voxel_player(player_track, p_sprites_cls, p_sprites_sh, distinct_steps)
+        player_hop = t_data.get("player_hop", None)
+        player_obj = build_voxel_player_hook(
+            player_track, p_sprites_cls, p_sprites_sh, distinct_steps, player_hop=player_hop
+        )
 
     blade_proto, tg_proto, flower_proto = build_blade_prototypes()
     mask_png_path = world_dir / "scatter_mask.png"

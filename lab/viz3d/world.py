@@ -107,7 +107,26 @@ def assemble_combined_maps(
     combined_tile_ids[: H1_px // 8, : W1_px // 8] = t1
     combined_tile_ids[r1_row // 8 : (r1_row + H12_px) // 8, r1_col // 8 : (r1_col + W12_px) // 8] = t12
 
-    return combined_cls, combined_shade, combined_tile_classes, combined_tile_ids
+    # 4. Reclassify 2x2 sign tiles ([70, 71] / [86, 87]) as 'sign'
+    # and paint ground under each sign with surrounding ground (no flat sign art on ground).
+    sign_idx = name_to_idx["sign"]
+    H_t, W_t = combined_tile_ids.shape
+    sign_art = None  # the game's own 16x16 sign pixels (shades), kept for the 3D boards before the ground is painted over
+    for r in range(H_t - 1):
+        for c in range(W_t - 1):
+            if (combined_tile_ids[r, c] == 70 and combined_tile_ids[r, c + 1] == 71 and
+                    combined_tile_ids[r + 1, c] == 86 and combined_tile_ids[r + 1, c + 1] == 87):
+                if sign_art is None:
+                    sign_art = combined_shade[r * 8 : (r + 2) * 8, c * 8 : (c + 2) * 8].copy()
+                combined_tile_classes[r : r + 2, c : c + 2] = "sign"
+                combined_cls[r * 8 : (r + 2) * 8, c * 8 : (c + 2) * 8] = sign_idx
+                # Paint ground under sign with surrounding ground (adjacent 2x2 tiles to left)
+                if c >= 2:
+                    combined_shade[r * 8 : (r + 2) * 8, c * 8 : (c + 2) * 8] = combined_shade[r * 8 : (r + 2) * 8, (c - 2) * 8 : c * 8]
+                elif c + 2 < W_t:
+                    combined_shade[r * 8 : (r + 2) * 8, c * 8 : (c + 2) * 8] = combined_shade[r * 8 : (r + 2) * 8, (c + 2) * 8 : (c + 4) * 8]
+
+    return combined_cls, combined_shade, combined_tile_classes, combined_tile_ids, sign_art
 
 
 def compute_scatter_mask(cls_px: np.ndarray) -> np.ndarray:
@@ -169,11 +188,13 @@ def create_ground_images(
     # 3. Ground color RGB (1152x640)
     ground_color = np.zeros((H, W, 3), dtype=np.uint8)
     names, _ = load_palette()
+    path_ramp = PALETTE_SRGB.get("path", PALETTE_SRGB["other"])
     for cidx, cname in enumerate(names[:23]):
         c_mask = (cls_px == cidx)
         if not np.any(c_mask):
             continue
-        ramp = PALETTE_SRGB.get(cname, PALETTE_SRGB["other"])
+        # For ground under sign, paint with path color so no flat sign art appears
+        ramp = path_ramp if cname == "sign" else PALETTE_SRGB.get(cname, PALETTE_SRGB["other"])
         for sh in range(4):
             sh_mask = c_mask & (shade_px == sh)
             if np.any(sh_mask):
@@ -225,7 +246,7 @@ def extract_world_elements(
     fence_tiles = np.array(fence_list, dtype=np.float32) if fence_list else np.empty((0, 2), dtype=np.float32)
 
     # 3. Building components on 8x8 tile grid
-    building_names = {"building_wall", "door", "sign", "roof_red", "roof_blue"}
+    building_names = {"building_wall", "door", "roof_red", "roof_blue"}
     is_building = np.zeros((H_tiles, W_tiles), dtype=bool)
     is_wall = np.zeros((H_tiles, W_tiles), dtype=bool)
     is_roof = np.zeros((H_tiles, W_tiles), dtype=bool)
@@ -235,7 +256,7 @@ def extract_world_elements(
             cname = tile_classes[r, c]
             if cname in building_names:
                 is_building[r, c] = True
-            if cname in {"building_wall", "door", "sign"}:
+            if cname in {"building_wall", "door"}:
                 is_wall[r, c] = True
             if cname in {"roof_red", "roof_blue"}:
                 is_roof[r, c] = True
@@ -251,7 +272,7 @@ def extract_world_elements(
         comp_mask = (labels == label_id)
         comp_size = int(np.sum(comp_mask))
         if comp_size < 4:
-            # Sign post tile
+            # Ledge post / fence end tile (preserved as low wooden posts)
             coords = np.argwhere(comp_mask)
             for r, c in coords:
                 cx = (c * 8 + 4) * S
@@ -270,7 +291,18 @@ def extract_world_elements(
     wall_tiles = np.array(real_wall_tiles, dtype=np.int32) if real_wall_tiles else np.empty((0, 2), dtype=np.int32)
     roof_tiles = np.array(real_roof_tiles, dtype=np.int32) if real_roof_tiles else np.empty((0, 2), dtype=np.int32)
 
-    # 4. Water tiles
+    # 4. Standing 3D sign boards (2x2 tile blocks classified as 'sign')
+    sign_boards_list = []
+    for r in range(H_tiles - 1):
+        for c in range(W_tiles - 1):
+            if (tile_classes[r, c] == "sign" and tile_classes[r, c + 1] == "sign" and
+                    tile_classes[r + 1, c] == "sign" and tile_classes[r + 1, c + 1] == "sign"):
+                cx = (c * 8 + 8) * S
+                cy = -(r * 8 + 8) * S
+                sign_boards_list.append([cx, cy, float(r), float(c)])
+    sign_boards = np.array(sign_boards_list, dtype=np.float32) if sign_boards_list else np.empty((0, 4), dtype=np.float32)
+
+    # 5. Water tiles
     water_coords = np.argwhere(tile_classes == "water")
     water_tiles = np.array(water_coords, dtype=np.int32) if len(water_coords) else np.empty((0, 2), dtype=np.int32)
 
@@ -278,6 +310,7 @@ def extract_world_elements(
         "tree_blocks": tree_blocks,
         "fence_tiles": fence_tiles,
         "sign_tiles": sign_tiles,
+        "sign_boards": sign_boards,
         "wall_tiles": wall_tiles,
         "roof_tiles": roof_tiles,
         "water_tiles": water_tiles,
@@ -294,7 +327,7 @@ def build_world(
     out_path = Path(out_dir).resolve()
     out_path.mkdir(parents=True, exist_ok=True)
 
-    cls_px, shade_px, tile_classes, tile_ids = assemble_combined_maps(map1_state, map12_state)
+    cls_px, shade_px, tile_classes, tile_ids, sign_art = assemble_combined_maps(map1_state, map12_state)
 
     # 1. Scatter mask
     scatter_mask = compute_scatter_mask(cls_px)
@@ -323,17 +356,26 @@ def build_world(
         tree_blocks=elements["tree_blocks"],
         fence_tiles=elements["fence_tiles"],
         sign_tiles=elements["sign_tiles"],
+        sign_boards=elements["sign_boards"],
         wall_tiles=elements["wall_tiles"],
         roof_tiles=elements["roof_tiles"],
         water_tiles=elements["water_tiles"],
         pond_bed_depth=elements["pond_bed_depth"],
     )
 
+    # 5. Save sign texture image (16x16 RGB): the game's own sign pixels, coloured with the sign ramp
+    sign_ramp = PALETTE_SRGB.get("sign", PALETTE_SRGB["other"])
+    sign_rgb = np.zeros((16, 16, 3), dtype=np.uint8)
+    for sh in range(4):
+        sign_rgb[sign_art == sh] = sign_ramp[sh]
+    cv2.imwrite(str(out_path / "sign_texture.png"), cv2.cvtColor(sign_rgb, cv2.COLOR_RGB2BGR))
+
     print(f"Built world assets in {out_path}:")
     print(f"  world.npz (size: {cls_px.shape})")
     print(f"  tree_blocks: {len(elements['tree_blocks'])} instances")
     print(f"  fence_tiles: {len(elements['fence_tiles'])} instances")
     print(f"  sign_tiles: {len(elements['sign_tiles'])} instances")
+    print(f"  sign_boards: {len(elements['sign_boards'])} instances")
     print(f"  water_tiles: {len(elements['water_tiles'])} tiles")
     return npz_path
 

@@ -5,7 +5,7 @@ import json
 import time
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 from lab.video.compose import FontManager
 
@@ -59,10 +59,15 @@ def apply_grain(img: np.ndarray, frame_idx: int, sigma: float = 2.0) -> np.ndarr
     return np.clip(img_f, 0.0, 255.0).astype(np.uint8)
 
 
-def create_battle_play_frame(color_f111: np.ndarray) -> np.ndarray:
+def create_battle_play_frame(color_f111: np.ndarray, bg_image: np.ndarray | None = None) -> np.ndarray:
     """Renders step-111 colour frame (144x160x3 RGB) in composer's play layout (1920x1080)."""
-    # Canvas 1920x1080, bg (15, 20, 25)
-    canvas = np.full((1080, 1920, 3), BG_COLOR, dtype=np.uint8)
+    if bg_image is not None:
+        if bg_image.shape[:2] != (1080, 1920):
+            canvas = cv2.resize(bg_image, (1920, 1080), interpolation=cv2.INTER_LINEAR)
+        else:
+            canvas = bg_image.copy()
+    else:
+        canvas = np.full((1080, 1920, 3), BG_COLOR, dtype=np.uint8)
 
     # 4x scale -> (576, 640)
     scaled = cv2.resize(color_f111, (640, 576), interpolation=cv2.INTER_NEAREST)
@@ -77,6 +82,108 @@ def create_battle_play_frame(color_f111: np.ndarray) -> np.ndarray:
     return canvas
 
 
+def draw_caption(
+    img_pil: Image.Image,
+    cap: dict,
+    fonts: FontManager,
+    alpha_fac: float = 1.0,
+) -> None:
+    """Draws a caption with white bold text and soft dark drop shadow directly over scene."""
+    if alpha_fac <= 0.01:
+        return
+
+    headline = cap.get("headline", cap.get("text", ""))
+    sub = cap.get("sub", "")
+    if not headline and not sub:
+        return
+
+    anchor = cap.get("anchor", "bottom_center")
+    dx = int(cap.get("dx", 0))
+    dy = int(cap.get("dy", 0))
+    size = int(cap.get("size", 24))
+
+    font_head = fonts.get(size, bold=True)
+    sub_size = max(13, int(size * 0.72))
+    font_sub = fonts.get(sub_size, bold=False)
+
+    w_h = int(font_head.getlength(headline)) if headline else 0
+    bbox_h = font_head.getbbox(headline) if headline else (0, 0, 0, 0)
+    h_h = (bbox_h[3] - bbox_h[1]) if headline else 0
+
+    if sub:
+        w_s = int(font_sub.getlength(sub))
+        bbox_s = font_sub.getbbox(sub)
+        h_s = bbox_s[3] - bbox_s[1]
+        gap = max(4, int(size * 0.25))
+        total_w = max(w_h, w_s)
+        total_h = h_h + gap + h_s
+    else:
+        w_s = 0
+        h_s = 0
+        gap = 0
+        total_w = w_h
+        total_h = h_h
+
+    W, H = img_pil.size
+    pad_x = 80
+    pad_y = 60
+
+    if anchor == "top_center":
+        bx = (W - total_w) // 2
+        by = pad_y
+    elif anchor == "bottom_center":
+        bx = (W - total_w) // 2
+        by = H - pad_y - total_h
+    elif anchor == "top_left":
+        bx = pad_x
+        by = pad_y
+    elif anchor == "bottom_left":
+        bx = pad_x
+        by = H - pad_y - total_h
+    elif anchor == "center":
+        bx = (W - total_w) // 2
+        by = (H - total_h) // 2
+    else:
+        bx = (W - total_w) // 2
+        by = H - pad_y - total_h
+
+    x = bx + dx
+    y = by + dy
+
+    if "center" in anchor:
+        x_head = x + (total_w - w_h) // 2 if headline else x
+        x_sub = x + (total_w - w_s) // 2 if sub else x
+    else:
+        x_head = x
+        x_sub = x
+    y_head = y
+    y_sub = y + h_h + gap
+
+    # 1. Soft dark drop shadow (blurred 60%-black copy offset 2px)
+    shadow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    sdraw = ImageDraw.Draw(shadow)
+    shadow_alpha = int(153 * alpha_fac)
+    offset = 2
+
+    if headline:
+        sdraw.text((x_head + offset, y_head + offset), headline, font=font_head, fill=(0, 0, 0, shadow_alpha))
+    if sub:
+        sdraw.text((x_sub + offset, y_sub + offset), sub, font=font_sub, fill=(0, 0, 0, shadow_alpha))
+
+    shadow_blurred = shadow.filter(ImageFilter.GaussianBlur(1.8))
+    img_pil.alpha_composite(shadow_blurred)
+
+    # 2. White text directly over scene
+    draw = ImageDraw.Draw(img_pil)
+    head_alpha = int(255 * alpha_fac)
+    sub_alpha = int(235 * alpha_fac)
+
+    if headline:
+        draw.text((x_head, y_head), headline, font=font_head, fill=(255, 255, 255, head_alpha))
+    if sub:
+        draw.text((x_sub, y_sub), sub, font=font_sub, fill=(235, 240, 248, sub_alpha))
+
+
 def draw_two_tier_card(
     draw: ImageDraw.Draw,
     fonts: FontManager,
@@ -87,44 +194,8 @@ def draw_two_tier_card(
     min_width: int = 560,
     align: str = "left",
 ) -> None:
-    """Draws a clean, rounded semi-transparent caption card per COPY_REVIEW §1 and §4."""
-    x, y = xy
-    font_head = fonts.get(22, bold=True)
-    font_sub = fonts.get(15, bold=False)
-    font_tag = fonts.get(12, bold=True)
-
-    w_head = int(draw.textlength(headline, font=font_head))
-    w_sub = int(draw.textlength(sub, font=font_sub)) if sub else 0
-    w_tag = int(draw.textlength(tag, font=font_tag)) if tag else 0
-
-    pad_x = 24
-    pad_y = 16
-    content_w = max(w_head, w_sub, w_tag, min_width - 2 * pad_x)
-    box_w = content_w + 2 * pad_x
-
-    box_h = pad_y * 2 + 26
-    if sub:
-        box_h += 24
-    if tag:
-        box_h += 18
-
-    if align == "center":
-        x = x - box_w // 2
-
-    # Card background: dark rounded rectangle with border
-    x0, y0 = x, y
-    x1, y1 = x + box_w, y + box_h
-    draw.rounded_rectangle([x0, y0, x1, y1], radius=10, fill=(12, 16, 22, 215), outline=(50, 65, 85, 230), width=1)
-
-    cur_y = y0 + pad_y
-    if tag:
-        draw.text((x0 + pad_x, cur_y), tag.upper(), font=font_tag, fill=(100, 160, 240))
-        cur_y += 18
-
-    draw.text((x0 + pad_x, cur_y), headline, font=font_head, fill=(245, 247, 250))
-    if sub:
-        cur_y += 28
-        draw.text((x0 + pad_x, cur_y), sub, font=font_sub, fill=(155, 170, 190))
+    """Legacy helper: renders via draw_caption with soft shadow."""
+    pass
 
 
 def draw_centered_title_taglines(
@@ -136,52 +207,8 @@ def draw_centered_title_taglines(
     alpha_fac: float = 1.0,
     center_y: int = 680,
 ) -> None:
-    """Draws Shot 1b subtitle and third line centered under title pond reflection."""
-    if alpha_fac <= 0.01:
-        return
-
-    cx = 960
-    f_head = fonts.get(25, bold=True)
-    f_sub = fonts.get(16, bold=False)
-    f_third = fonts.get(14, bold=False)
-
-    w_head = int(draw.textlength(headline, font=f_head))
-    w_sub = int(draw.textlength(sub, font=f_sub)) if sub else 0
-    w_third = int(draw.textlength(third_line, font=f_third)) if third_line else 0
-    max_w = max(w_head, w_sub, w_third)
-
-    box_pad_x = 28
-    box_w = max_w + 2 * box_pad_x
-    box_h = 100 if third_line else 72
-    bx0 = cx - box_w // 2
-    by0 = center_y - 20
-    bx1 = cx + box_w // 2
-    by1 = by0 + box_h
-
-    # Semi-transparent pill backing
-    bg_alpha = int(190 * alpha_fac)
-    border_alpha = int(220 * alpha_fac)
-    text_alpha = int(255 * alpha_fac)
-    sub_alpha = int(180 * alpha_fac)
-
-    draw.rounded_rectangle(
-        [bx0, by0, bx1, by1],
-        radius=12,
-        fill=(10, 14, 20, bg_alpha),
-        outline=(55, 70, 90, border_alpha),
-        width=1,
-    )
-
-    y_pos = center_y
-    draw.text((cx, y_pos), headline, font=f_head, fill=(245, 248, 252, text_alpha), anchor="mm")
-
-    if sub:
-        y_pos += 30
-        draw.text((cx, y_pos), sub, font=f_sub, fill=(160, 175, 195, sub_alpha), anchor="mm")
-
-    if third_line:
-        y_pos += 26
-        draw.text((cx, y_pos), third_line, font=f_third, fill=(135, 150, 170, sub_alpha), anchor="mm")
+    """Legacy helper for title tagline."""
+    pass
 
 
 def compose_single_frame(
@@ -195,128 +222,66 @@ def compose_single_frame(
     insert_2d_frame: np.ndarray | None = None,
 ) -> np.ndarray:
     """Post-processes one frame with vignette, grain, aberration, text overlays, and transitions."""
-    # 1. 2D Hard-Cut Insert (frames 255..290)
-    if 255 <= f <= 290 and insert_2d_frame is not None:
-        # The 2D swipe insert is already complete at 1920x1080 with layout and labels
+    # 1. 2D Hard-Cut Insert (frames 351..440, shot 2d)
+    is_2d_insert = 351 <= f <= 440
+    if is_2d_insert and insert_2d_frame is not None:
         img = insert_2d_frame.copy()
-        # Apply subtle grain to match live video texture
-        return apply_grain(img, f, sigma=1.5)
+        img = apply_grain(img, f, sigma=1.5)
+    else:
+        img = frame_bgr.copy()
 
-    img = frame_bgr.copy()
+        # 2. Chromatic aberration (Shot 1 only, frames 0..149)
+        if f < 150:
+            map_x_r, map_y_r, map_x_b, map_y_b = chroma_maps
+            img = apply_chromatic_aberration(img, map_x_r, map_y_r, map_x_b, map_y_b)
 
-    # 2. Chromatic aberration (Shot 1 only, frames 0..149)
-    if f < 150:
-        map_x_r, map_y_r, map_x_b, map_y_b = chroma_maps
-        img = apply_chromatic_aberration(img, map_x_r, map_y_r, map_x_b, map_y_b)
+        # 3. Vignette
+        img = (img.astype(np.float32) * vignette_mask).astype(np.uint8)
 
-    # 3. Vignette
-    img = (img.astype(np.float32) * vignette_mask).astype(np.uint8)
+        # 4. Film Grain (luminance only)
+        img = apply_grain(img, f, sigma=2.0)
 
-    # 4. Film Grain (luminance only)
-    img = apply_grain(img, f, sigma=2.0)
+        # 5. Fade from black (frames 0..12, 0.4 s)
+        if f <= 12:
+            fade = float(f) / 12.0
+            img = (img.astype(np.float32) * fade).astype(np.uint8)
 
-    # 5. Fade from black (frames 0..12, 0.4 s)
-    if f <= 12:
-        fade = float(f) / 12.0
-        img = (img.astype(np.float32) * fade).astype(np.uint8)
+        # 6. Final Battle Wipe (Shot 3d, frames 728..740; the old 578..590 is mid-walk now)
+        is_wipe = f >= 728
+        if is_wipe and battle_frame is not None:
+            f_start_wipe = 728
+            t_wipe = min(1.0, max(0.0, (f - f_start_wipe) / 12.0))
+            split_x = int(1920 * t_wipe)
+            wipe_composite = img.copy()
+            wipe_composite[:, :split_x] = battle_frame[:, :split_x]
+            if 0 < split_x < 1920:
+                x_line_0 = max(0, split_x - 2)
+                x_line_1 = min(1920, split_x + 2)
+                wipe_composite[:, x_line_0:x_line_1] = (255, 220, 125)
+            img = wipe_composite
 
-    # 6. Final Battle Wipe (Shot 3d, frames 578..590 = last 0.4 s)
-    if f >= 578 and battle_frame is not None:
-        t_wipe = (f - 578) / 12.0  # 0.0 -> 1.0
-        # Horizontal sweep wipe from left to right
-        split_x = int(1920 * t_wipe)
-        wipe_composite = img.copy()
-        wipe_composite[:, :split_x] = battle_frame[:, :split_x]
-        # 3-px glowing wipe hairline
-        if 0 < split_x < 1920:
-            x_line_0 = max(0, split_x - 2)
-            x_line_1 = min(1920, split_x + 2)
-            wipe_composite[:, x_line_0:x_line_1] = (255, 220, 125)  # Soft amber-cyan hairline
-        img = wipe_composite
-
-    # 7. 2D Text Overlays (Pillow RGBA composite)
-    # Convert BGR -> RGBA
+    # 7. 2D Text Overlays (Pillow RGBA composite from hook_captions.json)
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     pil_img = Image.fromarray(img_rgb).convert("RGBA")
-    draw = ImageDraw.Draw(pil_img, "RGBA")
 
-    # Time in seconds
     t_sec = f / 30.0
+    for cap_key, cap in captions.items():
+        if cap_key == "title":
+            continue  # 3D title rendered in Blender
+        st = float(cap.get("start_s", 0.0))
+        en = float(cap.get("end_s", 999.0))
+        if st <= t_sec <= en:
+            alpha_fac = 1.0
+            if t_sec - st < 0.15:
+                alpha_fac = (t_sec - st) / 0.15
+            elif en - t_sec < 0.20:
+                alpha_fac = (en - t_sec) / 0.20
 
-    # 7a. Subtitle & Third line (Shot 1b: 1.6 s to 4.8 s = frames 48..144)
-    if 48 <= f <= 144:
-        cap_sub = captions.get("subtitle", {})
-        cap_third = captions.get("third_line", {})
-        head = cap_sub.get("headline", "Dreams the game. Learns to walk in the dream. Plays for real.")
-        sub = cap_sub.get("sub", "") if t_sec >= 2.0 else ""
-        third = cap_third.get("sub", "") if t_sec >= 2.4 else ""
+            if cap_key == "subtitle" and f > 115:
+                alpha_fac = max(0.0, (128 - f) / 13.0)
 
-        # Fade out during frames 129..144
-        alpha_fac = 1.0
-        if f > 128:
-            alpha_fac = max(0.0, (144 - f) / 16.0)
+            draw_caption(pil_img, cap, fonts, alpha_fac=alpha_fac)
 
-        draw_centered_title_taglines(draw, fonts, head, sub, third, alpha_fac=alpha_fac, center_y=685)
-
-    # 7b. Card 2b: "This is all the AI sees" (frames 181..196 = 6.05 s to 6.55 s)
-    elif 181 <= f <= 196:
-        card_raw = captions.get("card_raw", {})
-        draw_two_tier_card(
-            draw, fonts, xy=(80, 890),
-            headline=card_raw.get("headline", "This is all the AI sees"),
-            sub=card_raw.get("sub", "72 x 80 pixels, greyscale"),
-            tag="AGENT VIEW",
-        )
-
-    # 7c. Reveal 2c Captions (frames 197..254 = 6.55 s to 8.5 s)
-    elif 197 <= f <= 254:
-        rev_a = captions.get("reveal_a", {})
-        rev_b = captions.get("reveal_b", {})
-        rev_note = captions.get("reveal_note", {})
-
-        if t_sec < 6.95:
-            # Stage A: Detail restored
-            draw_two_tier_card(
-                draw, fonts, xy=(80, 875),
-                headline=rev_a.get("headline", "Detail restored"),
-                sub=rev_a.get("sub", "neural upscaler: 144 x 160, the Game Boy's 4 shades"),
-                tag="STAGE 1",
-            )
-        else:
-            # Stage B: Colour restored
-            sub_text = rev_b.get("sub", "neural colorizer: a colour per pixel")
-            note_text = rev_note.get("sub", "3D: illustration. The real screen is next.")
-            full_sub = f"{sub_text}  ·  {note_text}"
-            draw_two_tier_card(
-                draw, fonts, xy=(80, 875),
-                headline=rev_b.get("headline", "Colour restored"),
-                sub=full_sub,
-                tag="STAGE 2",
-            )
-
-    # 7d. Shot 3b: "Now it walks" (frames 330..404 = 11.0 s to 13.5 s)
-    elif 330 <= f <= 404:
-        walk = captions.get("agent_walk", {})
-        draw_two_tier_card(
-            draw, fonts, xy=(80, 885),
-            headline=walk.get("headline", "Now it walks. It learned this in the dream, never in the real game."),
-            sub=walk.get("sub", "navigation policy trained only inside the world model, from frames"),
-            tag="POLICY WALK",
-            min_width=640,
-        )
-
-    # 7e. Shot 3c: "Route 1" (frames 420..495 = 14.0 s to 16.5 s)
-    elif 420 <= f <= 495:
-        r1 = captions.get("route1_label", {})
-        draw_two_tier_card(
-            draw, fonts, xy=(80, 915),
-            headline=r1.get("headline", "Route 1"),
-            sub="",
-            tag="LOCATION",
-            min_width=220,
-        )
-
-    # Convert back RGBA -> BGR
     res_bgr = cv2.cvtColor(np.asarray(pil_img.convert("RGB")), cv2.COLOR_RGB2BGR)
     return res_bgr
 
@@ -328,7 +293,7 @@ def assemble_hook(
     traj_color_npz_path: Path,
     out_mp4_path: Path,
     out_sheet_path: Path,
-    total_frames: int = 591,
+    total_frames: int = 741,
     fps: int = 30,
 ) -> dict:
     """Assembles hook_v2.mp4 and contact sheets from 3D rendered frames and 2D inserts."""
@@ -341,12 +306,27 @@ def assemble_hook(
     with open(captions_json_path, "r", encoding="utf-8") as f:
         captions = json.load(f)
 
-    # Load Step 111 battle frame
+    tracks_npz = captions_json_path.parent / "hook_tracks.npz"
+    if tracks_npz.exists():
+        t_data = np.load(tracks_npz)
+        total_frames = len(t_data["cam_pos"])
+
+    # Load Step 111 battle frame with blurred 3D background if available
     color_npz = np.load(traj_color_npz_path)
-    f111_rgb = color_npz["color"][111]
-    # In BGR for OpenCV
+    f111_rgb = color_npz["color"][min(111, len(color_npz["color"]) - 1)]
     f111_bgr = cv2.cvtColor(f111_rgb, cv2.COLOR_RGB2BGR)
-    battle_frame_bgr = create_battle_play_frame(f111_bgr)
+
+    bg_cand = None
+    for cand in [frames_dir / f"frame_{total_frames - 1:04d}.png", frames_dir / "frame_0590.png", frames_dir / "frame_0250.png"]:
+        if cand.exists():
+            bg_cand = cv2.imread(str(cand))
+            break
+    darkened_bg = None
+    if bg_cand is not None:
+        blurred = cv2.GaussianBlur(bg_cand, (51, 51), 25)
+        darkened_bg = np.clip(blurred.astype(np.float32) * 0.60, 0, 255).astype(np.uint8)
+
+    battle_frame_bgr = create_battle_play_frame(f111_bgr, bg_image=darkened_bg)
 
     # Video writer
     out_mp4_path.parent.mkdir(parents=True, exist_ok=True)
@@ -354,14 +334,14 @@ def assemble_hook(
     writer = cv2.VideoWriter(str(out_mp4_path), fourcc, fps, (1920, 1080))
 
     saved_sheet_frames = {}
-    sheet_targets = [0, 45, 110, 160, 185, 215, 250, 270, 330, 450, 520, 590]
+    sheet_targets = [0, 60, 128, 174, 200, 280, 340, 395, 480, 520, 600, 740]
 
     print(f"Assembling {total_frames} frames into {out_mp4_path.name}...")
 
     for f_idx in range(total_frames):
         # 1. Load source frame
         insert_2d = None
-        if 255 <= f_idx <= 290:
+        if 351 <= f_idx <= 440:  # shot 2d; the old 255..290 range is the 3D sweep now
             p_2d = frames_2d_dir / f"frame_{f_idx:04d}.png"
             if p_2d.exists():
                 insert_2d = cv2.imread(str(p_2d))
