@@ -25,7 +25,7 @@ This page presents a benchmark evaluating whether local Large Language Models (L
 | planner | badges | median presses | min-max | own decisions | rejected (kind) | blackouts | level at gym (median) | s / decision | peak GPU mem |
 |---|---|---|---|---|---|---|---|---|---|
 | rules (reference) | 10/10 | 8,508.5 | 8,039-10,240 | – | – | 1 | 14 | – | – |
-| gemma4:26b (MoE) | **8/10** | 9,930.5 (badge runs) | 6,362-18,000 | 113/115 | 2 malformed | 8 | 15 | 8.0 | 20.9 GB |
+| gemma4:26b (MoE) | **8/10** | 11,624 (9,930.5 over its 8 badge runs) | 6,362-18,000 | 113/115 | 2 malformed | 8 | 15 | 8.0 | 20.9 GB |
 | qwen3.6:35b-a3b (MoE) | 10/10 | 8,355 | 5,155-9,952 | 79/97 | 18 malformed | 17 | 14 | 34.6 | 22.4 GB |
 | gpt-oss:20b | 10/10 | **6,233** | 2,377-15,290 | 85/97 | 8 malformed, 3 unexecutable, 1 gym outside Pewter | 14 | 12 | 15.3 | 14.4 GB |
 | **gemma4:31b** | **10/10** | 7,239 | 6,087-8,265 | **89/89** | **0** | 3 | 13 | 13.0 | 22.4 GB |
@@ -38,13 +38,17 @@ Raw data:
 - GPU memory `work/sys2_bakeoff/vram.log`.
 
 Definitions:
-- **Median presses** is `statistics.median` over the 10 runs. For gemma4:26b it is over its 8 badge runs; its 2 failures used the whole 18,000 budget.
+- **Median presses** is `statistics.median` over all 10 runs for every model. A failed run counts at the press where it stopped:
+  - gemma4:26b seed 102 used the whole 18,000 budget;
+  - seed 103 was stopped by the stall guard at 15,427 (5 decisions in a row used ≤ 1 press).
+
+  Both rank above the 5th and 6th runs, so the median (11,624) does not depend on how a failure is counted. Corrected 2026-11-07: this page earlier gave 9,930.5 (badge runs only) and said both failures used the whole budget.
 - **s / decision** is the per-run mean latency, weighted by each run's decision count.
 - **Peak GPU memory** is the highest total `memory.used` sampled every 30 s while the model was loaded. It includes ~1.2 GB used by the desktop with no model loaded. It covers the planner only; no world model was loaded during these runs.
 
 ## What it shows
 
-- **Every model except gemma4:26b matched the rules on badges (10/10).** gemma4:26b failed twice: it kept raising its own grind target (10→13→15→17→20) until the budget ran out.
+- **Every model except gemma4:26b matched the rules on badges (10/10).** gemma4:26b failed twice: it kept raising its own grind target (10→13→15→17→20). One run hit the 18,000 budget; the stall guard stopped the other at 15,427.
 - **gemma4:31b is the cleanest planner.**
   - Every one of its 89 decisions passed validation.
   - It used the fewest presses of any 10/10 model with low blackouts: 3 blackouts vs 1 for the rules, 7,239 vs 8,508.5 presses.
