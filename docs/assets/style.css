@@ -411,6 +411,13 @@ ul { list-style: none; }
   line-height: 1;
   margin-bottom: 16px;
 }
+.hero-title .gradient-text {  /* Poké Ball colours: red top half, white bottom half; the dark outline keeps the white half visible on the light theme */
+  background: linear-gradient(180deg, #ef4444 0%, #dc2626 46%, #ffffff 56%, #e5e7eb 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  /* outline via drop-shadows: -webkit-text-stroke would draw the variable font's internal overlap contours */
+  filter: drop-shadow(2px 0 0 #111827) drop-shadow(-2px 0 0 #111827) drop-shadow(0 2px 0 #111827) drop-shadow(0 -2px 0 #111827);
+}
 .hero-subtitle {
   font-size: clamp(1rem, 3vw, 1.5rem);
   font-weight: 400;
