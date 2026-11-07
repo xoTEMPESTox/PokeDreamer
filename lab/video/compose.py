@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import time
@@ -47,10 +48,10 @@ SPLIT_FRAME_Y = 150                # top coordinate for frames
 
 # Mappings for status panel goals, legs, and badge subtext
 GOAL_MAP: Dict[str, str] = {  # research-first labels (owner review 6); keys are the planner's goals
-    "grind": "Grind: level up, scripted fights",
+    "grind": "Grind: level up",
     "heal": "Heal: restore HP",
     "travel_to_pewter": "Travel: chain of System 1 walks",
-    "gym": "Gym: scripted battle policy",
+    "gym": "Gym: earn the badge",
     "": "—",
 }
 
@@ -234,19 +235,19 @@ def get_hud_badge(
     """Returns (badge_text, bg_rgb, border_rgb, text_rgb) based on step flags.
 
     Priority:
-    1. in_battles -> "Scripted battle policy" (amber)
+    1. in_battles -> "Battling" (amber)
     2. by == "bfs" -> "Backup path-finder (BFS)" (grey)
     3. by == "policy" -> "System 1 policy, dream-trained" (green)
-    4. otherwise (no navigation leg pressing) -> "Scripted: menus, dialogue, waiting" (dark grey)
+    4. otherwise (no navigation leg pressing) -> "Menus, dialogue, waiting" (dark grey)
     """
     if in_battle:
-        return "Scripted battle policy", (75, 45, 12), (180, 110, 25), (252, 211, 77)
+        return "Battling", (75, 45, 12), (180, 110, 25), (252, 211, 77)
     elif str(by).lower() == "bfs":
         return "Backup path-finder (BFS)", (45, 55, 68), (100, 116, 139), (203, 213, 225)
     elif str(by).lower() == "policy":
         return "System 1 policy, dream-trained", (18, 65, 36), (46, 125, 50), (110, 231, 145)
     else:  # no navigation leg is pressing: menus, dialogue, the nurse-counter walk, grind pacing (scripted)
-        return "Scripted: menus, dialogue, waiting", (40, 46, 56), (90, 100, 115), (190, 198, 210)
+        return "Menus, dialogue, waiting", (40, 46, 56), (90, 100, 115), (190, 198, 210)
 
 
 class FontManager:
@@ -390,9 +391,9 @@ def draw_hud_card(
     if is_large:
         # Header: one line (the section cards carry the rest); it stays so a shared still is honest on its own
         header = (
-            "Walking: dream-trained · battles: scripted · System 2 plan: local LLM"
+            "Walking: System 1, dream-trained · System 2: local LLM"
             if is_llm_planner
-            else "Walking: dream-trained · battles: scripted · System 2 plan: rule-based"
+            else "Walking: System 1, dream-trained"
         )
         draw.text((x0 + pad_x, y0 + 38), header, font=fonts.get(19), fill=(248, 250, 252))
         draw.line([(x0 + pad_x, y0 + 82), (x1 - pad_x, y0 + 82)], fill=(34, 45, 58), width=2)
@@ -419,14 +420,14 @@ def draw_hud_card(
         curr_y += step_y
 
         # 2. System 2 Goal / The Plan
-        plan_sub = "local LLM planner" if is_llm_planner else "rule-based planner"
+        plan_sub = "local LLM planner" if is_llm_planner else ""
         goal_val = GOAL_MAP.get(str(goal), "—") if goal else "—"
         _draw_section("SYSTEM 2 PLAN", plan_sub, goal_val, default_size=32, fill=(248, 250, 252))
         curr_y += step_y
 
         # 3. Active Leg / Walking to
         leg_val = LEG_MAP.get(str(leg), "—") if leg else "—"
-        _draw_section("SYSTEM 1 POLICY", "1.58M params · trained in imagination", leg_val, default_size=30, fill=(147, 197, 253))
+        _draw_section("SYSTEM 1 POLICY", "trained in imagination", leg_val, default_size=30, fill=(147, 197, 253))
         curr_y += step_y
 
         # 4. Control Badge
@@ -462,7 +463,7 @@ def draw_hud_card(
 
         # 6. Optional level progress (for montage)
         if progress_text:
-            _draw_section("GRIND PROGRESS", "scripted battles", progress_text, default_size=30, fill=(250, 204, 21))
+            _draw_section("GRIND PROGRESS", "", progress_text, default_size=30, fill=(250, 204, 21))
 
         # 7. Planner card (for harness)
         if is_llm_planner and planner_decision is not None:
@@ -525,7 +526,7 @@ def draw_hud_card(
 
     else:
         # Compact fallback for smaller scale/box
-        draw.text((x0 + 30, y0 + 16), "Walking: dream-trained System 1 policy. Battles: scripted.", font=fonts.get(13), fill=(248, 250, 252))
+        draw.text((x0 + 30, y0 + 16), "Walking: dream-trained System 1 policy.", font=fonts.get(13), fill=(248, 250, 252))
         draw.line([(x0 + 30, y0 + 44), (x1 - 30, y0 + 44)], fill=(34, 45, 58), width=1)
 
         curr_y = y0 + 56
@@ -543,12 +544,12 @@ def draw_hud_card(
 
         # 2. System 2 Goal
         goal_val = GOAL_MAP.get(str(goal), "—") if goal else "—"
-        _draw_compact_section("SYSTEM 2 PLAN", "rule-based planner", goal_val, 18, (248, 250, 252))
+        _draw_compact_section("SYSTEM 2 PLAN", "", goal_val, 18, (248, 250, 252))
         curr_y += 56
 
         # 3. Active Leg
         leg_val = LEG_MAP.get(str(leg), "—") if leg else "—"
-        _draw_compact_section("SYSTEM 1 POLICY", "1.58M params · trained in imagination", leg_val, 18, (147, 197, 253))
+        _draw_compact_section("SYSTEM 1 POLICY", "trained in imagination", leg_val, 18, (147, 197, 253))
         curr_y += 56
 
         # 4. Control Badge
@@ -577,7 +578,7 @@ def draw_hud_card(
 
         # 6. Optional level progress (for montage)
         if progress_text:
-            _draw_compact_section("GRIND PROGRESS", "scripted battles", progress_text, 18, (250, 204, 21))
+            _draw_compact_section("GRIND PROGRESS", "", progress_text, 18, (250, 204, 21))
 
 
 def render_title_frame(
@@ -694,6 +695,596 @@ def render_end_frame(
     if fade_alpha < 0.999:
         res = (res.astype(np.float32) * max(0.0, min(1.0, fade_alpha))).astype(np.uint8)
     return res
+
+
+def render_spec_end_frame(seg: Dict[str, Any], t_s: float, fonts: FontManager) -> np.ndarray:
+    """End screen as a research spec sheet (owner review 7, Fable's design): 'what we built' panels on the left,
+    'by the numbers' charts and tiles on the right, a spec strip; two accents, staggered reveal, fade out."""
+    W, H = CANVAS_WIDTH, CANVAS_HEIGHT
+    seconds = float(seg["seconds"])
+    CYAN, GOLD = (6, 182, 212), (245, 158, 11)
+    PANEL, BORDER, TITLE, BODY, MUTED, FAINT = (20, 26, 35), (45, 58, 75), (248, 250, 252), (203, 213, 225), (148, 163, 184), (100, 116, 139)
+
+    def ease(a: float, b: float) -> float:
+        x = min(1.0, max(0.0, (t_s - a) / (b - a)))
+        return x * x * (3.0 - 2.0 * x)
+
+    out = 1.0 - ease(seconds - 0.5, seconds)
+    img = Image.new("RGBA", (W, H), BG_COLOR + (255,))
+    ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(ov)
+
+    def col(c, a):
+        return c + (int(255 * a * out),)
+
+    def spaced(s: str) -> str:
+        return " ".join(s.upper())
+
+    # title band
+    a = ease(0.0, 0.3)
+    icon = get_pokeball_icon(28)
+    ov.alpha_composite(icon, (64, 79))
+    d.text((104, 72), seg["title"], font=fonts.get(44, bold=True), fill=col(TITLE, a))
+    d.text((1856, 92), seg["title_right"], font=fonts.get(22), fill=col(MUTED, a), anchor="rm")
+    d.line([(64, 150), (1856, 150)], fill=col(BORDER, a), width=2)
+
+    # left: what we built
+    d.text((64, 184), spaced(seg["left_label"]), font=fonts.get(16, bold=True), fill=col(MUTED, a))
+    for k, (name, spec, note) in enumerate(seg["panels"]):
+        ap = ease(0.3 + 0.15 * k, 0.6 + 0.15 * k)
+        y = 220 + 134 * k + int((1.0 - ap) * 24)
+        d.rounded_rectangle([64, y, 980, y + 118], radius=8, fill=col(PANEL, ap), outline=col(BORDER, ap), width=2)
+        d.rectangle([64, y + 8, 68, y + 110], fill=col(CYAN, ap))
+        d.text((88, y + 14), name, font=fonts.get(26, bold=True), fill=col(TITLE, ap))
+        d.text((88, y + 54), spec, font=fonts.get(18), fill=col(BODY, ap))
+        d.text((88, y + 84), note, font=fonts.get(15), fill=col(FAINT, ap))
+
+    # right: by the numbers
+    d.text((1020, 184), spaced(seg["right_label"]), font=fonts.get(16, bold=True), fill=col(MUTED, a))
+    grow = ease(0.9, 1.5)
+    bars = seg["bars"]
+    ab = ease(0.6, 0.9)
+    d.text((1020, 220), bars["title"], font=fonts.get(18), fill=col(MUTED, ab))
+    vmax = max(v for _, v in bars["rows"])
+    for k, (label, v) in enumerate(bars["rows"]):
+        y = 256 + 50 * k
+        d.text((1020, y + 17), label, font=fonts.get(18), fill=col(BODY, ab), anchor="lm")
+        bw = max(2, int(470 * v / vmax * grow))
+        d.rectangle([1290, y, 1290 + bw, y + 34], fill=col(CYAN, ab))
+        d.text((1300 + bw, y + 17), f"{v:g}", font=fonts.get(20, bold=True), fill=col(TITLE, ab * grow), anchor="lm")
+    d.text((1856, 466), bars["total"], font=fonts.get(20, bold=True), fill=col(TITLE, ab * grow), anchor="rm")
+
+    cmp_ = seg["compare"]
+    ac = ease(0.75, 1.05)
+    d.text((1020, 500), cmp_["title"], font=fonts.get(18), fill=col(MUTED, ac))
+    cmax = max(r[1] for r in cmp_["rows"])
+    for k, (label, v, accent) in enumerate(cmp_["rows"]):
+        y = 536 + 50 * k
+        d.text((1020, y + 17), label, font=fonts.get(18), fill=col(BODY, ac), anchor="lm")
+        bw = max(2, int(470 * v / cmax * grow))
+        d.rectangle([1290, y, 1290 + bw, y + 34], fill=col(GOLD if accent == "gold" else CYAN, ac))
+        d.text((1300 + bw, y + 17), f"{v:,.1f}".replace(".0", ""), font=fonts.get(20, bold=True), fill=col(TITLE, ac * grow), anchor="lm")
+    d.text((1020, 650), cmp_["note"], font=fonts.get(15), fill=col(FAINT, ac))
+
+    count = ease(1.0, 1.6)
+    for k, (value, caption, accent) in enumerate(seg["tiles"]):
+        at = ease(0.9 + 0.1 * k, 1.2 + 0.1 * k)
+        x = 1020 + 288 * k
+        d.rounded_rectangle([x, 710, x + 260, 860], radius=8, fill=col(PANEL, at), outline=col(BORDER, at), width=2)
+        if "/" in value:  # count up: "30/30"
+            n, den = value.split("/")
+            shown = f"{round(int(n) * count)}/{den}"
+        else:  # count up: "91.4%" keeps its decimals
+            num = value.rstrip("%")
+            dec = len(num.split(".")[1]) if "." in num else 0
+            shown = f"{float(num) * count:.{dec}f}%"
+        d.text((x + 130, 768), shown, font=fonts.get(56, bold=True), fill=col(GOLD if accent == "gold" else CYAN, at), anchor="mm")
+        for j, line in enumerate(caption.split("\n")):
+            d.text((x + 130, 818 + 20 * j), line, font=fonts.get(15), fill=col(MUTED, at), anchor="mm")
+
+    # spec strip
+    a_s = ease(1.4, 1.8)
+    for j, line in enumerate(seg["strip"]):
+        d.text((W // 2, 936 + 32 * j), line, font=fonts.get(18), fill=col(MUTED if j < len(seg["strip"]) - 1 else FAINT, a_s), anchor="mm")
+
+    img.alpha_composite(ov)
+    return np.asarray(img.convert("RGB"))
+
+
+_TRAJ_DATA_CACHE: Dict[str, Any] = {}
+
+
+def get_traj_frames(path: str = "work/video/traj/run_seed_100.npz") -> np.ndarray:
+    """Load and cache trajectory greyscale frames."""
+    if path not in _TRAJ_DATA_CACHE:
+        if os.path.exists(path):
+            _TRAJ_DATA_CACHE[path] = np.load(path)["frames"]
+        else:
+            _TRAJ_DATA_CACHE[path] = np.zeros((10000, 72, 80), dtype=np.uint8)
+    return _TRAJ_DATA_CACHE[path]
+
+
+def format_diagram_tile_count(value: str, count: float) -> str:
+    """Animate tile counter string over count in [0, 1]. Handles 30/30, 91.4%, 99.27%, −19%, 5 of 6, 676K."""
+    count = min(1.0, max(0.0, count))
+    if "/" in value:
+        n, den = value.split("/")
+        return f"{round(int(n) * count)}/{den}"
+    if " of " in value:
+        n, den = value.split(" of ")
+        return f"{round(int(n) * count)} of {den}"
+    if value.endswith("K"):
+        n = float(value[:-1])
+        return f"{round(n * count)}K"
+    if value.endswith("M"):
+        n = float(value[:-1])
+        return f"{round(n * count)}M"
+    if value.endswith("%"):
+        prefix = ""
+        raw = value[:-1]
+        if raw.startswith("−"):
+            prefix = "−"
+            raw = raw[1:]
+        elif raw.startswith("-"):
+            prefix = "-"
+            raw = raw[1:]
+        dec = len(raw.split(".")[1]) if "." in raw else 0
+        v = float(raw) * count
+        if dec > 0:
+            return f"{prefix}{v:.{dec}f}%"
+        else:
+            return f"{prefix}{round(v)}%"
+    try:
+        n = float(value)
+        return str(round(n * count))
+    except ValueError:
+        return value
+
+
+def draw_diagram_arrow(
+    draw: ImageDraw.ImageDraw,
+    points: List[Tuple[float, float]],
+    color: Tuple[int, int, int, int],
+    width: int = 3,
+    head_size: float = 12.0,
+    style: str = "flow",
+    progress: float = 1.0,
+) -> None:
+    """Draw a straight or polyline arrow with draw-in animation and arrowhead."""
+    if len(points) < 2 or progress <= 0.0:
+        return
+
+    segs = []
+    total_len = 0.0
+    for i in range(len(points) - 1):
+        x1, y1 = points[i]
+        x2, y2 = points[i + 1]
+        l = math.hypot(x2 - x1, y2 - y1)
+        segs.append((x1, y1, x2, y2, l))
+        total_len += l
+
+    if total_len <= 0:
+        return
+
+    target_len = total_len * min(1.0, max(0.0, progress))
+    curr_len = 0.0
+    drawn_pts: List[Tuple[float, float]] = [(points[0][0], points[0][1])]
+    last_dir = (1.0, 0.0)
+
+    for x1, y1, x2, y2, l in segs:
+        if l == 0:
+            continue
+        ux, uy = (x2 - x1) / l, (y2 - y1) / l
+        if curr_len + l <= target_len:
+            drawn_pts.append((x2, y2))
+            curr_len += l
+            last_dir = (ux, uy)
+        else:
+            rem = target_len - curr_len
+            px, py = x1 + ux * rem, y1 + uy * rem
+            drawn_pts.append((px, py))
+            last_dir = (ux, uy)
+            curr_len = target_len
+            break
+
+    if style == "dashed":
+        dash_len = 8.0
+        gap_len = 6.0
+        for i in range(len(drawn_pts) - 1):
+            sx, sy = drawn_pts[i]
+            ex, ey = drawn_pts[i + 1]
+            seg_l = math.hypot(ex - sx, ey - sy)
+            if seg_l == 0:
+                continue
+            dux, duy = (ex - sx) / seg_l, (ey - sy) / seg_l
+            d_curr = 0.0
+            is_dash = True
+            while d_curr < seg_l:
+                d_next = min(seg_l, d_curr + (dash_len if is_dash else gap_len))
+                if is_dash:
+                    draw.line(
+                        [(sx + dux * d_curr, sy + duy * d_curr), (sx + dux * d_next, sy + duy * d_next)],
+                        fill=color,
+                        width=width,
+                    )
+                d_curr = d_next
+                is_dash = not is_dash
+    else:
+        for i in range(len(drawn_pts) - 1):
+            draw.line([drawn_pts[i], drawn_pts[i + 1]], fill=color, width=width)
+
+    if curr_len >= 8.0 and style != "no_head":
+        tip = drawn_pts[-1]
+        ux, uy = last_dir
+        bx, by = tip[0] - ux * head_size, tip[1] - uy * head_size
+        hw = head_size * 0.5
+        nx, ny = -uy, ux
+        p1 = (bx + nx * hw, by + ny * hw)
+        p2 = (bx - nx * hw, by - ny * hw)
+        draw.polygon([tip, p1, p2], fill=color)
+
+
+def render_diagram_frame(seg: Dict[str, Any], t_s: float, fonts: FontManager) -> np.ndarray:
+    """Generic diagram renderer driven entirely by JSON elements in a 'diagram' segment."""
+    W, H = CANVAS_WIDTH, CANVAS_HEIGHT
+    seconds = float(seg.get("seconds", 8.0))
+    CYAN, GOLD = (6, 182, 212), (245, 158, 11)
+    PANEL, BORDER, TITLE, BODY, MUTED, FAINT = (
+        (20, 26, 35),
+        (45, 58, 75),
+        (248, 250, 252),
+        (203, 213, 225),
+        (148, 163, 184),
+        (100, 116, 139),
+    )
+    BORDER_GREY = (45, 58, 75)
+
+    COLOR_LOOKUP = {
+        "cyan": CYAN,
+        "gold": GOLD,
+        "title": TITLE,
+        "body": BODY,
+        "muted": MUTED,
+        "faint": FAINT,
+        "border": BORDER,
+        "border_grey": BORDER_GREY,
+        "panel": PANEL,
+        "white": (255, 255, 255),
+    }
+
+    def resolve_color(col_val: Any, default: Tuple[int, int, int] = BODY) -> Tuple[int, int, int]:
+        if isinstance(col_val, (tuple, list)):
+            return tuple(col_val[:3])
+        if isinstance(col_val, str):
+            return COLOR_LOOKUP.get(col_val.lower(), default)
+        return default
+
+    def ease(a: float, b: float) -> float:
+        if b <= a:
+            return 1.0 if t_s >= a else 0.0
+        x = min(1.0, max(0.0, (t_s - a) / (b - a)))
+        return x * x * (3.0 - 2.0 * x)
+
+    out = 1.0 - ease(seconds - 0.5, seconds)
+
+    img = Image.new("RGBA", (W, H), BG_COLOR + (255,))
+    ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(ov)
+
+    def col(c: Any, a: float) -> Tuple[int, int, int, int]:
+        rgb = resolve_color(c)
+        return rgb + (int(255 * a * out),)
+
+    def spaced(s: str) -> str:
+        return " ".join(s.upper())
+
+    # Title band
+    a_hdr = ease(0.0, 0.3)
+    icon = get_pokeball_icon(28)
+    if a_hdr * out < 0.999:
+        icon_faded = icon.copy()
+        r, g, b, a_ch = icon_faded.split()
+        a_ch = a_ch.point(lambda p: int(p * a_hdr * out))
+        icon_faded.putalpha(a_ch)
+        ov.alpha_composite(icon_faded, (64, 79))
+    else:
+        ov.alpha_composite(icon, (64, 79))
+
+    title_text = seg.get("title", "PokeDreamer v3")
+    d.text((104, 72), title_text, font=fonts.get(44, bold=True), fill=col(TITLE, a_hdr))
+
+    if "title_right" in seg:
+        d.text((1856, 92), seg["title_right"], font=fonts.get(22), fill=col(MUTED, a_hdr), anchor="rm")
+
+    d.line([(64, 150), (1856, 150)], fill=col(BORDER, a_hdr), width=2)
+
+    # Section labels
+    if "left_label" in seg and seg["left_label"]:
+        d.text((64, 184), spaced(seg["left_label"]), font=fonts.get(16, bold=True), fill=col(MUTED, a_hdr))
+    if "right_label" in seg and seg["right_label"]:
+        rx = seg.get("right_label_x", 1240)
+        d.text((rx, 184), spaced(seg["right_label"]), font=fonts.get(16, bold=True), fill=col(MUTED, a_hdr))
+
+    # Process elements
+    elements = seg.get("elements", [])
+    for elem in elements:
+        kind = elem.get("kind", elem.get("type", ""))
+        t0 = float(elem.get("t0", 0.0))
+
+        if kind == "box":
+            a = ease(t0, t0 + 0.3)
+            if a <= 0.0:
+                continue
+            y_off = int((1.0 - a) * 24)
+            x0, y0, x1, y1 = elem["rect"]
+            box_rect = [x0, y0 + y_off, x1, y1 + y_off]
+            d.rounded_rectangle(box_rect, radius=8, fill=col(PANEL, a), outline=col(BORDER, a), width=2)
+
+            accent = elem.get("accent", "cyan")
+            if accent and accent != "none":
+                acc_rgb = resolve_color(accent, CYAN)
+                d.rectangle([x0, y0 + y_off + 8, x0 + 4, y1 + y_off - 8], fill=col(acc_rgb, a))
+
+            title = elem.get("title")
+            t_size = elem.get("title_size", 24)
+            padding_x = elem.get("padding_x", 16 if (x1 - x0) <= 300 else 20)
+            max_inner_w = (x1 - x0) - 2 * padding_x
+
+            curr_y = y0 + y_off + elem.get("title_y_pad", 10 if (y1 - y0) <= 120 else 14)
+            if title:
+                d.text((x0 + padding_x, curr_y), title, font=fonts.get(t_size, bold=True), fill=col(TITLE, a))
+                curr_y += t_size + elem.get("title_gap", 10)
+
+            body_sz = elem.get("body_size", 16 if (x1 - x0) <= 650 else 18)
+            f_body = fonts.get(body_sz)
+            lines = elem.get("lines", [])
+            line_spacing = elem.get("line_spacing", body_sz + 4)
+            for item in lines:
+                if isinstance(item, dict):
+                    txt = item.get("text", "")
+                    l_y = item.get("y", curr_y) + y_off
+                    d.text((x0 + padding_x, l_y), txt, font=f_body, fill=col(BODY, a))
+                    curr_y = l_y + line_spacing
+                else:
+                    wrapped = wrap_text(str(item), f_body, max_inner_w)
+                    for wl in wrapped:
+                        d.text((x0 + padding_x, curr_y), wl, font=f_body, fill=col(BODY, a))
+                        curr_y += line_spacing
+
+            note_sz = elem.get("note_size", 14 if (y1 - y0) <= 120 else 15)
+            f_note = fonts.get(note_sz)
+            notes = elem.get("notes", elem.get("note", []))
+            if isinstance(notes, (str, dict)):
+                notes = [notes]
+            note_spacing = elem.get("note_spacing", note_sz + 3)
+            for item in notes:
+                if isinstance(item, dict):
+                    txt = item.get("text", "")
+                    n_y = item.get("y", curr_y) + y_off
+                    d.text((x0 + padding_x, n_y), txt, font=f_note, fill=col(FAINT, a))
+                    curr_y = n_y + note_spacing
+                else:
+                    wrapped = wrap_text(str(item), f_note, max_inner_w)
+                    for wn in wrapped:
+                        d.text((x0 + padding_x, curr_y), wn, font=f_note, fill=col(FAINT, a))
+                        curr_y += note_spacing
+
+        elif kind == "arrow":
+            prog = ease(t0, t0 + 0.3)
+            if prog <= 0.0:
+                continue
+            pts = elem["points"]
+            style = elem.get("style", "flow")
+            if style == "loop":
+                arrow_color = col(GOLD, 1.0)
+            elif style == "dashed":
+                arrow_color = col(GOLD, 1.0)
+            else:
+                arrow_color = col(CYAN, 1.0)
+
+            draw_diagram_arrow(
+                d,
+                pts,
+                color=arrow_color,
+                width=elem.get("width", 3),
+                head_size=elem.get("head_size", 12.0),
+                style=style,
+                progress=prog,
+            )
+
+            label = elem.get("label")
+            if label and "label_pos" in elem and prog > 0.0:
+                a_lbl = ease(t0, t0 + 0.3)
+                l_sz = elem.get("label_size", 16)
+                l_col = elem.get("label_colour", elem.get("label_color", "muted"))
+                l_anchor = elem.get("label_anchor", "mm")
+                d.text(
+                    tuple(elem["label_pos"]),
+                    label,
+                    font=fonts.get(l_sz),
+                    fill=col(l_col, a_lbl),
+                    anchor=l_anchor,
+                )
+
+        elif kind == "chip":
+            a = ease(t0, t0 + 0.3)
+            if a <= 0.0:
+                continue
+            y_off = int((1.0 - a) * 24)
+            x0, y0, x1, y1 = elem["rect"]
+            chip_rect = [x0, y0 + y_off, x1, y1 + y_off]
+            d.rounded_rectangle(chip_rect, radius=6, fill=col(PANEL, a), outline=col(CYAN, a), width=1)
+            cx, cy = (x0 + x1) // 2, (y0 + y1) // 2 + y_off
+            f_chip = fonts.get(elem.get("font_size", 15))
+            d.text((cx, cy), elem.get("text", ""), font=f_chip, fill=col(TITLE, a), anchor="mm")
+
+        elif kind == "label":
+            a = ease(t0, t0 + 0.3)
+            if a <= 0.0:
+                continue
+            txt = elem.get("text", "")
+            if elem.get("spaced", False):
+                txt = spaced(txt)
+            sz = elem.get("size", 16)
+            bold = elem.get("bold", False)
+            c_name = elem.get("colour", elem.get("color", "muted"))
+            anchor = elem.get("anchor", "lt")
+            d.text(tuple(elem["pos"]), txt, font=fonts.get(sz, bold=bold), fill=col(c_name, a), anchor=anchor)
+
+        elif kind == "thumb":
+            a = ease(t0, t0 + 0.3)
+            if a <= 0.0:
+                continue
+            y_off = int((1.0 - a) * 24)
+            x0, y0, x1, y1 = elem["rect"]
+            tw, th = x1 - x0, y1 - y0
+            step = int(elem.get("step", 0))
+            traj_p = elem.get("traj_path", "work/video/traj/run_seed_100.npz")
+            frames = get_traj_frames(traj_p)
+            step_clamped = min(max(0, step), len(frames) - 1)
+            frame_raw = frames[step_clamped]
+
+            resized = cv2.resize(frame_raw, (tw, th), interpolation=cv2.INTER_NEAREST)
+            alpha_ch = np.full_like(resized, int(255 * a * out))
+            rgba = np.stack([resized, resized, resized, alpha_ch], axis=-1)
+            thumb_im = Image.fromarray(rgba, mode="RGBA")
+            ov.alpha_composite(thumb_im, (x0, y0 + y_off))
+            d.rectangle([x0, y0 + y_off, x1 - 1, y1 + y_off - 1], outline=col(BORDER, a), width=1)
+
+        elif kind == "bars":
+            a = ease(t0, t0 + 0.3)
+            if a <= 0.0:
+                continue
+            grow = ease(t0, t0 + elem.get("grow_duration", 0.6))
+            x0, y0, x1, y1 = elem["rect"]
+            title = elem.get("title", "")
+            d.text((x0, y0), title, font=fonts.get(18), fill=col(MUTED, a))
+
+            rows = elem.get("rows", [])
+            vmax = max((r[1] for r in rows), default=1.0)
+            bar_start = elem.get("bar_start_x", x0 + 200)
+            bar_w_max = elem.get("bar_width", x1 - bar_start - 120)
+
+            for k, row_data in enumerate(rows):
+                lbl, val = row_data[0], row_data[1]
+                row_c = row_data[2] if len(row_data) > 2 else "cyan"
+                y_r = y0 + 36 + 48 * k
+                d.text((x0, y_r + 17), lbl, font=fonts.get(18), fill=col(BODY, a), anchor="lm")
+                bw = max(2, int(bar_w_max * (val / vmax) * grow))
+                d.rectangle([bar_start, y_r, bar_start + bw, y_r + 34], fill=col(row_c, a))
+
+                if val >= 100:
+                    val_str = f"{val:,.1f}".replace(".0", "")
+                else:
+                    val_str = f"{val:g}"
+                d.text(
+                    (bar_start + bw + 10, y_r + 17),
+                    val_str,
+                    font=fonts.get(20, bold=True),
+                    fill=col(TITLE, a * grow),
+                    anchor="lm",
+                )
+
+            total = elem.get("total")
+            if total:
+                d.text(
+                    (bar_start + bar_w_max + 60, y0 + 36 + 48 * len(rows) + 8),
+                    total,
+                    font=fonts.get(20, bold=True),
+                    fill=col(TITLE, a * grow),
+                    anchor="rm",
+                )
+
+            note = elem.get("note")
+            if note:
+                d.text((x0, y1 - 10), note, font=fonts.get(15), fill=col(FAINT, a), anchor="ld")
+
+        elif kind == "tiles":
+            count = ease(t0, t0 + elem.get("count_duration", 0.6))
+            tiles_list = elem.get("tiles", [])
+            val_sz_default = elem.get("value_size", 40)
+            for k, tile in enumerate(tiles_list):
+                x0, y0, x1, y1 = tile["rect"]
+                t_k0 = t0 + 0.05 * k
+                a_tile = ease(t_k0, t_k0 + 0.3)
+                if a_tile <= 0.0:
+                    continue
+                y_off = int((1.0 - a_tile) * 24)
+                d.rounded_rectangle(
+                    [x0, y0 + y_off, x1, y1 + y_off],
+                    radius=8,
+                    fill=col(PANEL, a_tile),
+                    outline=col(BORDER, a_tile),
+                    width=2,
+                )
+
+                shown = format_diagram_tile_count(tile["value"], count)
+                t_col = tile.get("colour", tile.get("color", "cyan"))
+                val_sz = tile.get("value_size", val_sz_default)
+                cx = (x0 + x1) // 2
+                val_y = y0 + y_off + int((y1 - y0) * 0.32)
+                d.text((cx, val_y), shown, font=fonts.get(val_sz, bold=True), fill=col(t_col, a_tile), anchor="mm")
+
+                lines = tile.get("caption", "").split("\n")
+                cap_y = val_y + val_sz // 2 + 8
+                line_sp = 16 if (y1 - y0) <= 120 else 18
+                max_tile_w = (x1 - x0) - 24
+                for j, cl in enumerate(lines):
+                    cap_sz = tile.get("caption_size", elem.get("caption_size", 15))
+                    f_cap = fonts.get(cap_sz)
+                    while cap_sz > 11 and f_cap.getlength(cl) > max_tile_w:
+                        cap_sz -= 1
+                        f_cap = fonts.get(cap_sz)
+                    d.text((cx, cap_y + line_sp * j), cl, font=f_cap, fill=col(MUTED, a_tile), anchor="mm")
+
+        elif kind == "table":
+            x0, y0, x1, y1 = elem["rect"]
+            a_box = ease(t0, t0 + 0.3)
+            if a_box > 0.0:
+                y_off = int((1.0 - a_box) * 24)
+                d.rounded_rectangle(
+                    [x0, y0 + y_off, x1, y1 + y_off],
+                    radius=8,
+                    fill=col(PANEL, a_box),
+                    outline=col(BORDER, a_box),
+                    width=2,
+                )
+                rows = elem.get("rows", [])
+                stagger = elem.get("stagger", 0.1)
+                row_h = (y1 - y0) / max(1, len(rows))
+                for k, (dot_c, txt) in enumerate(rows):
+                    row_t0 = t0 + stagger * k
+                    a_row = ease(row_t0, row_t0 + 0.3)
+                    if a_row <= 0.0:
+                        continue
+                    cy = y0 + y_off + int((k + 0.5) * row_h)
+                    dot_r = 5
+                    d.ellipse(
+                        [x0 + 24 - dot_r, cy - dot_r, x0 + 24 + dot_r, cy + dot_r],
+                        fill=col(dot_c, a_row),
+                    )
+                    d.text((x0 + 44, cy), txt, font=fonts.get(18), fill=col(BODY, a_row), anchor="lm")
+
+        elif kind == "strip":
+            a_s = ease(t0, t0 + 0.4)
+            if a_s > 0.0:
+                lines = elem.get("lines", [])
+                y_start = elem.get("y_start", 936)
+                dy = elem.get("dy", 32)
+                for j, line in enumerate(lines):
+                    c = MUTED if j < len(lines) - 1 else FAINT
+                    d.text((W // 2, y_start + dy * j), line, font=fonts.get(18), fill=col(c, a_s), anchor="mm")
+
+    # If strip is defined at segment root level (for backward compatibility / convenience)
+    if "strip" in seg and not any(elem.get("kind") == "strip" for elem in elements):
+        a_s = ease(1.4, 1.8)
+        if a_s > 0.0:
+            for j, line in enumerate(seg["strip"]):
+                c = MUTED if j < len(seg["strip"]) - 1 else FAINT
+                d.text((W // 2, 936 + 32 * j), line, font=fonts.get(18), fill=col(c, a_s), anchor="mm")
+
+    img.alpha_composite(ov)
+    return np.asarray(img.convert("RGB"))
 
 
 def render_card_frame(
@@ -1230,6 +1821,16 @@ def compose_video(
                     stills_to_save["harness_decision"] = frame
                 elif not is_highlighted and "harness_between" not in stills_to_save and f_idx > 30:
                     stills_to_save["harness_between"] = frame
+
+            elif seg_type == "spec_end":
+                frame = render_spec_end_frame(seg, f_idx / fps, fonts)
+                if f_idx == n_frames // 2:
+                    stills_to_save["spec_end"] = frame
+
+            elif seg_type == "diagram":
+                frame = render_diagram_frame(seg, f_idx / fps, fonts)
+                if f_idx == n_frames // 2:
+                    stills_to_save[f"diagram_{seg_idx:02d}"] = frame
 
             elif seg_type == "card":
                 if f_idx == 0:

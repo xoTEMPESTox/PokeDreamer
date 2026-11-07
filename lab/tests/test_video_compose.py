@@ -14,6 +14,7 @@ from lab.video.compose import (
     render_end_frame,
     render_split_frame,
     render_bakeoff_frame,
+    render_diagram_frame,
     truncate_reason,
     get_latest_decision,
     load_storyboard,
@@ -60,36 +61,36 @@ def test_segment_frame_counts_sum_to_seconds_times_fps():
 
 
 def test_actual_storyboard_json_frame_counts():
-    """Verify lab/video/storyboard.json totals exactly 75 s (2250 frames at 30 fps): four 4 s intro cards, trimmed gameplay, a 7 s end screen."""
+    """Verify lab/video/storyboard.json totals exactly 93 s (2790 frames at 30 fps): four 4 s intro cards, trimmed gameplay, and three diagram screens (8 s + 9 s + 8 s)."""
     sb_path = Path("lab/video/storyboard.json")
     assert sb_path.exists(), "lab/video/storyboard.json must exist"
 
-    with open(sb_path, "r") as f:
+    with open(sb_path, "r", encoding="utf-8") as f:
         storyboard = json.load(f)
 
     fps = 30
     counts = calculate_segment_frames(storyboard, fps=fps)
-    assert sum(counts) == 2250, f"Expected 2250 frames, got {sum(counts)}"
+    assert sum(counts) == 2790, f"Expected 2790 frames, got {sum(counts)}"
     total_seconds = sum(s["seconds"] for s in storyboard)
-    assert abs(total_seconds - 75.0) < 1e-6, f"Expected 75.0 seconds, got {total_seconds}"
+    assert abs(total_seconds - 93.0) < 1e-6, f"Expected 93.0 seconds, got {total_seconds}"
 
 
 def test_storyboard_end_card_exact_numbers():
-    """Verify end card has exact required numbers and phrases."""
-    sb_path = Path("lab/video/storyboard.json")
-    with open(sb_path, "r", encoding="utf-8") as f:  # "Pokémon": not cp1252
+    """The end section consists of three screens (8 s + 9 s + 8 s) detailing architecture, harness, and final specs.
+    Verifies chart numbers (8779.5 / 7144.5, 50.0 GPU-hours), tiles, and honesty phrases in strip/table."""
+    with open(Path("lab/video/storyboard.json"), "r", encoding="utf-8") as f:
         storyboard = json.load(f)
+    end_segs = storyboard[-3:]
+    assert len(end_segs) == 3
+    assert [s.get("type") for s in end_segs] == ["diagram", "diagram", "diagram"]
+    assert [s["seconds"] for s in end_segs] == [8.0, 9.0, 8.0]
 
-    end_segments = [s for s in storyboard if s.get("type") == "end"]
-    assert len(end_segments) >= 1, "Storyboard must have at least one end segment"
-    end_text = end_segments[0].get("text", [])
-
-    assert "Diffusion world model: 16.7M params, 72×80, 4-frame context, 3.6 GPU-hours" in end_text
-    assert "System 1 RL: 10 actor-critic policies trained in imagination, 0 real steps" in end_text
-    assert "Neural upscaler + colorizer: 91% of frames pixel-exact, 99.27% of pixels" in end_text
-    # owner review 5: the end screen lists what v3 built (lab/results/compute.md, lab/play.py, v3_gym.md, v3_system2.md)
-    assert "System 1/2 harness: a local LLM plans, System 1 walks, in the real game" in end_text
-
+    screen3 = end_segs[2]
+    strip = " ".join(screen3["strip"])
+    assert "hand-written script" in strip and "rule-based planner" in strip and "zero real-game training steps" in strip
+    assert [tl[0] for tl in screen3["tiles"]] == ["30/30", "91.4%", "99.27%"]
+    assert [r[1] for r in screen3["compare"]["rows"]] == [8779.5, 7144.5]   # lab/results/v3_system2.md
+    assert round(sum(r[1] for r in screen3["bars"]["rows"]), 1) == 50.0       # lab/results/compute.md
 
 def test_fit_speed_maps_step_range():
     """Verify 'fit' speed maps a step range onto the segment's requested frames."""
@@ -125,10 +126,10 @@ def test_hud_badge_text_and_priority():
     """Verify HUD badge text and colors for in_battle / bfs / policy / scripted."""
     # 1. in_battle=True -> amber "Battle rules"
     text, bg, border, fg = get_hud_badge(in_battle=True, by="policy")
-    assert text == "Scripted battle policy"
+    assert text == "Battling"
 
     text, bg, border, fg = get_hud_badge(in_battle=True, by="bfs")
-    assert text == "Scripted battle policy"
+    assert text == "Battling"
 
     # 2. in_battle=False, by="bfs" -> grey "Backup path-finder"
     text, bg, border, fg = get_hud_badge(in_battle=False, by="bfs")
@@ -140,7 +141,7 @@ def test_hud_badge_text_and_priority():
 
     # 4. in_battle=False, by="" (no navigation leg pressing) -> grey scripted badge, not the policy
     text, bg, border, fg = get_hud_badge(in_battle=False, by="")
-    assert text == "Scripted: menus, dialogue, waiting"
+    assert text == "Menus, dialogue, waiting"
 
 
 def test_toy_rendering_dimensions_and_types():
@@ -319,7 +320,7 @@ def test_hud_badge_does_not_credit_the_policy_for_scripted_steps():
     # by == "" outside battle means no navigation leg is pressing (menus, dialogue, the nurse-counter walk, grind
     # pacing): 2,757 of the 8,718 recorded steps. Showing "AI trained in the dream" there would overclaim.
     text, _, _, _ = get_hud_badge(in_battle=False, by="")
-    assert "dream-trained" not in text.lower() and "scripted" in text.lower()
+    assert "dream-trained" not in text.lower() and "menus" in text.lower()
     assert "dream-trained" in get_hud_badge(in_battle=False, by="policy")[0].lower()
 
 
@@ -376,7 +377,7 @@ def test_no_do_not_say_phrases():
     ]
 
     sb_path = Path("lab/video/storyboard.json")
-    with open(sb_path, "r") as f:
+    with open(sb_path, "r", encoding="utf-8") as f:
         storyboard = json.load(f)
 
     strings_to_check = []
@@ -387,9 +388,36 @@ def test_no_do_not_say_phrases():
             strings_to_check.append(s["subcaption"])
         for t in s.get("text", []):
             strings_to_check.append(t)
-        for k in ("tag", "headline", "line", "line2", "heading", "footer"):
+        for k in ("tag", "headline", "line", "line2", "heading", "footer", "title", "title_right", "left_label", "right_label"):
             if s.get(k):
                 strings_to_check.append(s[k])
+        for panel in s.get("panels", []):
+            strings_to_check.extend(panel)
+        strings_to_check.extend(s.get("strip", []))
+        for elem in s.get("elements", []):
+            for k in ("title", "label", "text", "note", "total"):
+                if elem.get(k):
+                    strings_to_check.append(str(elem[k]))
+            for line in elem.get("lines", []):
+                if isinstance(line, dict):
+                    strings_to_check.append(line.get("text", ""))
+                else:
+                    strings_to_check.append(str(line))
+            for note in elem.get("notes", []):
+                if isinstance(note, dict):
+                    strings_to_check.append(note.get("text", ""))
+                else:
+                    strings_to_check.append(str(note))
+            for r in elem.get("rows", []):
+                if len(r) > 0 and isinstance(r[0], str):
+                    strings_to_check.append(r[0])
+                if len(r) > 1 and isinstance(r[1], str):
+                    strings_to_check.append(r[1])
+            for tl in elem.get("tiles", []):
+                if isinstance(tl, dict) and "caption" in tl:
+                    strings_to_check.append(tl["caption"])
+                elif isinstance(tl, (list, tuple)) and len(tl) > 1:
+                    strings_to_check.append(tl[1])
 
     for g_val in GOAL_MAP.values():
         strings_to_check.append(g_val)
@@ -400,6 +428,37 @@ def test_no_do_not_say_phrases():
         t_low = text.lower()
         for phrase in do_not_say_patterns:
             assert phrase not in t_low, f"Found forbidden phrase {phrase!r} in text: {text!r}"
+
+
+def test_diagram_element_kinds_render_without_error():
+    """Verify that every diagram element kind renders without error at t = 0, mid, and end."""
+    fonts = FontManager()
+    toy_seg = {
+        "type": "diagram",
+        "seconds": 8.0,
+        "title": "Architecture Test",
+        "title_right": "Test · 1 / 1",
+        "left_label": "TEST LEFT",
+        "right_label": "TEST RIGHT",
+        "elements": [
+            {"kind": "box", "rect": [64, 236, 364, 420], "title": "Box", "lines": ["Line 1"], "notes": ["Note 1"], "t0": 0.3},
+            {"kind": "arrow", "points": [[100, 100], [200, 200]], "style": "flow", "t0": 0.5, "label": "Flow", "label_pos": [150, 150]},
+            {"kind": "arrow", "points": [[200, 200], [300, 200]], "style": "loop", "t0": 0.6},
+            {"kind": "arrow", "points": [[300, 200], [400, 200]], "style": "dashed", "t0": 0.7},
+            {"kind": "chip", "rect": [400, 400, 500, 450], "text": "Chip", "t0": 0.4},
+            {"kind": "label", "pos": [100, 500], "text": "Label", "size": 16, "t0": 0.2},
+            {"kind": "thumb", "rect": [84, 290, 148, 348], "step": 100, "t0": 0.3},
+            {"kind": "bars", "rect": [64, 600, 500, 750], "title": "Bars", "rows": [["A", 10.0, "cyan"], ["B", 20.0, "gold"]], "note": "Bar note", "total": "total 30.0", "t0": 0.8},
+            {"kind": "tiles", "t0": 0.9, "tiles": [{"rect": [64, 800, 200, 920], "value": "30/30", "colour": "gold", "caption": "Cap\nSubcap"}]},
+            {"kind": "table", "rect": [300, 800, 700, 950], "rows": [["cyan", "Row 1"], ["gold", "Row 2"]], "t0": 1.0},
+            {"kind": "strip", "lines": ["Strip 1", "Strip 2"], "t0": 1.2},
+        ],
+    }
+
+    for t in (0.0, 4.0, 8.0):
+        frame = render_diagram_frame(toy_seg, t, fonts)
+        assert frame.shape == (CANVAS_HEIGHT, CANVAS_WIDTH, 3)
+        assert frame.dtype == np.uint8
 
 
 def test_harness_card_reason_truncation():
@@ -478,7 +537,7 @@ def test_decision_lookup_by_presses():
 def test_bakeoff_rows_load_from_storyboard():
     """Verify bakeoff segment in storyboard.json loads 7 rows with correct structure."""
     sb_path = Path("lab/video/storyboard.json")
-    with open(sb_path, "r") as f:
+    with open(sb_path, "r", encoding="utf-8") as f:
         storyboard = json.load(f)
 
     bakeoff_segs = [s for s in storyboard if s.get("type") == "bakeoff"]
@@ -492,7 +551,7 @@ def test_bakeoff_rows_load_from_storyboard():
     assert len(rows) == 7, f"Expected 7 table rows, got {len(rows)}"
 
     # Rule planner must be first, labelled 'rule-based (reference)'
-    assert rows[0]["planner"] == "rule-based (reference)"
+    assert rows[0]["planner"] == "default planner (reference)"
     assert rows[0]["badges"] == "10/10"
 
     # gemma4:31b must be present and highlighted

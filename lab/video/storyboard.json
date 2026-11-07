@@ -5,7 +5,7 @@
     "tag": "The game agent",
     "headline": "System 1 walks, System 2 plans",
     "line": "Walking: System 1 policies trained only in the world model's imagination.",
-    "line2": "A System 2 planner sets the goals; battles follow a scripted battle policy.",
+    "line2": "A System 2 planner sets the goals: grind, heal, travel, gym.",
     "bg_start": 111,
     "bg_end": 180
   },
@@ -15,7 +15,7 @@
     "start": 111,
     "end": 400,
     "speed": "fit",
-    "caption": "The game agent in the real game: System 1 walks, scripted battles"
+    "caption": "The game agent in the real game: System 1 walks"
   },
   {
     "type": "montage",
@@ -30,7 +30,7 @@
     ],
     "speed": "fit",
     "goal_text": "grind (level 8 to 14)",
-    "caption": "System 2 sets a grind goal · the scripted battle policy fights",
+    "caption": "System 2 sets a grind goal · wild battles",
     "progress": "Level 9 → 11"
   },
   {
@@ -46,7 +46,7 @@
     ],
     "speed": "fit",
     "goal_text": "grind (level 8 to 14)",
-    "caption": "System 2 sets a grind goal · the scripted battle policy fights",
+    "caption": "System 2 sets a grind goal · wild battles",
     "progress": "Level 11 → 12"
   },
   {
@@ -62,7 +62,7 @@
     ],
     "speed": "fit",
     "goal_text": "grind (level 8 to 14)",
-    "caption": "System 2 sets a grind goal · the scripted battle policy fights",
+    "caption": "System 2 sets a grind goal · wild battles",
     "progress": "Level 12 → 14"
   },
   {
@@ -72,7 +72,7 @@
     "end": 6832,
     "speed": "fit",
     "caption": "One heal: three System 1 policies in a row",
-    "subcaption": "rule-based System 2 planner · 0 backup path-finder presses in this run"
+    "subcaption": "0 backup path-finder presses in this run"
   },
   {
     "type": "card",
@@ -105,8 +105,8 @@
       ]
     ],
     "speed": "fit",
-    "caption": "LLM planner: 10 of 10 badges, 19% fewer presses than rule-based",
-    "subcaption": "median 7,144.5 vs 8,779.5 presses, 10 runs each · 99/99 decisions valid"
+    "caption": "LLM planner: 10 of 10 badges, 19% fewer presses than the default System 2",
+    "subcaption": "10 runs each, same System 1 legs · 99/99 decisions valid"
   },
   {
     "type": "bakeoff",
@@ -115,7 +115,7 @@
     "footer": "10 quests each, median over all 10 · same harness, map-reading navigation · one RTX 4090",
     "rows": [
       {
-        "planner": "rule-based (reference)",
+        "planner": "default planner (reference)",
         "badges": "10/10",
         "presses": "8,508.5",
         "vram": "—",
@@ -174,7 +174,7 @@
     "line": "Left: real game. Right: the diffusion world model, 10 steps ahead.",
     "bg_start": 6834,
     "bg_end": 6914,
-    "line2": "16.7M params · 72×80 · 4 context frames + actions · playable by keyboard"
+    "line2": "Playable by keyboard, frame by frame"
   },
   {
     "type": "split",
@@ -190,7 +190,7 @@
     "seconds": 4.0,
     "tag": "The real game",
     "headline": "The whole agent, one quest",
-    "line": "Every walk: System 1 policy. Both fights: scripted battle policy.",
+    "line": "Every walk: a System 1 policy. Two fights, then the badge.",
     "bg_start": 7761,
     "bg_end": 7800,
     "line2": "Gym badge in 30 of 30 runs; LLM planner 10 of 10."
@@ -211,23 +211,1093 @@
       ]
     ],
     "speed": "fit",
-    "caption": "System 1 walks in, two scripted battles, the badge"
+    "caption": "System 1 walks in, two battles, the badge"
   },
   {
-    "type": "end",
-    "seconds": 7.0,
-    "start": 8717,
-    "end": 8717,
-    "speed": "fit",
-    "caption": "",
-    "text": [
-      "Diffusion world model: 16.7M params, 72×80, 4-frame context, 3.6 GPU-hours",
-      "Playable: a keyboard drives the dream, frame by frame",
-      "System 1 RL: 10 actor-critic policies trained in imagination, 0 real steps",
-      "System 1/2 harness: a local LLM plans, System 1 walks, in the real game",
-      "Neural upscaler + colorizer: 91% of frames pixel-exact, 99.27% of pixels"
+    "type": "diagram",
+    "seconds": 8.0,
+    "title": "PokeDreamer v3",
+    "title_right": "PokeDreamer v3 · 1 / 3",
+    "left_label": "ARCHITECTURE · DIFFUSION WORLD MODEL (WM31)",
+    "right_label": "SPECS AND MEASUREMENTS",
+    "right_label_x": 1240,
+    "elements": [
+      {
+        "kind": "box",
+        "rect": [
+          64,
+          236,
+          364,
+          420
+        ],
+        "title": "4 past frames",
+        "t0": 0.3
+      },
+      {
+        "kind": "thumb",
+        "rect": [
+          84,
+          290,
+          148,
+          348
+        ],
+        "step": 6850,
+        "t0": 0.3
+      },
+      {
+        "kind": "thumb",
+        "rect": [
+          152,
+          290,
+          216,
+          348
+        ],
+        "step": 6851,
+        "t0": 0.3
+      },
+      {
+        "kind": "thumb",
+        "rect": [
+          220,
+          290,
+          284,
+          348
+        ],
+        "step": 6852,
+        "t0": 0.3
+      },
+      {
+        "kind": "thumb",
+        "rect": [
+          288,
+          290,
+          352,
+          348
+        ],
+        "step": 6853,
+        "t0": 0.3
+      },
+      {
+        "kind": "label",
+        "pos": [
+          214,
+          380
+        ],
+        "text": "t−4 … t−1",
+        "size": 16,
+        "anchor": "mm",
+        "colour": "faint",
+        "t0": 0.3
+      },
+      {
+        "kind": "box",
+        "rect": [
+          440,
+          236,
+          840,
+          580
+        ],
+        "title": "EDM denoiser U-Net",
+        "lines": [
+          {
+            "text": "16.7M params · 72×80 greyscale",
+            "y": 284
+          },
+          {
+            "text": "3 Euler steps per frame",
+            "y": 490
+          }
+        ],
+        "notes": [
+          {
+            "text": "GameNGen-style context-noise augmentation",
+            "y": 530
+          }
+        ],
+        "t0": 0.6
+      },
+      {
+        "kind": "chip",
+        "rect": [
+          470,
+          400,
+          570,
+          470
+        ],
+        "text": "σ₁",
+        "t0": 0.6
+      },
+      {
+        "kind": "arrow",
+        "points": [
+          [
+            570,
+            435
+          ],
+          [
+            590,
+            435
+          ]
+        ],
+        "style": "flow",
+        "t0": 0.6
+      },
+      {
+        "kind": "chip",
+        "rect": [
+          590,
+          400,
+          690,
+          470
+        ],
+        "text": "σ₂",
+        "t0": 0.6
+      },
+      {
+        "kind": "arrow",
+        "points": [
+          [
+            690,
+            435
+          ],
+          [
+            710,
+            435
+          ]
+        ],
+        "style": "flow",
+        "t0": 0.6
+      },
+      {
+        "kind": "chip",
+        "rect": [
+          710,
+          400,
+          810,
+          470
+        ],
+        "text": "σ₃ → frame",
+        "t0": 0.6
+      },
+      {
+        "kind": "box",
+        "rect": [
+          440,
+          610,
+          840,
+          690
+        ],
+        "title": "4 past actions",
+        "title_y_pad": 24,
+        "t0": 0.9
+      },
+      {
+        "kind": "arrow",
+        "points": [
+          [
+            640,
+            610
+          ],
+          [
+            640,
+            580
+          ]
+        ],
+        "style": "flow",
+        "t0": 0.9
+      },
+      {
+        "kind": "arrow",
+        "points": [
+          [
+            364,
+            328
+          ],
+          [
+            440,
+            328
+          ]
+        ],
+        "style": "flow",
+        "t0": 0.6
+      },
+      {
+        "kind": "box",
+        "rect": [
+          920,
+          236,
+          1180,
+          420
+        ],
+        "title": "next frame x_t",
+        "t0": 1.2
+      },
+      {
+        "kind": "thumb",
+        "rect": [
+          980,
+          284,
+          1120,
+          410
+        ],
+        "step": 6854,
+        "t0": 1.2
+      },
+      {
+        "kind": "arrow",
+        "points": [
+          [
+            840,
+            408
+          ],
+          [
+            920,
+            408
+          ]
+        ],
+        "style": "flow",
+        "t0": 1.2
+      },
+      {
+        "kind": "arrow",
+        "points": [
+          [
+            1050,
+            420
+          ],
+          [
+            1050,
+            740
+          ],
+          [
+            214,
+            740
+          ],
+          [
+            214,
+            420
+          ]
+        ],
+        "style": "loop",
+        "t0": 1.6,
+        "label": "imagination rollout: x_t joins the context, a_t comes from the policy · 10 imagined steps per rollout for RL",
+        "label_pos": [
+          632,
+          765
+        ],
+        "label_size": 16,
+        "label_anchor": "mm",
+        "label_colour": "gold"
+      },
+      {
+        "kind": "box",
+        "rect": [
+          1240,
+          236,
+          1856,
+          340
+        ],
+        "title": "Training",
+        "title_size": 22,
+        "body_size": 15,
+        "line_spacing": 18,
+        "note_size": 14,
+        "title_y_pad": 8,
+        "title_gap": 6,
+        "lines": [
+          "Recorded play: 200 episodes × 1,000 steps",
+          "+ 540 episodes Viridian → Pewter"
+        ],
+        "notes": [
+          "3.6 GPU-h on one RTX 4090"
+        ],
+        "t0": 1.4
+      },
+      {
+        "kind": "box",
+        "rect": [
+          1240,
+          356,
+          1856,
+          460
+        ],
+        "title": "One step",
+        "title_size": 22,
+        "body_size": 15,
+        "line_spacing": 18,
+        "note_size": 14,
+        "title_y_pad": 8,
+        "title_gap": 6,
+        "lines": [
+          "one button press, then 24 Game Boy frames ≈ 0.4 s = one tile"
+        ],
+        "notes": [
+          "conditioned on the last 4 frames + 4 actions"
+        ],
+        "t0": 1.55
+      },
+      {
+        "kind": "box",
+        "rect": [
+          1240,
+          476,
+          1856,
+          580
+        ],
+        "title": "Reading it",
+        "title_size": 22,
+        "body_size": 15,
+        "line_spacing": 18,
+        "note_size": 14,
+        "title_y_pad": 8,
+        "title_gap": 6,
+        "lines": [
+          "frame probe 3.1M: map + (x, y) from a frame",
+          "→ rewards for imagination RL"
+        ],
+        "notes": [
+          "playable by keyboard: python -m lab.play"
+        ],
+        "t0": 1.7
+      },
+      {
+        "kind": "bars",
+        "rect": [
+          1240,
+          610,
+          1856,
+          760
+        ],
+        "title": "Pixel error, imagined vs copying the last frame (held-out new areas, k = 1)",
+        "bar_start_x": 1420,
+        "bar_width": 300,
+        "rows": [
+          [
+            "imagined",
+            0.018,
+            "cyan"
+          ],
+          [
+            "copy last frame",
+            0.048,
+            "border_grey"
+          ]
+        ],
+        "note": "beats copy-last at every horizon to k = 32 (0.127 vs 0.160)",
+        "t0": 2.0
+      },
+      {
+        "kind": "tiles",
+        "t0": 2.2,
+        "value_size": 38,
+        "tiles": [
+          {
+            "rect": [
+              1240,
+              790,
+              1540,
+              900
+            ],
+            "value": "676K",
+            "colour": "gold",
+            "caption": "training windows\n3.6 GPU-h"
+          },
+          {
+            "rect": [
+              1556,
+              790,
+              1856,
+              900
+            ],
+            "value": "100/100",
+            "colour": "cyan",
+            "caption": "each of the 5 travel legs, real game\npolicy trained only in wm31's imagination"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "diagram",
+    "seconds": 9.0,
+    "title": "PokeDreamer v3",
+    "title_right": "System 1 / System 2 harness · 2 / 3",
+    "left_label": "ARCHITECTURE · ONE DECISION LOOP",
+    "elements": [
+      {
+        "kind": "box",
+        "rect": [
+          64,
+          236,
+          404,
+          376
+        ],
+        "title": "Game Boy emulator",
+        "title_size": 22,
+        "lines": [
+          "PyBoy, Pokémon Red"
+        ],
+        "notes": [
+          "RAM: map, (x, y), level, HP, badges",
+          "· 72×80 frames"
+        ],
+        "t0": 0.3
+      },
+      {
+        "kind": "arrow",
+        "points": [
+          [
+            404,
+            306
+          ],
+          [
+            496,
+            306
+          ]
+        ],
+        "style": "flow",
+        "label": "state",
+        "label_pos": [
+          450,
+          288
+        ],
+        "label_size": 16,
+        "label_anchor": "mm",
+        "label_colour": "muted",
+        "t0": 0.4
+      },
+      {
+        "kind": "box",
+        "rect": [
+          496,
+          236,
+          1136,
+          470
+        ],
+        "title": "System 2: planner, one goal per decision",
+        "t0": 0.7
+      },
+      {
+        "kind": "box",
+        "rect": [
+          516,
+          296,
+          806,
+          450
+        ],
+        "title": "Rule-based (default)",
+        "title_size": 20,
+        "body_size": 15,
+        "title_y_pad": 12,
+        "line_spacing": 20,
+        "lines": [
+          "thresholds on level, HP, map",
+          "grinds to level 14"
+        ],
+        "t0": 0.8
+      },
+      {
+        "kind": "box",
+        "rect": [
+          826,
+          296,
+          1116,
+          450
+        ],
+        "title": "LLM: gemma4:31b",
+        "title_size": 20,
+        "body_size": 15,
+        "padding_x": 10,
+        "title_y_pad": 12,
+        "title_gap": 6,
+        "line_spacing": 18,
+        "lines": [
+          "local via Ollama · thinking on",
+          "in: RAM summary, last 8 decisions,",
+          "notebook (≤ 12 notes)",
+          "out: JSON {goal, target_level,",
+          "reason, note}",
+          "optional tool: web_search"
+        ],
+        "t0": 0.9
+      },
+      {
+        "kind": "arrow",
+        "points": [
+          [
+            1136,
+            306
+          ],
+          [
+            1216,
+            306
+          ]
+        ],
+        "style": "flow",
+        "t0": 1.0
+      },
+      {
+        "kind": "box",
+        "rect": [
+          1216,
+          236,
+          1856,
+          376
+        ],
+        "title": "Validate against RAM",
+        "lines": [
+          "goal ∈ {grind, heal, travel, gym, done} · target level 8-25"
+        ],
+        "notes": [
+          "impossible plans → the rule planner takes that decision · stall guard"
+        ],
+        "t0": 1.2
+      },
+      {
+        "kind": "arrow",
+        "points": [
+          [
+            1536,
+            376
+          ],
+          [
+            1536,
+            430
+          ]
+        ],
+        "style": "flow",
+        "t0": 1.35
+      },
+      {
+        "kind": "box",
+        "rect": [
+          1216,
+          430,
+          1856,
+          540
+        ],
+        "title": "Harness: goal → skill → legs",
+        "lines": [
+          "each goal runs a fixed sequence of navigation legs"
+        ],
+        "notes": [
+          "battles go to the battle script"
+        ],
+        "t0": 1.5
+      },
+      {
+        "kind": "arrow",
+        "points": [
+          [
+            1536,
+            540
+          ],
+          [
+            1536,
+            600
+          ]
+        ],
+        "style": "flow",
+        "t0": 1.65
+      },
+      {
+        "kind": "box",
+        "rect": [
+          496,
+          600,
+          1536,
+          820
+        ],
+        "title": "System 1: 10 navigation policies, one per leg",
+        "lines": [
+          "CNN actor-critic (TD(λ)), 1.58M each · trained only in wm31's imagination · 0 emulator steps"
+        ],
+        "notes": [
+          {
+            "text": "row 1 travel, row 2 movement",
+            "y": 795
+          }
+        ],
+        "t0": 1.8
+      },
+      {
+        "kind": "chip",
+        "rect": [
+          516,
+          690,
+          704,
+          730
+        ],
+        "text": "to_route2",
+        "t0": 1.9
+      },
+      {
+        "kind": "chip",
+        "rect": [
+          716,
+          690,
+          904,
+          730
+        ],
+        "text": "to_gate",
+        "t0": 1.98
+      },
+      {
+        "kind": "chip",
+        "rect": [
+          916,
+          690,
+          1104,
+          730
+        ],
+        "text": "forest",
+        "t0": 2.06
+      },
+      {
+        "kind": "chip",
+        "rect": [
+          1116,
+          690,
+          1304,
+          730
+        ],
+        "text": "to_pewter",
+        "t0": 2.14
+      },
+      {
+        "kind": "chip",
+        "rect": [
+          1316,
+          690,
+          1504,
+          730
+        ],
+        "text": "to_gym",
+        "t0": 2.22
+      },
+      {
+        "kind": "chip",
+        "rect": [
+          516,
+          746,
+          704,
+          786
+        ],
+        "text": "to_grass",
+        "t0": 2.3
+      },
+      {
+        "kind": "chip",
+        "rect": [
+          716,
+          746,
+          904,
+          786
+        ],
+        "text": "to_viridian_pc",
+        "t0": 2.38
+      },
+      {
+        "kind": "chip",
+        "rect": [
+          916,
+          746,
+          1104,
+          786
+        ],
+        "text": "leave_viridian_pc",
+        "t0": 2.46
+      },
+      {
+        "kind": "chip",
+        "rect": [
+          1116,
+          746,
+          1304,
+          786
+        ],
+        "text": "to_pewter_pc",
+        "t0": 2.54
+      },
+      {
+        "kind": "chip",
+        "rect": [
+          1316,
+          746,
+          1504,
+          786
+        ],
+        "text": "leave_pewter_pc",
+        "t0": 2.62
+      },
+      {
+        "kind": "arrow",
+        "points": [
+          [
+            1706,
+            540
+          ],
+          [
+            1706,
+            600
+          ]
+        ],
+        "style": "flow",
+        "t0": 2.2
+      },
+      {
+        "kind": "box",
+        "rect": [
+          1556,
+          600,
+          1856,
+          700
+        ],
+        "title": "Battle script",
+        "lines": [
+          "hand-written, not learned"
+        ],
+        "t0": 2.2
+      },
+      {
+        "kind": "arrow",
+        "points": [
+          [
+            1536,
+            770
+          ],
+          [
+            1556,
+            770
+          ]
+        ],
+        "style": "dashed",
+        "t0": 2.4
+      },
+      {
+        "kind": "box",
+        "rect": [
+          1556,
+          720,
+          1856,
+          820
+        ],
+        "title": "Backup: BFS path-finder",
+        "title_size": 19,
+        "padding_x": 16,
+        "lines": [
+          "only if a leg misses its target"
+        ],
+        "t0": 2.4
+      },
+      {
+        "kind": "arrow",
+        "points": [
+          [
+            600,
+            820
+          ],
+          [
+            600,
+            870
+          ],
+          [
+            234,
+            870
+          ],
+          [
+            234,
+            376
+          ]
+        ],
+        "style": "loop",
+        "t0": 2.6,
+        "label": "button presses → emulator",
+        "label_pos": [
+          64,
+          905
+        ],
+        "label_size": 16,
+        "label_anchor": "lm",
+        "label_colour": "gold"
+      },
+      {
+        "kind": "tiles",
+        "t0": 2.8,
+        "value_size": 40,
+        "tiles": [
+          {
+            "rect": [
+              700,
+              900,
+              960,
+              1010
+            ],
+            "value": "99/99",
+            "colour": "gold",
+            "caption": "LLM decisions valid\n0 fallbacks"
+          },
+          {
+            "rect": [
+              980,
+              900,
+              1240,
+              1010
+            ],
+            "value": "10/10",
+            "colour": "cyan",
+            "caption": "badges with the\nLLM planner"
+          },
+          {
+            "rect": [
+              1260,
+              900,
+              1520,
+              1010
+            ],
+            "value": "−19%",
+            "colour": "gold",
+            "caption": "presses vs the rule planner\nsame legs"
+          },
+          {
+            "rect": [
+              1540,
+              900,
+              1856,
+              1010
+            ],
+            "value": "5 of 6",
+            "colour": "cyan",
+            "caption": "local LLMs reach\n10/10 in the bake-off"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "diagram",
+    "seconds": 8.0,
+    "title": "PokeDreamer v3",
+    "title_right": "Pokémon Red · one RTX 4090 · 50 GPU-hours of training · 3 / 3",
+    "left_label": "SPECS AND COMPUTE",
+    "right_label": "BY THE NUMBERS",
+    "right_label_x": 1020,
+    "bars": {
+      "title": "Training GPU-hours (76 runs, incl. ablations)",
+      "rows": [
+        [
+          "imagination RL (System 1)",
+          40.4
+        ],
+        [
+          "diffusion world models",
+          8.4
+        ],
+        [
+          "upscaler",
+          0.8
+        ],
+        [
+          "colorizer",
+          0.4
+        ]
+      ],
+      "total": "total 50.0 GPU-h"
+    },
+    "compare": {
+      "title": "Quest to the badge: median presses, 10 runs each",
+      "rows": [
+        [
+          "System 2: rule-based",
+          8779.5,
+          "cyan"
+        ],
+        [
+          "System 2: gemma4:31b",
+          7144.5,
+          "gold"
+        ]
+      ],
+      "note": "both 10/10 badges · no overlap in 10 vs 10 · same System 1 legs · 0 fallback presses"
+    },
+    "tiles": [
+      [
+        "30/30",
+        "Boulder Badge runs\n3 seeds × 10",
+        "gold"
+      ],
+      [
+        "91.4%",
+        "frames pixel-exact\nupscaler, held-out",
+        "cyan"
+      ],
+      [
+        "99.27%",
+        "pixel colour accuracy\ncolorizer, held-out",
+        "cyan"
+      ]
     ],
-    "heading": "PokeDreamer v3: what we built",
-    "footer": "Everything on one RTX 4090: 50 GPU-hours of training · numbers in lab/results/"
+    "strip": [
+      "Walking is the learned control: System 1 policies trained in the world model's imagination, zero real-game training steps.",
+      "Battles are a hand-written script; the default System 2 is a rule-based planner, the local LLM is the alternative System 2.",
+      "Every number: lab/results/ (compute, v3_gym, v3_system2, v3_dwm_eval, upsampler, colorizer)"
+    ],
+    "elements": [
+      {
+        "kind": "bars",
+        "rect": [
+          64,
+          220,
+          980,
+          480
+        ],
+        "title": "Training GPU-hours (76 runs, incl. ablations)",
+        "bar_start_x": 334,
+        "bar_width": 470,
+        "rows": [
+          [
+            "imagination RL (System 1)",
+            40.4,
+            "cyan"
+          ],
+          [
+            "diffusion world models",
+            8.4,
+            "cyan"
+          ],
+          [
+            "upscaler",
+            0.8,
+            "cyan"
+          ],
+          [
+            "colorizer",
+            0.4,
+            "cyan"
+          ]
+        ],
+        "total": "total 50.0 GPU-h",
+        "t0": 0.9
+      },
+      {
+        "kind": "bars",
+        "rect": [
+          64,
+          500,
+          980,
+          690
+        ],
+        "title": "Quest to the badge: median presses, 10 runs each",
+        "bar_start_x": 334,
+        "bar_width": 470,
+        "rows": [
+          [
+            "System 2: rule-based",
+            8779.5,
+            "cyan"
+          ],
+          [
+            "System 2: gemma4:31b",
+            7144.5,
+            "gold"
+          ]
+        ],
+        "note": "both 10/10 badges · no overlap in 10 vs 10 · same System 1 legs · 0 fallback presses",
+        "t0": 0.9
+      },
+      {
+        "kind": "tiles",
+        "t0": 0.9,
+        "value_size": 56,
+        "tiles": [
+          {
+            "rect": [
+              1020,
+              220,
+              1280,
+              370
+            ],
+            "value": "30/30",
+            "colour": "gold",
+            "caption": "Boulder Badge runs\n3 seeds × 10"
+          },
+          {
+            "rect": [
+              1308,
+              220,
+              1568,
+              370
+            ],
+            "value": "91.4%",
+            "colour": "cyan",
+            "caption": "frames pixel-exact\nupscaler, held-out"
+          },
+          {
+            "rect": [
+              1596,
+              220,
+              1856,
+              370
+            ],
+            "value": "99.27%",
+            "colour": "cyan",
+            "caption": "pixel colour accuracy\ncolorizer, held-out"
+          }
+        ]
+      },
+      {
+        "kind": "box",
+        "rect": [
+          1020,
+          400,
+          1856,
+          520
+        ],
+        "title": "Display models (display only)",
+        "lines": [
+          "upscaler conv U-Net 0.72M, 72×80 → 144×160 · 25 min",
+          "colorizer U-Net 1.91M, per-pixel colour class · 25 min"
+        ],
+        "t0": 1.1
+      },
+      {
+        "kind": "table",
+        "rect": [
+          1020,
+          550,
+          1856,
+          790
+        ],
+        "rows": [
+          [
+            "cyan",
+            "Walking, 10 legs: learned in imagination, 0 emulator steps"
+          ],
+          [
+            "cyan",
+            "World model: learned from recorded play"
+          ],
+          [
+            "gold",
+            "Battles: hand-written script"
+          ],
+          [
+            "gold",
+            "System 2 default: rule-based; local LLM alternative, validated vs RAM"
+          ]
+        ],
+        "t0": 1.2,
+        "stagger": 0.1
+      },
+      {
+        "kind": "strip",
+        "lines": [
+          "Walking is the learned control: System 1 policies trained in the world model's imagination, zero real-game training steps.",
+          "Battles are a hand-written script; the default System 2 is a rule-based planner, the local LLM is the alternative System 2.",
+          "Every number: lab/results/ (compute, v3_gym, v3_system2, v3_dwm_eval, upsampler, colorizer)"
+        ],
+        "t0": 1.4
+      }
+    ]
   }
 ]
