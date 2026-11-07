@@ -30,12 +30,8 @@
             "source": "v3_gym"
           },
           {
-            "lead": "RAM-grounded evaluation protocol",
-            "line": "Held-out splits, baselines, bootstrap CIs; RAM exposes map hallucinations pixel MSE misses"
-          },
-          {
-            "lead": "Reward hacking caught by RAM",
-            "line": "Policies farmed a ledge loop in imagination; a potential-based move gate closes it on 26 start tiles",
+            "lead": "RAM-grounded evaluation catches exploits",
+            "line": "Held-out splits, baselines, bootstrap CIs; RAM exposed map hallucinations and a reward hack, fixed",
             "metric": "99.96%",
             "source": "v3_tile_sweep"
           }
@@ -55,12 +51,6 @@
             "line": "The emulator reproduces recorded steps pixel-identically; a frame probe reads map, tile, battle",
             "metric": "0.40 tiles",
             "source": "probe"
-          },
-          {
-            "lead": "One consumer GPU, fully accounted",
-            "line": "76 training runs, ablations included, one RTX 4090; world model 3.6 h, a policy 14.5-48.1 min",
-            "metric": "50 GPU-h",
-            "source": "compute"
           },
           {
             "lead": "Neural upscaler and colorizer",
