@@ -6,7 +6,10 @@ import subprocess
 import sys
 import time
 
-import bpy
+try:
+    import bpy
+except ImportError:
+    bpy = None
 import numpy as np
 
 # Scale: 1 Game Boy pixel = 1 cm = 0.01 Blender units (meters)
@@ -756,50 +759,8 @@ def build_buildings_and_roofs(cls_map, ground_mat):
 
 def build_voxel_player(player_track, player_sprites_cls, player_sprites_shade, distinct_steps):
     """Build standup voxel character with exact stage-1 red player palette."""
-    st_idx = 0
-    cls_crop = player_sprites_cls[st_idx]
-    shade_crop = player_sprites_shade[st_idx]
-
     player_cls_idx = CLASS_NAMES.index("sprite_player")
-    active_voxels = np.where(cls_crop == player_cls_idx)
-
-    verts = []
-    faces = []
-    cols = []
-    v_idx = 0
-
     ramp = PALETTE_SRGB["sprite_player"]
-
-    for r_px, c_px in zip(*active_voxels):
-        sh = shade_crop[r_px, c_px]
-        lin_col = srgb_to_linear(ramp[sh])
-        rgba = [lin_col[0], lin_col[1], lin_col[2], 1.0]
-
-        z0 = (15 - r_px) * S
-        z1 = (16 - r_px) * S
-        x0 = (c_px - 8) * S
-        x1 = (c_px - 7) * S
-
-        for d in range(4):
-            y0 = (d - 2) * S
-            y1 = (d - 1) * S
-
-            verts.extend([
-                (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
-                (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1),
-            ])
-            quad = [(0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]
-            for q in quad:
-                faces.append((v_idx + q[0], v_idx + q[1], v_idx + q[2], v_idx + q[3]))
-            v_idx += 8
-            cols.extend([rgba] * 24)
-
-    me = bpy.data.meshes.new("PlayerVoxelMesh")
-    me.from_pydata(verts, [], faces)
-    me.update(calc_edges=True)
-
-    col_attr = me.color_attributes.new("col", "FLOAT_COLOR", "CORNER")
-    col_attr.data.foreach_set("color", np.array(cols, dtype=np.float32).reshape(-1))
 
     mat = bpy.data.materials.new("PlayerMat")
     mat.use_nodes = True
@@ -809,17 +770,86 @@ def build_voxel_player(player_track, player_sprites_cls, player_sprites_shade, d
     vc.layer_name = "col"
     nt.links.new(vc.outputs["Color"], bsdf.inputs["Base Color"])
     bsdf.inputs["Roughness"].default_value = 0.65
-    me.materials.append(mat)
 
-    player_obj = bpy.data.objects.new("Player", me)
+    player_obj = bpy.data.objects.new("Player", None)
+    player_obj.empty_display_type = "PLAIN_AXES"
+    player_obj.empty_display_size = 0.05
     bpy.context.scene.collection.objects.link(player_obj)
+
+    unique_sprites = {}
+    step_to_sprite = {}
+
+    for st_idx, step_val in enumerate(distinct_steps):
+        cls_crop = player_sprites_cls[st_idx]
+        shade_crop = player_sprites_shade[st_idx]
+        key = (cls_crop.tobytes(), shade_crop.tobytes())
+
+        if key not in unique_sprites:
+            active_voxels = np.where(cls_crop == player_cls_idx)
+            verts = []
+            faces = []
+            cols = []
+            v_idx = 0
+
+            for r_px, c_px in zip(*active_voxels):
+                sh = shade_crop[r_px, c_px]
+                lin_col = srgb_to_linear(ramp[sh])
+                rgba = [lin_col[0], lin_col[1], lin_col[2], 1.0]
+
+                z0 = (15 - r_px) * S
+                z1 = (16 - r_px) * S
+                x0 = (c_px - 8) * S
+                x1 = (c_px - 7) * S
+
+                for d in range(4):
+                    y0 = (d - 2) * S
+                    y1 = (d - 1) * S
+
+                    verts.extend([
+                        (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
+                        (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1),
+                    ])
+                    quad = [(0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]
+                    for q in quad:
+                        faces.append((v_idx + q[0], v_idx + q[1], v_idx + q[2], v_idx + q[3]))
+                    v_idx += 8
+                    cols.extend([rgba] * 24)
+
+            me = bpy.data.meshes.new(f"PlayerVoxelMesh_{len(unique_sprites)}")
+            me.from_pydata(verts, [], faces)
+            me.update(calc_edges=True)
+
+            col_attr = me.color_attributes.new("col", "FLOAT_COLOR", "CORNER")
+            col_attr.data.foreach_set("color", np.array(cols, dtype=np.float32).reshape(-1))
+            me.materials.append(mat)
+
+            s_obj = bpy.data.objects.new(f"PlayerSprite_{len(unique_sprites)}", me)
+            s_obj.parent = player_obj
+            bpy.context.scene.collection.objects.link(s_obj)
+            unique_sprites[key] = s_obj
+
+        step_to_sprite[int(step_val)] = unique_sprites[key]
 
     F = len(player_track)
     for f in range(F):
         px, py, facing_step = player_track[f]
         bob = 0.003 * math.sin(f * 0.8) if (f >= 105 and f < 220) else 0.0
-        player_obj.location = (px * S, -py * S, bob + 0.005)
+        # If coordinates are already in meters (< 20m), use directly; otherwise scale from pixels
+        if abs(px) < 20.0:
+            x_m, y_m = float(px), float(py)
+        else:
+            x_m, y_m = float(px * S), float(-py * S)
+        player_obj.location = (x_m, y_m, bob + 0.005)
         player_obj.keyframe_insert(data_path="location", frame=f)
+
+        cur_step = int(facing_step)
+        active_s = step_to_sprite.get(cur_step, next(iter(unique_sprites.values())) if unique_sprites else None)
+        for s_obj in unique_sprites.values():
+            hide = (s_obj != active_s)
+            s_obj.hide_render = hide
+            s_obj.hide_viewport = hide
+            s_obj.keyframe_insert(data_path="hide_render", frame=f)
+            s_obj.keyframe_insert(data_path="hide_viewport", frame=f)
 
     return player_obj
 
@@ -976,7 +1006,7 @@ def build_dream_twin(dream_cls, dream_shade, reanchors, steps_per_frame, map_w=3
     return twin_coll
 
 
-def build_camera_and_aim(camera_aim_track, camera_pos_track, player_obj, topdown=False, map_w=6.40, map_h=5.76):
+def build_camera_and_aim(camera_aim_track, camera_pos_track, player_obj, topdown=False, map_w=6.40, map_h=5.76, focus_obj=None):
     """Build camera and aim. If topdown=True, builds straight orthographic overhead camera."""
     cam_data = bpy.data.cameras.new("MainCamera")
 
@@ -1001,7 +1031,7 @@ def build_camera_and_aim(camera_aim_track, camera_pos_track, player_obj, topdown
     cam_data.lens = 50.0
     cam_data.clip_end = 500.0
     cam_data.dof.use_dof = True
-    cam_data.dof.focus_object = aim_obj
+    cam_data.dof.focus_object = focus_obj if focus_obj is not None else aim_obj
     cam_data.dof.aperture_fstop = 2.0
 
     cam_obj = bpy.data.objects.new("MainCamera", cam_data)

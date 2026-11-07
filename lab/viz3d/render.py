@@ -22,9 +22,12 @@ TIMING_FILE = Path("work/viz3d/timing.md").resolve()
 NOTES_FILE = Path("work/viz3d/NOTES.md").resolve()
 
 
-def is_gpu_busy() -> tuple[bool, str]:
-    """Check if GPU has another python or gaming process running."""
+def is_gpu_busy(ignore_pids: list[int] | None = None) -> tuple[bool, str]:
+    """Check if GPU has another python, blender, or gaming process running."""
     my_pid = os.getpid()
+    ignored = {my_pid}
+    if ignore_pids:
+        ignored.update(ignore_pids)
     try:
         out = subprocess.check_output(
             ["nvidia-smi", "--query-compute-apps=pid,process_name", "--format=csv,noheader"],
@@ -37,11 +40,13 @@ def is_gpu_busy() -> tuple[bool, str]:
                     pid = int(parts[0].strip())
                 except ValueError:
                     pid = -1
-                if pid == my_pid:
+                if pid in ignored:
                     continue
                 pname_lower = parts[1].strip().lower()
                 if "python" in pname_lower:
                     return True, f"Python process (PID {pid}): {parts[1].strip()}"
+                if "blender" in pname_lower:
+                    return True, f"Blender process (PID {pid}): {parts[1].strip()}"
                 for game in ("warframe", "valorant", "helldivers"):
                     if game in pname_lower:
                         return True, f"Game active: {game}"
@@ -64,6 +69,52 @@ def wait_for_gpu():
         busy, reason = is_gpu_busy()
         print(f"[GPU Check] Status: {'Busy - ' + reason if busy else 'Clear'}", flush=True)
     print("[GPU Check] GPU is now available. Proceeding with render.", flush=True)
+
+
+def run_blender(
+    script: str | Path,
+    args: list[str],
+    log_file: str | Path | None = None,
+    max_minutes: float = 30.0,
+) -> int:
+    """Run headless Blender with GPU wait, watchdog, and streaming output logging."""
+    wait_for_gpu()
+    cmd = [
+        str(BLENDER_EXE),
+        "-b",
+        "--factory-startup",
+        "-P",
+        str(script),
+        "--",
+    ] + [str(a) for a in args]
+
+    t_start = time.time()
+    if log_file:
+        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+    log_f = open(log_file, "w", encoding="utf-8") if log_file else None
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            if log_f:
+                log_f.write(line)
+                log_f.flush()
+            if (time.time() - t_start) / 60.0 > max_minutes:
+                print(f"[Watchdog] Process exceeded {max_minutes} minutes! Terminating Blender...")
+                proc.terminate()
+                break
+        proc.wait()
+        return proc.returncode
+    finally:
+        if log_f:
+            log_f.close()
 
 
 def get_gpu_telemetry() -> tuple[int, str]:
@@ -280,6 +331,62 @@ def run_benchmarks(shot_name: str = "opener_8s") -> tuple[str, int]:
     return decided_engine, decided_spp
 
 
+def run_blender(
+    script: str | Path,
+    args: list[str],
+    log_file: str | Path | None = None,
+    max_minutes: float = 30.0,
+) -> int:
+    """Run Blender with watchdog timer and logging."""
+    wait_for_gpu()
+    cmd = [
+        str(BLENDER_EXE),
+        "-b",
+        "--factory-startup",
+        "-P",
+        str(script),
+        "--",
+    ] + [str(a) for a in args]
+
+    print(f"Launching Blender: {' '.join(cmd)}")
+    t_start = time.time()
+
+    if log_file:
+        log_path = Path(log_file).resolve()
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_f = open(log_path, "w", encoding="utf-8")
+    else:
+        log_f = None
+
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            if log_f:
+                log_f.write(line)
+                log_f.flush()
+
+            elapsed_min = (time.time() - t_start) / 60.0
+            if elapsed_min > max_minutes:
+                print(f"[Watchdog] Process exceeded {max_minutes} minutes! Terminating Blender...")
+                proc.terminate()
+                break
+
+        proc.wait()
+        return proc.returncode
+    finally:
+        if log_f:
+            log_f.close()
+
+
 def run_render(
     shot_name: str = "opener_8s",
     engine: str = "cycles",
@@ -288,6 +395,7 @@ def run_render(
     spp: int = 64,
     preview: bool = False,
     max_minutes: float = 30.0,
+    script: str | Path = "lab/viz3d/bpy_build.py",
 ):
     """Run Blender render with watchdog timer, logs, and video assembly."""
     wait_for_gpu()
@@ -306,7 +414,7 @@ def run_render(
         "-b",
         "--factory-startup",
         "-P",
-        "lab/viz3d/bpy_build.py",
+        str(script),
         "--",
         str(scene_path),
         str(out_frames_dir),
@@ -406,6 +514,7 @@ def main():
     parser.add_argument("--spp", type=int, default=64, help="Samples per pixel")
     parser.add_argument("--preview", action="store_true", help="Preview mode (960x540, 16 spp)")
     parser.add_argument("--benchmark-and-batch", action="store_true", help="Run one-frame benchmarks, decide engine, and render full batch")
+    parser.add_argument("--script", default="lab/viz3d/bpy_build.py", help="Blender script to execute")
     args = parser.parse_args()
 
     if args.benchmark_and_batch:
@@ -416,6 +525,7 @@ def main():
             frames=[0, 239],
             width=1920,
             spp=decided_spp,
+            script=args.script,
         )
     else:
         run_render(
@@ -425,6 +535,7 @@ def main():
             width=args.width,
             spp=args.spp,
             preview=args.preview,
+            script=args.script,
         )
 
 

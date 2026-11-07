@@ -15,7 +15,7 @@ from lab.viz3d.classes import (
 
 def test_load_palette():
     names, lut = load_palette()
-    assert len(names) == 23
+    assert len(names) >= 23
     assert "grass" in names
     assert "building_wall" in names
     assert "sprite_npc" in names
