@@ -75,7 +75,7 @@
     ],
     "speed": "fit",
     "caption": "Same agent, new brain: a local LLM plans the quest",
-    "subcaption": "the game harness: any planner can drive the same dream-trained skills · gemma4:31b on this PC, via Ollama"
+    "subcaption": "measured over 10 runs: 10/10 badges, median 7,144.5 presses vs 8,779.5 for rules on the same skills"
   },
   {
     "type": "bakeoff",
@@ -145,7 +145,8 @@
     "text": [
       "Boulder Badge: 30 of 30 runs",
       "14 of 30 runs: every walk by the dream-trained policy, no backup used",
-      "Colour and detail restored by neural nets: 99.27% of pixels, 91% of frames exact"
+      "Colour and detail restored by neural nets: 99.27% of pixels, 91% of frames exact",
+      "Local LLM as the planner: 10 of 10 runs, 19% fewer presses than the rules"
     ]
   }
 ]

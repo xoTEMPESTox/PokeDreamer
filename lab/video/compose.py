@@ -649,6 +649,7 @@ def render_end_frame(
         (250, 204, 21),   # Gold for badges
         (74, 222, 128),   # Green for learned navigation
         (56, 189, 248),   # Cyan for restored color/detail
+        (167, 139, 250),  # Violet for the LLM planner
     ]
 
     base_y = cy - 110
@@ -662,7 +663,7 @@ def render_end_frame(
     # Footer note
     draw.text(
         (cx, cy + 220),
-        "walking learned only inside the world model · battles and plan: hand-written rules · 3 seeds x 10 runs",
+        "walking learned only inside the world model · battles: hand-written rules · plan: rules (3 seeds x 10 runs) or a local LLM (10 runs)",
         font=fonts.get(18),
         fill=(148, 163, 184),
         anchor="mm",

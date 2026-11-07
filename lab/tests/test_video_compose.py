@@ -87,6 +87,8 @@ def test_storyboard_end_card_exact_numbers():
     assert "Boulder Badge: 30 of 30 runs" in end_text
     assert "14 of 30 runs: every walk by the dream-trained policy, no backup used" in end_text
     assert "Colour and detail restored by neural nets: 99.27% of pixels, 91% of frames exact" in end_text
+    # lab/results/v3_system2.md, full harness: median 7,144.5 vs 8,779.5 presses = 18.6% fewer
+    assert "Local LLM as the planner: 10 of 10 runs, 19% fewer presses than the rules" in end_text
 
 
 def test_fit_speed_maps_step_range():
