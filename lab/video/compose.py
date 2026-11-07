@@ -158,8 +158,64 @@ def draw_heading(
 
 
 def calculate_segment_frames(storyboard: List[Dict[str, Any]], fps: int = DEFAULT_FPS) -> List[int]:
-    """Computes output frame count for each segment from its seconds."""
-    return [int(round(s["seconds"] * fps)) for s in storyboard]
+    """Computes output frame count for each segment from its seconds (or frame count for clips)."""
+    counts: List[int] = []
+    for s in storyboard:
+        if s.get("type") == "clip":
+            start_f = int(s.get("start_frame", 0))
+            end_f = int(s.get("end_frame", 0))
+            hold_s = float(s.get("hold_s", 0.0))
+            counts.append((end_f - start_f) + int(round(hold_s * fps)))
+        else:
+            counts.append(int(round(s["seconds"] * fps)))
+    return counts
+
+
+def load_clip_frames(
+    src: str | Path,
+    start_frame: int,
+    end_frame: int,
+    hold_s: float = 0.0,
+    fps: int = DEFAULT_FPS,
+) -> List[np.ndarray]:
+    """Loads frames [start_frame, end_frame) from video src, resized to 1920x1080 if needed, with hold."""
+    src_path = str(src)
+    if not os.path.exists(src_path):
+        raise FileNotFoundError(f"Clip source not found: {src_path}")
+
+    cap = cv2.VideoCapture(src_path)
+    if not cap.isOpened():
+        raise IOError(f"Could not open clip video: {src_path}")
+
+    # Skip sequentially: CAP_PROP_POS_FRAMES seeks can land on a nearby keyframe in mp4v files.
+    for _ in range(start_frame):
+        cap.grab()
+
+    frames: List[np.ndarray] = []
+    num_to_read = max(0, end_frame - start_frame)
+    last_frame = None
+    for _ in range(num_to_read):
+        ret, frame_bgr = cap.read()
+        if not ret:
+            if last_frame is not None:
+                frame_rgb = last_frame.copy()
+            else:
+                frame_rgb = np.zeros((CANVAS_HEIGHT, CANVAS_WIDTH, 3), dtype=np.uint8)
+        else:
+            frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+            if frame_rgb.shape[0] != CANVAS_HEIGHT or frame_rgb.shape[1] != CANVAS_WIDTH:
+                frame_rgb = cv2.resize(frame_rgb, (CANVAS_WIDTH, CANVAS_HEIGHT), interpolation=cv2.INTER_LINEAR)
+            last_frame = frame_rgb
+        frames.append(frame_rgb)
+    cap.release()
+
+    hold_frames = int(round(hold_s * fps))
+    if hold_frames > 0 and len(frames) > 0:
+        last = frames[-1]
+        for _ in range(hold_frames):
+            frames.append(last.copy())
+
+    return frames
 
 
 def compute_step_indices(
@@ -1296,6 +1352,183 @@ def render_diagram_frame(seg: Dict[str, Any], t_s: float, fonts: FontManager) ->
     return np.asarray(img.convert("RGB"))
 
 
+def render_value_frame(seg: Dict[str, Any], t_s: float, fonts: FontManager) -> np.ndarray:
+    """Renders a two-column info screen ('value' segment) showing research and engineering value."""
+    W, H = CANVAS_WIDTH, CANVAS_HEIGHT
+    seconds = float(seg.get("seconds", 10.0))
+    CYAN, GOLD = (56, 189, 248), (250, 204, 21)
+    PANEL, BORDER, TITLE, BODY, MUTED, FAINT = (
+        (20, 26, 35),
+        (45, 58, 75),
+        (248, 250, 252),
+        (203, 213, 225),
+        (148, 163, 184),
+        (100, 116, 139),
+    )
+    DARK_TEXT = (15, 20, 25)
+
+    def ease(a: float, b: float) -> float:
+        if b <= a:
+            return 1.0 if t_s >= a else 0.0
+        x = min(1.0, max(0.0, (t_s - a) / (b - a)))
+        return x * x * (3.0 - 2.0 * x)
+
+    out = 1.0 - ease(seconds - 0.5, seconds)
+
+    def col(c: Tuple[int, int, int], a: float) -> Tuple[int, int, int, int]:
+        return c + (int(255 * max(0.0, min(1.0, a)) * out),)
+
+    def spaced(s: str) -> str:
+        return " ".join(s.upper())
+
+    img = Image.new("RGBA", (W, H), BG_COLOR + (255,))
+    ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(ov)
+
+    # Header band with Poké Ball icon, title, title_right, and rule
+    a_hdr = ease(0.0, 0.3)
+    icon = get_pokeball_icon(28)
+    if a_hdr * out < 0.999:
+        icon_faded = icon.copy()
+        r, g, b, a_ch = icon_faded.split()
+        a_ch = a_ch.point(lambda p: int(p * a_hdr * out))
+        icon_faded.putalpha(a_ch)
+        ov.alpha_composite(icon_faded, (64, 79))
+    else:
+        ov.alpha_composite(icon, (64, 79))
+
+    title_text = seg.get("title", "PokeDreamer v3")
+    d.text((104, 72), title_text, font=fonts.get(44, bold=True), fill=col(TITLE, a_hdr))
+    if "title_right" in seg:
+        d.text((1856, 92), seg["title_right"], font=fonts.get(22), fill=col(MUTED, a_hdr), anchor="rm")
+    d.line([(64, 150), (1856, 150)], fill=col(BORDER, a_hdr), width=2)
+
+    # Headline
+    a_head = ease(0.0, 0.4)
+    headline = seg.get("headline", "")
+    if headline and a_head > 0.0:
+        d.text((64, 172), headline, font=fonts.get(34, bold=True), fill=col(TITLE, a_head))
+
+    # Two equal columns
+    columns = seg.get("columns", [])
+    num_cols = len(columns)
+    if num_cols > 0:
+        margin_x = 64
+        total_w = 1856 - margin_x
+        col_gap = 48
+        col_w = (total_w - (num_cols - 1) * col_gap) // num_cols
+        y_hdr = 226
+        f_hdr = fonts.get(18, bold=True)
+        a_col_hdr = ease(0.35, 0.65)
+
+        max_items = max((len(c.get("items", [])) for c in columns), default=0)
+        item_h = 160 if max_items >= 4 else 190
+        item_gap = 16 if max_items >= 4 else 22
+        y_items_start = 274
+
+        for c_idx, c_data in enumerate(columns):
+            cx0 = margin_x + c_idx * (col_w + col_gap)
+            cx1 = cx0 + col_w
+
+            # Column header sits on the yellow highlighter box
+            if a_col_hdr > 0.0:
+                hdr_raw = c_data.get("header", "")
+                htxt = spaced(hdr_raw)
+                bb = d.textbbox((cx0 + 14, y_hdr), htxt, font=f_hdr)
+                d.rounded_rectangle([cx0, bb[1] - 5, bb[2] + 14, bb[3] + 5], radius=6, fill=col(GOLD, a_col_hdr))
+                d.text((cx0 + 14, y_hdr), htxt, font=f_hdr, fill=col(DARK_TEXT, a_col_hdr))
+
+            # Column items: staggered ~0.25 s apart
+            items = c_data.get("items", [])
+            for r_idx, item in enumerate(items):
+                t_item = 0.5 + 0.25 * (r_idx * num_cols + c_idx)
+                a_item = ease(t_item, t_item + 0.35)
+                if a_item <= 0.0:
+                    continue
+
+                iy = y_items_start + r_idx * (item_h + item_gap)
+                y_off = int((1.0 - a_item) * 16)
+                iy_box = iy + y_off
+
+                # Outer card box
+                d.rounded_rectangle(
+                    [cx0, iy_box, cx1, iy_box + item_h],
+                    radius=8,
+                    fill=col(PANEL, a_item),
+                    outline=col(BORDER, a_item),
+                    width=2,
+                )
+                # Left accent stripe
+                d.rectangle([cx0, iy_box + 8, cx0 + 4, iy_box + item_h - 8], fill=col(CYAN, a_item))
+
+                pad_l = 24
+                pad_r = 24
+                metric_w = 210
+                max_text_w = col_w - pad_l - metric_w - 20
+
+                # Lead: bold white
+                lead_str = item.get("lead", "")
+                lead_sz = 26 if max_items <= 3 else 24  # readable at 1080p
+                f_lead = fonts.get(lead_sz, bold=True)
+                while lead_sz > 14 and f_lead.getlength(lead_str) > max_text_w:
+                    lead_sz -= 1
+                    f_lead = fonts.get(lead_sz, bold=True)
+                lead_y = iy_box + (22 if max_items <= 3 else 18)
+                d.text((cx0 + pad_l, lead_y), lead_str, font=f_lead, fill=col(TITLE, a_item))
+
+                # Line: body colour, wrapped to at most 2 lines, shrinking font if needed
+                line_str = item.get("line", "")
+                line_sz = 21 if max_items <= 3 else 20
+                f_line = fonts.get(line_sz)
+                w_lines = wrap_text(line_str, f_line, max_text_w)
+                while len(w_lines) > 2 and line_sz > 10:
+                    line_sz -= 1
+                    f_line = fonts.get(line_sz)
+                    w_lines = wrap_text(line_str, f_line, max_text_w)
+                w_lines = w_lines[:2]
+
+                line_y = lead_y + lead_sz + 10
+                line_sp = line_sz + 8
+                for l_t in w_lines:
+                    d.text((cx0 + pad_l, line_y), l_t, font=f_line, fill=col(BODY, a_item))
+                    line_y += line_sp
+
+                # Metric and source on the right
+                metric_rx = cx1 - pad_r
+                has_metric = "metric" in item and item["metric"]
+                has_source = "source" in item and item["source"]
+
+                if has_metric:
+                    m_str = str(item["metric"])
+                    m_sz = 36 if max_items <= 3 else 32
+                    f_m = fonts.get(m_sz, bold=True)
+                    while m_sz > 16 and f_m.getlength(m_str) > metric_w:
+                        m_sz -= 2
+                        f_m = fonts.get(m_sz, bold=True)
+
+                    if has_source:
+                        my = iy_box + (item_h // 2) - 10
+                    else:
+                        my = iy_box + (item_h // 2)
+                    d.text((metric_rx, my), m_str, font=f_m, fill=col(CYAN, a_item), anchor="rm")
+
+                    if has_source:
+                        s_str = str(item["source"])
+                        f_s = fonts.get(13)
+                        sy = my + (m_sz // 2) + 10
+                        d.text((metric_rx, sy), s_str, font=f_s, fill=col(FAINT, a_item), anchor="rm")
+
+    # Footer
+    footer = seg.get("footer", "")
+    if footer:
+        a_foot = ease(0.4, 0.8)
+        if a_foot > 0.0:
+            d.text((W // 2, 1020), footer, font=fonts.get(18), fill=col(FAINT, a_foot), anchor="mm")
+
+    img.alpha_composite(ov)
+    return np.asarray(img.convert("RGB"))
+
+
 def render_card_frame(
     bg_frame: np.ndarray,
     t: float,
@@ -1704,12 +1937,15 @@ def compose_video(
     print(f"{'#':<3} {'Type':<10} {'Start':<7} {'End':<7} {'Speed':<8} {'Frames':<8} {'Sec':<6} {'Caption'}")
     print("-" * 80)
     for i, s in enumerate(storyboard):
-        cap = s.get("caption", "")
+        cap = s.get("caption", s.get("tag", s.get("headline", s.get("src", ""))))
         if len(cap) > 30:
             cap = cap[:27] + "..."
+        start_val = s.get("start", s.get("start_frame", 0))
+        end_val = s.get("end", s.get("end_frame", 0))
+        sec_val = s.get("seconds", seg_frames[i] / fps)
         print(
-            f"{i+1:<3} {s['type']:<10} {s.get('start', 0):<7} {s.get('end', 0):<7} "
-            f"{str(s.get('speed', 'fit')):<8} {seg_frames[i]:<8} {s['seconds']:<6.1f} {cap}"
+            f"{i+1:<3} {s['type']:<10} {start_val:<7} {end_val:<7} "
+            f"{str(s.get('speed', 'fit')):<8} {seg_frames[i]:<8} {sec_val:<6.1f} {cap}"
         )
     print("-" * 80)
     print(f"Total video duration: {total_duration:.2f} s ({total_frames} frames @ {fps} fps)")
@@ -1724,6 +1960,23 @@ def compose_video(
     for seg_idx, seg in enumerate(storyboard):
         seg_type = seg["type"]
         n_frames = seg_frames[seg_idx]
+
+        if seg_type == "clip":
+            seg_out = load_clip_frames(
+                src=seg["src"],
+                start_frame=int(seg.get("start_frame", 0)),
+                end_frame=int(seg.get("end_frame", 0)),
+                hold_s=float(seg.get("hold_s", 0.0)),
+                fps=fps,
+            )
+            rendered_segments.append(seg_out)
+            mid_idx = n_frames // 2
+            still_key = f"segment_{seg_idx+1:02d}_{seg_type}"
+            stills_to_save[still_key] = seg_out[mid_idx]
+            if seg_type not in stills_to_save:
+                stills_to_save[seg_type] = seg_out[mid_idx]
+            continue
+
         speed = seg.get("speed", "fit")
         ranges = seg.get("ranges", None)
         start_step = seg.get("start", 0)
@@ -1840,6 +2093,11 @@ def compose_video(
                 frame = render_diagram_frame(seg, f_idx / fps, fonts)
                 if f_idx == n_frames // 2:
                     stills_to_save[f"diagram_{seg_idx:02d}"] = frame
+
+            elif seg_type == "value":
+                frame = render_value_frame(seg, f_idx / fps, fonts)
+                if f_idx == n_frames // 2:
+                    stills_to_save[f"value_{seg_idx:02d}"] = frame
 
             elif seg_type == "card":
                 if f_idx == 0:

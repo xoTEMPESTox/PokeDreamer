@@ -62,6 +62,8 @@ Architectural options for Path B (costs are planned estimates, not measured):
 2. A pixel world model with longer context or RAM conditioning, retrained on battle windows. This costs GPU hours, and whether it would sustain battles is uncertain.
 3. Keep battles as rules (the current System 2) and call Path A finished. The quests already win 30/30 with learned navigation.
 
+Path B estimate (planned, not measured): ~50 GPU-hours on one RTX 4090 for a battle-capable world model and battle policies trained in it.
+
 ## Full held-out sample (measured 2026-11-06)
 The same evaluation on all 8,913 eligible in-battle windows (29 test_ext episodes) instead of 1,024 (`lab.dwm.battle_fidelity --run wm31 --data ext --max-windows 0 --tag full`; `work/eval/battle_fidelity_wm31_ext_full.json`, log `work/battle_fidelity_full.log`).
 

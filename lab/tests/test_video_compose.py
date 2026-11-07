@@ -15,6 +15,8 @@ from lab.video.compose import (
     render_split_frame,
     render_bakeoff_frame,
     render_diagram_frame,
+    render_value_frame,
+    load_clip_frames,
     truncate_reason,
     get_latest_decision,
     load_storyboard,
@@ -61,7 +63,7 @@ def test_segment_frame_counts_sum_to_seconds_times_fps():
 
 
 def test_actual_storyboard_json_frame_counts():
-    """Verify lab/video/storyboard.json totals exactly 93 s (2790 frames at 30 fps): four 4 s intro cards, trimmed gameplay, and three diagram screens (8 s + 9 s + 8 s)."""
+    """Verify lab/video/storyboard.json totals exactly 130.87 s (3926 frames at 30 fps) across 21 segments."""
     sb_path = Path("lab/video/storyboard.json")
     assert sb_path.exists(), "lab/video/storyboard.json must exist"
 
@@ -70,23 +72,22 @@ def test_actual_storyboard_json_frame_counts():
 
     fps = 30
     counts = calculate_segment_frames(storyboard, fps=fps)
-    assert sum(counts) == 2790, f"Expected 2790 frames, got {sum(counts)}"
+    assert sum(counts) == 3926, f"Expected 3926 frames, got {sum(counts)}"
     total_seconds = sum(s["seconds"] for s in storyboard)
-    assert abs(total_seconds - 93.0) < 1e-6, f"Expected 93.0 seconds, got {total_seconds}"
+    assert abs(total_seconds - 130.867) < 1e-3, f"Expected 130.867 seconds, got {total_seconds}"
 
 
 def test_storyboard_end_card_exact_numbers():
-    """The three info screens (8 s + 9 s + 8 s: world model, harness, numbers) open the main video, right after the
-    3D hook (owner: info before the gameplay). Verifies chart numbers (8779.5 / 7144.5, 50.0 GPU-hours), tiles, and
+    """The three diagram screens (8 s + 9 s + 8 s: world model, harness, numbers).
+    Verifies chart numbers (8779.5 / 7144.5, 50.0 GPU-hours), tiles, and
     honesty phrases in strip/table."""
     with open(Path("lab/video/storyboard.json"), "r", encoding="utf-8") as f:
         storyboard = json.load(f)
-    end_segs = storyboard[:3]
-    assert len(end_segs) == 3
-    assert [s.get("type") for s in end_segs] == ["diagram", "diagram", "diagram"]
-    assert [s["seconds"] for s in end_segs] == [8.0, 9.0, 8.0]
+    diagram_segs = [s for s in storyboard if s.get("type") == "diagram"]
+    assert len(diagram_segs) == 3
+    assert [s["seconds"] for s in diagram_segs] == [8.0, 9.0, 8.0]
 
-    screen3 = end_segs[2]
+    screen3 = diagram_segs[2]
     strip = " ".join(screen3["strip"])
     assert "hand-written script" in strip and "rule-based planner" in strip and "zero real-game training steps" in strip
     assert [tl[0] for tl in screen3["tiles"]] == ["30/30", "91.4%", "99.27%"]
@@ -419,6 +420,13 @@ def test_no_do_not_say_phrases():
                     strings_to_check.append(tl["caption"])
                 elif isinstance(tl, (list, tuple)) and len(tl) > 1:
                     strings_to_check.append(tl[1])
+        for col in s.get("columns", []):
+            if col.get("header"):
+                strings_to_check.append(col["header"])
+            for item in col.get("items", []):
+                for ik in ("lead", "line", "metric", "source"):
+                    if item.get(ik):
+                        strings_to_check.append(str(item[ik]))
 
     for g_val in GOAL_MAP.values():
         strings_to_check.append(g_val)
@@ -621,3 +629,101 @@ def test_deflash_steps_holds_the_last_clean_step_and_keeps_length():
     out = deflash_steps(np.arange(12), flash)
     assert len(out) == 12
     assert out[5:8].tolist() == [4, 4, 4] and out[8] == 8 and out[4] == 4
+
+
+def test_clip_segment_loading_and_hold(tmp_path):
+    """Verify loading a clip segment from MP4: frame count, hold frames, first/last frame match, held frames equal last."""
+    import cv2
+    clip_path = tmp_path / "tiny_clip.mp4"
+    w, h = 64, 36
+    fps = 30
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(str(clip_path), fourcc, float(fps), (w, h))
+
+    # 12 frames with distinct solid colors (BGR)
+    src_frames_bgr = []
+    for i in range(12):
+        f = np.full((h, w, 3), (i * 20, (i * 20 + 50) % 256, (255 - i * 20) % 256), dtype=np.uint8)
+        src_frames_bgr.append(f)
+        writer.write(f)
+    writer.release()
+
+    # Read back through load_clip_frames: frames [2, 8) with hold 0.2 s (6 frames @ 30 fps)
+    start_f = 2
+    end_f = 8
+    hold_s = 0.2
+    expected_hold_frames = int(round(hold_s * fps))  # 6
+    expected_total_frames = (end_f - start_f) + expected_hold_frames  # 6 + 6 = 12
+
+    loaded_frames = load_clip_frames(clip_path, start_frame=start_f, end_frame=end_f, hold_s=hold_s, fps=fps)
+    assert len(loaded_frames) == expected_total_frames
+    assert all(f.shape == (CANVAS_HEIGHT, CANVAS_WIDTH, 3) for f in loaded_frames)
+
+    # First frame matches source frame 2 (resized to 1920x1080)
+    first_expected = cv2.resize(cv2.cvtColor(src_frames_bgr[start_f], cv2.COLOR_BGR2RGB), (CANVAS_WIDTH, CANVAS_HEIGHT), interpolation=cv2.INTER_LINEAR)
+    assert np.max(np.abs(loaded_frames[0].astype(int) - first_expected.astype(int))) <= 6
+
+    # Last read frame (index 5) matches source frame 7 (resized)
+    last_expected = cv2.resize(cv2.cvtColor(src_frames_bgr[end_f - 1], cv2.COLOR_BGR2RGB), (CANVAS_WIDTH, CANVAS_HEIGHT), interpolation=cv2.INTER_LINEAR)
+    assert np.max(np.abs(loaded_frames[5].astype(int) - last_expected.astype(int))) <= 6
+
+    # Held frames equal the last read frame exactly
+    last_read_frame = loaded_frames[5]
+    for h_idx in range(6, expected_total_frames):
+        assert np.array_equal(loaded_frames[h_idx], last_read_frame)
+
+    # Also test calculate_segment_frames on this clip
+    sb_toy = [{"type": "clip", "src": str(clip_path), "start_frame": start_f, "end_frame": end_f, "hold_s": hold_s}]
+    assert calculate_segment_frames(sb_toy, fps=fps) == [expected_total_frames]
+
+
+def test_value_screen_rendering():
+    """Verify value screen renders at t=0, 1.5, 8.0 with placeholder copy and 3-item columns.
+    Checks dimensions (1080, 1920, 3), progression between t=0 and t=8, and very long line handling."""
+    import copy
+    fonts = FontManager()
+
+    # Load placeholder copy from storyboard.json
+    with open(Path("lab/video/storyboard.json"), "r", encoding="utf-8") as f:
+        sb = json.load(f)
+    val_segs = [s for s in sb if s.get("type") == "value"]
+    assert len(val_segs) >= 1
+    seg = val_segs[0]
+
+    # Test at t=0, t=1.5, t=8 with 4-item placeholder copy
+    f0 = render_value_frame(seg, 0.0, fonts)
+    f1_5 = render_value_frame(seg, 1.5, fonts)
+    f8 = render_value_frame(seg, 8.0, fonts)
+
+    for frame in (f0, f1_5, f8):
+        assert frame.shape == (CANVAS_HEIGHT, CANVAS_WIDTH, 3)
+        assert frame.dtype == np.uint8
+
+    # Frames differ between t=0 and t=8 (fade-in / stagger)
+    assert not np.array_equal(f0, f8)
+    assert not np.array_equal(f0, f1_5)
+    assert not np.array_equal(f1_5, f8)
+
+    # Test with 3-item columns
+    seg3 = copy.deepcopy(seg)
+    for col in seg3["columns"]:
+        col["items"] = col["items"][:3]
+
+    f3_0 = render_value_frame(seg3, 0.0, fonts)
+    f3_1_5 = render_value_frame(seg3, 1.5, fonts)
+    f3_8 = render_value_frame(seg3, 8.0, fonts)
+
+    for frame in (f3_0, f3_1_5, f3_8):
+        assert frame.shape == (CANVAS_HEIGHT, CANVAS_WIDTH, 3)
+        assert frame.dtype == np.uint8
+
+    assert not np.array_equal(f3_0, f3_8)
+
+    # Test with a very long line: must wrap/shrink and not crash
+    seg_long = copy.deepcopy(seg)
+    seg_long["columns"][0]["items"][0]["line"] = "A" + " very long repetitive text line for overflow testing" * 30
+    seg_long["columns"][1]["items"][0]["lead"] = "A very long headline title lead that should shrink properly"
+    seg_long["columns"][0]["items"][0]["metric"] = "999,999,999/1,000,000,000"
+    f_long = render_value_frame(seg_long, 5.0, fonts)
+    assert f_long.shape == (CANVAS_HEIGHT, CANVAS_WIDTH, 3)
+    assert f_long.dtype == np.uint8

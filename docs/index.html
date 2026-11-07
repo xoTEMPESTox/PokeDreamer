@@ -93,24 +93,41 @@
       <figure class="glass-card hero-media">
         <video id="heroVideo" class="hero-video" src="assets/v3/hook_3d.mp4" poster="assets/v3/hook_3d.jpg" autoplay muted loop playsinline></video>
         <figcaption>
-          Viridian City rebuilt in 3D from the game's map data (Blender), following the agent's recorded path. Mid-clip, the real screen: the 72×80 frame the AI sees, restored by the neural upscaler and colorizer.
+          The showcase's 3D opening: the first town rebuilt from the game's map data; the neural upscaler and colorizer restore the real 72×80 screen; then a System 1 policy, trained only in the world model's imagination, walks the first leg. The System 2 planner and the game agent harness follow in the showcase video below.
         </figcaption>
       </figure>
       <script>
         (function() {
           const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+          let vids = [];  // collected once the DOM is parsed: autoplay is removed below, and later videos must be included
           function handleMotion(e) {
-            const v = document.getElementById('heroVideo');
-            if (!v) return;
-            if (e.matches) {
-              v.removeAttribute('autoplay');
-              v.pause();
-              v.currentTime = 0;
-            }
+            vids.forEach(v => {
+              if (e.matches) {
+                v.removeAttribute('autoplay');
+                v.pause();
+                v.currentTime = 0;
+              } else {
+                v.setAttribute('autoplay', '');
+                v.play().catch(() => {});
+              }
+            });
           }
-          handleMotion(mq);
-          mq.addEventListener('change', handleMotion);
+          function init() {
+            vids = Array.from(document.querySelectorAll('video[autoplay]'));
+            handleMotion(mq);
+            mq.addEventListener('change', handleMotion);
+          }
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
         })();
+        function seekShowcase(time, e) {
+          if (e) e.preventDefault();
+          const v = document.getElementById('showcaseVideo');
+          if (v) {
+            v.currentTime = time;
+            v.play();
+            v.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
       </script>
       <!-- Stats bar -->
       <div class="hero-stats">
@@ -143,6 +160,36 @@
     </div>
   </section>
 
+  <!-- Showcase Video Section -->
+  <section class="section" id="showcase">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Showcase</span>
+        <h2 class="section-title">Final v3 Showcase (2:11)</h2>
+        <p class="section-desc">A complete walkthrough: the 3D map reconstruction, the diffusion world model's imagination, the System 1 / System 2 game harness with its LLM planner, and the Boulder Badge won in the real game.</p>
+      </div>
+      <figure class="glass-card" style="padding: 16px; margin-bottom: 20px;">
+        <video id="showcaseVideo" controls preload="none" poster="assets/v3/showcase_poster.jpg" src="assets/v3/pokedreamer_v3_showcase.mp4" style="width: 100%; border-radius: 8px; display: block;"></video>
+        <figcaption style="margin-top: 14px; text-align: center;">
+          Full 1080p showcase: the diffusion world model, the game agent harness, the System 2 LLM planner with tool calls and RAM-validated decisions, and the System 1 dream-trained agent winning the badge in the real game.
+        </figcaption>
+      </figure>
+      <div class="glass-card showcase-chapters" style="padding: 16px 20px;">
+        <span style="font-weight: 600; margin-right: 12px; font-size: 0.95rem;">Chapters:</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;">
+          <a href="#t=0" class="btn btn-secondary btn-sm" onclick="seekShowcase(0, event)">0:00 3D opening</a>
+          <a href="#t=5.27" class="btn btn-secondary btn-sm" onclick="seekShowcase(5.27, event)">0:05 What v3 contributes</a>
+          <a href="#t=15.27" class="btn btn-secondary btn-sm" onclick="seekShowcase(15.27, event)">0:15 Upscale + colourise</a>
+          <a href="#t=28.27" class="btn btn-secondary btn-sm" onclick="seekShowcase(28.27, event)">0:28 World model</a>
+          <a href="#t=52.27" class="btn btn-secondary btn-sm" onclick="seekShowcase(52.27, event)">0:52 Game harness</a>
+          <a href="#t=65.27" class="btn btn-secondary btn-sm" onclick="seekShowcase(65.27, event)">1:05 System 2: LLM planner</a>
+          <a href="#t=82.27" class="btn btn-secondary btn-sm" onclick="seekShowcase(82.27, event)">1:22 System 1 in the real game</a>
+          <a href="#t=122.87" class="btn btn-secondary btn-sm" onclick="seekShowcase(122.87, event)">2:03 By the numbers</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- In 30 seconds block -->
   <section class="section" id="in-30-seconds">
     <div class="container">
@@ -158,21 +205,16 @@
           <li>• <strong>Seen in colour.</strong> A neural upscaler and colorizer turn the 72x80 greyscale frames into full-resolution colour for display (99.27% per-pixel accuracy on held-out frames).</li>
         </ul>
       </div>
-      <div class="gifs-grid">
+      <div class="gifs-grid" style="grid-template-columns: 1fr 1fr;">
         <figure class="glass-card">
-          <img src="assets/v3/gameplay_colour.gif" alt="The agent in the real game" class="img-pixelated" loading="lazy" />
-          <figcaption>The real game: walking is a policy trained only in the world model; battles are rules.</figcaption>
+          <video autoplay muted loop playsinline poster="assets/v3/showcase_gym_poster.png" src="assets/v3/showcase_gym.mp4" style="width: 100%; border-radius: 8px; display: block;"></video>
+          <figcaption>Winning the Boulder Badge in the real game: every walk is executed by a System 1 policy trained only in the world model; 30/30 runs.</figcaption>
         </figure>
         <figure class="glass-card">
-          <img src="assets/v3/real_vs_dream.gif" alt="Real game next to the world model's imagination" class="img-pixelated" loading="lazy" />
+          <video autoplay muted loop playsinline poster="assets/v3/showcase_split_poster.png" src="assets/v3/showcase_split.mp4" style="width: 100%; border-radius: 8px; display: block;"></video>
           <figcaption>Left, the real game. Right, the world model imagining the same moments from 4 real frames and the same buttons (re-anchored every 10 steps).</figcaption>
         </figure>
       </div>
-    </div>
-  </section>
-    </div>
-    <div class="hero-scroll-indicator">
-      <div class="scroll-arrow"></div>
     </div>
   </section>
 
@@ -186,28 +228,12 @@
           PokéDreamer is a research project on world models for game agents - teaching an agent to imagine Pokémon Red, train skills inside that imagination, and measure where the dream matches the emulator's memory.
         </p>
       </div>
-      <div class="concept-grid">
-        <div class="concept-card glass-card">
-          <div class="concept-icon">🧠</div>
-          <h3>World Model</h3>
-          <p>A neural network that learns the game's dynamics: given recent frames and a button press, predict the next frame. v1 and v2 predict in a compressed latent space; v3 is a diffusion model that imagines the pixels directly.</p>
-        </div>
-        <div class="concept-card glass-card">
-          <div class="concept-icon">🎮</div>
-          <h3>Imagination-Based Training</h3>
-          <p>Instead of stepping the emulator, the agent practises inside the world model. v3's navigation policies were trained only on imagined rollouts, then tested zero-shot in the real game.</p>
-        </div>
-        <div class="concept-card glass-card">
-          <div class="concept-icon">📡</div>
-          <h3>Lineage</h3>
-          <p>v1 and v2 follow Hafner et al.'s Dreamer (a recurrent state-space model with discrete latents); v3 follows DIAMOND (Alonso et al., 2024), a diffusion world model.</p>
-        </div>
-        <div class="concept-card glass-card">
-          <div class="concept-icon">🔬</div>
-          <h3>Measured Against RAM</h3>
-          <p>The emulator's memory gives ground truth for every imagined frame (map, tile, battle state), so every claim is a number on held-out episodes, compared with simple baselines.</p>
-        </div>
-      </div>
+      <figure class="glass-card" style="padding: 12px; margin: 24px 0 0;">
+        <img src="assets/v3/screen_value.png" alt="What PokeDreamer v3 contributes: research value and engineering value, each with a measured number" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
+        <figcaption style="text-align: center; margin-top: 10px;">
+          What v3 contributes: research value (the DIAMOND recipe (Alonso et al., 2024) reproduced, Dreamer-style imagination RL (Hafner et al.), RAM-grounded evaluation, reward hacking detected) and engineering value (System 1/2 harness, measurement stack, one GPU, display models). Every number is from <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/README.md" target="_blank" rel="noopener">lab/results/</a>.
+        </figcaption>
+      </figure>
     </div>
   </section>
 
@@ -269,7 +295,7 @@
               <span class="version-badge v3-badge">Completed ✓</span>
               <h3>Diffusion World Model + Dream-Trained Agent</h3>
             </div>
-            <p>A DIAMOND-style diffusion world model of Pokémon Red, and an agent whose navigation was learned entirely inside it. Ten navigation skills trained in imagination carry the agent to the Boulder Badge in the real game in 30 of 30 runs; battles and goal choice are rules, and six local LLMs were tested as the planner. Whether battles can also be trained inside the world model was measured: not with this model. It is left as future work.</p>
+            <p>A DIAMOND-style diffusion world model of Pokémon Red, and an agent whose navigation was learned entirely inside it. Ten navigation skills trained in imagination carry the agent to the Boulder Badge in the real game in 30 of 30 runs; battles and goal choice are rules, and six local LLMs were tested as the planner (System 2 can call tools: Pokédex and guide search over Bulbapedia via <code>lab/agent/web_search.py</code>). Whether battles can also be trained inside the world model was measured: not with this model. Next: Path B, battles learned inside the world model (estimated ~50 GPU-hours, planned).</p>
             <div class="timeline-metrics">
               <div class="metric"><span class="metric-val">30/30</span><span class="metric-lbl">Boulder Badges</span></div>
               <div class="metric"><span class="metric-val">16.7M</span><span class="metric-lbl">Model Params</span></div>
@@ -298,34 +324,13 @@
         </figcaption>
       </figure>
 
-      <!-- v3 loop diagram -->
-      <div class="v3-loop-diagram glass-card">
-        <div class="v3-loop-container">
-          <div class="v3-loop-node">
-            <div class="v3-loop-node-title">Real frames (4) + buttons</div>
-          </div>
-          <div class="v3-loop-arrow">→</div>
-          <div class="v3-loop-node">
-            <div class="v3-loop-node-title">Diffusion world model</div>
-            <div class="v3-loop-node-desc">(imagines next frames)</div>
-          </div>
-          <div class="v3-loop-arrow">→</div>
-          <div class="v3-loop-node">
-            <div class="v3-loop-node-title">Imagined rollouts</div>
-            <div class="v3-loop-node-desc">(10 steps)</div>
-          </div>
-          <div class="v3-loop-arrow">→</div>
-          <div class="v3-loop-node">
-            <div class="v3-loop-node-title">Actor-critic policy</div>
-            <div class="v3-loop-node-desc">(trained only in imagination)</div>
-          </div>
-          <div class="v3-loop-arrow">→</div>
-          <div class="v3-loop-node">
-            <div class="v3-loop-node-title">Real game</div>
-            <div class="v3-loop-node-desc">(zero-shot test)</div>
-          </div>
-        </div>
-      </div>
+      <!-- v3 EDM world model architecture -->
+      <figure class="glass-card" style="padding: 12px; margin: 24px 0;">
+        <img src="assets/v3/screen_world_model.png" alt="PokéDreamer v3 EDM diffusion world model architecture" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
+        <figcaption style="text-align: center; margin-top: 10px;">
+          Architecture of the EDM diffusion world model: 4-frame context denoiser predicting next-frame pixels conditioned on past actions.
+        </figcaption>
+      </figure>
 
       <!-- v3 EDM denoiser snippet -->
       <div class="code-block" style="margin: 20px 0;">
@@ -361,6 +366,14 @@
         <p class="results-desc">
           Empirical findings grounded in Game Boy RAM state across the diffusion world model, imagination-trained navigation policies, start-tile sweeps, battle fidelity, and local LLM planners.
         </p>
+
+        <figure class="glass-card" style="padding: 12px; margin: 24px 0;">
+          <img src="assets/v3/screen_numbers.png" alt="PokéDreamer v3 specs and compute by the numbers" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
+          <figcaption style="text-align: center; margin-top: 10px;">
+            By the numbers: 50.0 GPU-hours across 76 runs, quest press efficiency across agent configurations, and display models.
+          </figcaption>
+        </figure>
+
         <div class="table-wrapper">
           <table class="data-table">
             <thead>
@@ -403,6 +416,21 @@
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <p class="results-desc" style="margin-top: 24px;">
+          The game harness cleanly separates high-level planning from low-level execution. System 2 selects the next sub-goal from verified RAM state and can call tools: Pokédex and guide search over Bulbapedia (<code>lab/agent/web_search.py</code>). Every decision is validated against game memory before execution, and System 1 executes using navigation policies trained entirely in the world model's imagination.
+        </p>
+
+        <div class="gifs-grid" style="margin-top: 16px; grid-template-columns: 1fr 1fr;">
+          <figure class="glass-card">
+            <video autoplay muted loop playsinline poster="assets/v3/showcase_harness_llm_poster.png" src="assets/v3/showcase_harness_llm.mp4" style="width: 100%; border-radius: 8px; display: block;"></video>
+            <figcaption>LLM System 2 planner live in the real game: sub-goals chosen from RAM state, every decision validated, System 1 policies executing each leg.</figcaption>
+          </figure>
+          <figure class="glass-card">
+            <img src="assets/v3/screen_harness.png" alt="Game harness architecture diagram" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
+            <figcaption>Game harness architecture: System 2 planner, validation against RAM, and System 1 imagination-trained navigation policies.</figcaption>
+          </figure>
         </div>
       </div>
 

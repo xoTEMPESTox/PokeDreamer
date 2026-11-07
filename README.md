@@ -4,9 +4,13 @@
 
 [![tests](https://github.com/xoTEMPESTox/PokeDreamer/actions/workflows/tests.yml/badge.svg)](https://github.com/xoTEMPESTox/PokeDreamer/actions/workflows/tests.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-· [Website](https://pokedreamer.priyanshusah.com) · [Model weights](https://huggingface.co/xxxTEMPESTxxx/PokeDreamer) · [Dataset](https://huggingface.co/datasets/xxxTEMPESTxxx/PokeDreamer) · [Results](lab/results/README.md)
+· [Website](https://pokedreamer.priyanshusah.com) · [Model weights](https://huggingface.co/xxxTEMPESTxxx/PokeDreamer) · [Dataset](https://huggingface.co/datasets/xxxTEMPESTxxx/PokeDreamer) · [Results](lab/results/README.md) · [Showcase video (2:11)](docs/assets/v3/pokedreamer_v3_showcase.mp4)
 
-<p align="center"><img src="docs/assets/v3/opener_3d.gif" width="80%" alt="The PokeDreamer title rising over the pond in a 3D render of Viridian City built from the game's map data"></p>
+<p align="center"><img src="docs/assets/v3/opener_3d.gif" width="80%" alt="The 3D opening of the showcase video"><br><sub>The showcase's 3D opening: the first town rebuilt from the game's map data, the neural upscaler and colorizer restoring the screen, and a System 1 policy trained only in the world model walking the first leg.</sub></p>
+
+<p align="center">
+  <a href="docs/assets/v3/pokedreamer_v3_showcase.mp4"><strong>Watch showcase video (2:11)</strong></a> · <a href="https://pokedreamer.priyanshusah.com/v3.html#showcase"><strong>Interactive showcase with chapters</strong></a>
+</p>
 
 ## In 30 seconds
 - **A world model of a real game.** A diffusion model learned to predict Pokémon Red frame by frame from recorded play: you press a button, it imagines the next screen.
@@ -14,14 +18,20 @@
 - **Measured, not eyeballed.** The game's own memory says exactly where the agent and the imagined world really are, so every claim below is a number: where the dream drifts, which shortcuts the agent learned to exploit, and why battles can't be learned this way.
 - **Seen in colour.** A neural upscaler and colorizer turn the 72x80 greyscale frames into full-resolution colour for display (99.27% per-pixel accuracy on held-out frames).
 
+<p align="center">
+  <img src="docs/assets/v3/screen_value.png" width="90%" alt="What PokeDreamer v3 contributes: research value and engineering value">
+  <br>
+  <sub>Research and engineering contributions at a glance; every number from <a href="lab/results/README.md"><code>lab/results/</code></a>.</sub>
+</p>
+
 <table>
 <tr>
-<td width="38%"><img src="docs/assets/v3/gameplay_colour.gif" alt="The agent in the real game"></td>
-<td width="62%"><img src="docs/assets/v3/real_vs_dream.gif" alt="Real game next to the world model's imagination"></td>
+<td width="50%"><img src="docs/assets/v3/showcase_gym.gif" alt="The System 1 policy winning the Boulder Badge in the real game"></td>
+<td width="50%"><img src="docs/assets/v3/showcase_split.gif" alt="Imagination rollout vs real game split screen"></td>
 </tr>
 <tr>
-<td><sub>The real game: walking is a policy trained only in the world model; battles are rules.</sub></td>
-<td><sub>Left, the real game. Right, the world model imagining the same moments from 4 real frames and the same buttons (re-anchored every 10 steps).</sub></td>
+<td><sub>Winning the Boulder Badge in the real game: every walk is executed by a System 1 policy trained only in the world model; 30/30 runs (<a href="lab/results/v3_gym.md">v3_gym</a>).</sub></td>
+<td><sub>Imagination rollout: the diffusion world model imagining the same moments from the same buttons, re-anchored on 4 real frames every 10 steps, beside the real emulator (<a href="lab/results/v3_dwm_eval.md">v3_dwm_eval</a>).</sub></td>
 </tr>
 </table>
 
@@ -31,6 +41,26 @@ A research project on world models for game agents, built around one advantage a
 - **World model:** wm31, a DIAMOND-style diffusion model of 72×80 frames, 16.7M parameters, conditioned on the last 4 frames and buttons.
 - **Agent:** a System 1/2 design. Ten navigation legs (System 1) are small policies trained purely in the world model's imagination, with zero real-game steps. Battles and goal sequencing (System 2) are rules; a bake-off also tested local LLMs as System 2.
 - **Measurement:** held-out episodes split by episode, a frame probe that reads map, tile and battle state from pixels, baselines (no-change, copy-last, greedy path-following, PPO in the real game), 3 seeds, bootstrap confidence intervals.
+
+<p align="center">
+  <img src="docs/assets/v3/screen_world_model.png" width="90%" alt="PokeDreamer v3 EDM diffusion world model architecture">
+  <br>
+  <sub>Architecture of the EDM diffusion world model: 4-frame context denoiser predicting next-frame pixels conditioned on past actions (<a href="lab/results/v3_dwm_eval.md">v3_dwm_eval</a>).</sub>
+</p>
+
+## Game harness: System 1 / System 2
+System 2 selects the next sub-goal from verified RAM state, can call tools including Pokédex lookup and guide search over Bulbapedia (`lab/agent/web_search.py`), and every decision is validated against game memory before execution. System 1 executes each leg using navigation policies trained entirely in the world model's imagination, achieving 10/10 badges with the local LLM planner at a median 7,144.5 presses (vs 8,779.5 for the rule-based baseline) with 99/99 decisions valid ([v3_system2](lab/results/v3_system2.md)).
+
+<table>
+<tr>
+<td width="55%"><img src="docs/assets/v3/screen_harness.png" alt="Game harness architecture diagram"></td>
+<td width="45%"><img src="docs/assets/v3/showcase_harness_llm.gif" alt="The LLM System 2 planner choosing sub-goals in the real game"></td>
+</tr>
+<tr>
+<td><sub>Game harness architecture: System 2 plans sub-goals, validates against RAM, and dispatches System 1 navigation policies (<a href="lab/results/v3_system2.md">v3_system2</a>).</sub></td>
+<td><sub>LLM System 2 planner running live: reading RAM state, choosing sub-goals, and dispatching imagination-trained navigation legs (<a href="lab/results/v3_system2.md">v3_system2</a>).</sub></td>
+</tr>
+</table>
 
 ## Headline results (measured; sources in [`lab/results/`](lab/results/README.md))
 | | result | page |
@@ -51,6 +81,9 @@ A research project on world models for game agents, built around one advantage a
 - **Honest scope:** with a fast emulator the world model is *not* a sample-efficiency win: PPO in the real game reaches ≥95% within 10.8k-41.5k real steps on the same navigation tasks ([v3_agent](lab/results/v3_agent.md)). Its value here is as a measured object and a simulator you can train in without touching the game. Battles and planning are rules.
 
 <p align="center"><img src="lab/results/figures/fig_drift_permap.png" width="80%" alt="Imagination drift per map"></p>
+
+## Next: Path B (planned)
+Path B is the next step: training battle policies inside the world model, so battles are learned in imagination the way navigation already is. This requires a battle-capable world model with longer context or RAM-conditioning, retrained on battle windows to maintain battle state and round transitions ([v3_battle_fidelity](lab/results/v3_battle_fidelity.md)). The compute requirement is estimated at ~50 GPU-hours on one RTX 4090 (planned), waiting for compute.
 
 ## Run it
 You need your own legally obtained Pokémon Red ROM (not included) at `Pokemon - Red Version (USA, Europe).gb` in the repo root.

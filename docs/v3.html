@@ -67,10 +67,11 @@
     <aside class="docs-sidebar">
       <nav class="sidebar-nav">
         <div class="sidebar-title">v3 (Completed)</div>
+        <a href="#showcase" class="sidebar-link">Showcase Video</a>
         <a href="#final-results" class="sidebar-link active">Final Results</a>
         <a href="#badge-quest" class="sidebar-link">The Badge Quest</a>
         <a href="#system2-bakeoff" class="sidebar-link">LLMs as System 2</a>
-        <a href="#battles-eval" class="sidebar-link">Battles Fidelity (Path B)</a>
+        <a href="#battles-eval" class="sidebar-link">Battles and Path B (next steps)</a>
         <a href="#seen-in-colour" class="sidebar-link">Seen in Colour</a>
         <a href="#compute" class="sidebar-link">Compute &amp; Model Sizes</a>
         <a href="#phase1-results" class="sidebar-link">Phase 1 Results (2026-11-01)</a>
@@ -100,9 +101,9 @@
       </div>
 
       <div class="callout callout-note" style="margin-top:16px;">
-        <div class="callout-title" style="font-size:1.05rem;">Possible future work (Path B)</div>
+        <div class="callout-title" style="font-size:1.05rem;">Next steps: Path B (planned)</div>
         <p style="margin-bottom:0;">
-          Teaching the agent to battle inside the dream was not attempted in v3. In v3, navigation is learned in imagination while battles and goal choice are rules. We measured whether battles could be learned the same way, and for this world model the answer is no: imagined battles end early in 74.6% of 8,913 held-out battle windows (the frame probe on real frames: 1.1%), and imagined battle screens are worse than simply repeating the last frame from 2 steps on. A model that tracks battle state over many more frames (a longer context, or battle dynamics learned from RAM) could make it possible. That is future work, not part of v3. See <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_battle_fidelity.md" target="_blank" rel="noopener">v3_battle_fidelity.md</a>.
+          Teaching the agent to battle inside the dream was not attempted in v3. In v3, navigation is learned in imagination while battles and goal choice are rules. We measured whether battles could be learned the same way, and for this world model the answer is no: imagined battles end early in 74.6% of 8,913 held-out battle windows (the frame probe on real frames: 1.1%), and imagined battle screens are worse than simply repeating the last frame from 2 steps on. A model that tracks battle state over many more frames (a longer context, or battle dynamics learned from RAM) could make it possible. Training battle policies inside a battle-capable world model is the next step: estimated ~50 GPU-hours on one RTX 4090 (planned); waiting for compute. See <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_battle_fidelity.md" target="_blank" rel="noopener">v3_battle_fidelity.md</a>.
         </p>
       </div>
 
@@ -114,8 +115,43 @@
         <strong>Units:</strong> a <em>step</em> is one button press followed by 24 Game Boy frames (≈0.4 s, the time to walk one tile). 32 steps ≈ 13 s of gameplay. These are not video frames.
       </p>
 
+      <!-- Showcase video -->
+      <h2 id="showcase">Showcase video</h2>
+      <figure class="glass-card" style="padding: 16px; margin-bottom: 20px;">
+        <video id="showcaseVideo" controls preload="none" poster="assets/v3/showcase_poster.jpg" src="assets/v3/pokedreamer_v3_showcase.mp4" style="width: 100%; border-radius: 8px; display: block;"></video>
+        <figcaption style="margin-top: 14px; text-align: center;">
+          Full 1080p showcase: the diffusion world model, the game agent harness, the System 2 LLM planner with tool calls and RAM-validated decisions, and the System 1 dream-trained agent winning the badge in the real game.
+        </figcaption>
+      </figure>
+      <div class="glass-card showcase-chapters" style="padding: 16px 20px; margin-bottom: 32px;">
+        <span style="font-weight: 600; margin-right: 12px; font-size: 0.95rem;">Chapters:</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;">
+          <a href="#t=0" class="btn btn-secondary btn-sm" onclick="seekShowcase(0, event)">0:00 3D opening</a>
+          <a href="#t=5.27" class="btn btn-secondary btn-sm" onclick="seekShowcase(5.27, event)">0:05 What v3 contributes</a>
+          <a href="#t=15.27" class="btn btn-secondary btn-sm" onclick="seekShowcase(15.27, event)">0:15 Upscale + colourise</a>
+          <a href="#t=28.27" class="btn btn-secondary btn-sm" onclick="seekShowcase(28.27, event)">0:28 World model</a>
+          <a href="#t=52.27" class="btn btn-secondary btn-sm" onclick="seekShowcase(52.27, event)">0:52 Game harness</a>
+          <a href="#t=65.27" class="btn btn-secondary btn-sm" onclick="seekShowcase(65.27, event)">1:05 System 2: LLM planner</a>
+          <a href="#t=82.27" class="btn btn-secondary btn-sm" onclick="seekShowcase(82.27, event)">1:22 System 1 in the real game</a>
+          <a href="#t=122.87" class="btn btn-secondary btn-sm" onclick="seekShowcase(122.87, event)">2:03 By the numbers</a>
+        </div>
+      </div>
+
+      <figure class="glass-card" style="padding: 12px; margin: 0 0 32px;">
+        <img src="assets/v3/screen_value.png" alt="What PokeDreamer v3 contributes: research value and engineering value, each with a measured number" style="width: 100%; border-radius: var(--radius-md); display: block;" loading="lazy" />
+        <figcaption style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+          What v3 contributes, in one screen (every number from lab/results/).
+        </figcaption>
+      </figure>
+
       <!-- Final results (measured) -->
       <h2 id="final-results">Final results (measured)</h2>
+      <figure class="glass-card" style="padding: 12px; margin: 20px 0;">
+        <img src="assets/v3/screen_numbers.png" alt="PokéDreamer v3 specs and compute by the numbers" style="width: 100%; border-radius: var(--radius-md); display: block;" loading="lazy" />
+        <figcaption style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+          By the numbers: 50.0 total GPU-hours across 76 runs, quest press comparisons, and display models.
+        </figcaption>
+      </figure>
       <p>
         The headline numbers for v3: how reliably the dream-trained walking works in the real game, how robust it is to where it starts, whether battles could be learned the same way (no), and whether a local LLM can replace the rule-based planner. All results are measured against the emulator's RAM as ground truth.
       </p>
@@ -169,14 +205,14 @@
         The gym quest asks whether the System 1/2 agent (learned walking, rule-based battles and goal choice) can earn the Boulder Badge (defeating Gym Leader Brock) in the real Game Boy emulator with no human input, starting from Charmander L8 in Viridian City. The agent operates under a System 1 / System 2 architecture: System 2 serves as the high-level planner over Game Boy RAM status (sequencing grinding, healing, route traversal, and gym challenges), while System 1 executes low-level navigation and battle moves. In the headline configuration with all 10 navigation legs driven by policies trained entirely inside the diffusion world model's imagination, the agent achieves <strong>30/30 badges</strong> across three policy-training seeds (10 quests each, quest seeds 100-109), with <strong>14 of 30 quests</strong> completing the full journey from Viridian City through Brock without triggering privileged pathfinding fallback anywhere. Seven of the ten navigation legs achieve 100/100 success across all three seeds; the only legs not reaching 100/100 on all seeds are <code>to_pewter_pc</code> (100 / 0 / 100, where seed 1 enters a local optimum on the Center door tile) and <code>forest</code> (100 / 69 / 97, where seed 1 stalls at an Antidote item ball that training data barely covers). See <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_gym.md" target="_blank" rel="noopener">v3_gym.md</a>.
       </p>
 
-      <div class="gifs-grid">
+      <div class="gifs-grid" style="grid-template-columns: 1fr 1fr;">
         <figure class="glass-card">
-          <img src="assets/v3/gameplay_colour.gif" alt="The agent in the real game" class="img-pixelated" loading="lazy" />
-          <figcaption>The real game: walking is a policy trained only in the world model; battles are rules.</figcaption>
+          <video autoplay muted loop playsinline poster="assets/v3/showcase_gym_poster.png" src="assets/v3/showcase_gym.mp4" style="width: 100%; border-radius: 8px; display: block;"></video>
+          <figcaption>Winning the Boulder Badge in the real game: walking is a System 1 policy trained only in the world model; 30/30 runs (<a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_gym.md" target="_blank" rel="noopener">v3_gym</a>).</figcaption>
         </figure>
         <figure class="glass-card">
-          <img src="assets/v3/real_vs_dream.gif" alt="Real game next to the world model's imagination" class="img-pixelated" loading="lazy" />
-          <figcaption>Left, the real game. Right, the world model imagining the same moments from 4 real frames and the same buttons (re-anchored every 10 steps).</figcaption>
+          <video autoplay muted loop playsinline poster="assets/v3/showcase_split_poster.png" src="assets/v3/showcase_split.mp4" style="width: 100%; border-radius: 8px; display: block;"></video>
+          <figcaption>Imagination rollout vs real game: the diffusion world model imagining the same moments from the same buttons, re-anchored on 4 real frames every 10 steps (<a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_dwm_eval.md" target="_blank" rel="noopener">v3_dwm_eval</a>).</figcaption>
         </figure>
       </div>
 
@@ -190,8 +226,15 @@
       <!-- Game harness: local LLMs as System 2 -->
       <h2 id="system2-bakeoff">Game harness: local LLMs as System 2</h2>
       <p>
-        The game harness cleanly separates high-level planning from low-level execution: System 2 selects the current sub-goal from Game Boy RAM state (e.g., when to grind, heal, travel, or enter the gym), while System 1 executes locomotion and battles. In the bake-off below the planner is the only variable: navigation is the map-reading BFS planner and battles are rules for every row, so the badge rate measures planning on top of a fixed, non-learned System 1. Only the one-run full harness demo further down combines an LLM planner with the dream-trained legs.
+        The game harness cleanly separates high-level planning from low-level execution: System 2 selects the current sub-goal from Game Boy RAM state (e.g., when to grind, heal, travel, or enter the gym), can call tools including Pokédex lookup and guide search over Bulbapedia (<code>lab/agent/web_search.py</code>), and validates every decision against game memory before dispatching to System 1. In the bake-off below the planner is the only variable: navigation is the map-reading BFS planner and battles are rules for every row, so the badge rate measures planning on top of a fixed, non-learned System 1.
       </p>
+
+      <figure class="glass-card" style="padding: 12px; margin: 20px 0;">
+        <img src="assets/v3/screen_harness.png" alt="Game harness architecture diagram" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
+        <figcaption style="text-align: center; margin-top: 10px;">
+          Game harness architecture: System 2 planner selects sub-goals, validates against RAM, and dispatches System 1 navigation policies (<a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_system2.md" target="_blank" rel="noopener">v3_system2.md</a>).
+        </figcaption>
+      </figure>
 
       <div class="table-wrapper">
         <table class="data-table">
@@ -280,9 +323,17 @@
         <li><strong><code>gemma4:12b</code> is the practical candidate for planner + world model on one GPU:</strong> It achieves 10/10 badges in 8,145 presses with a 10.2 GB peak GPU memory footprint, which would leave room for the world model on a 24 GB card (not tested together).</li>
       </ul>
 
-      <p>
-        Full harness (10 runs, measured): with both halves swapped in, gemma4:31b as the planner and the ten dream-trained navigation skills, the agent won the badge in 10 of 10 runs, median 7,144.5 presses. The rule planner with the same skills and seeds needed 8,779.5, and every LLM run used fewer presses than the fastest rule run. No navigation press fell back to map-reading, and all 99 decisions were the LLM's own (14.5 s each on average). The saving is in planning, not walking: the LLM usually judged level 13 enough for Brock, so it ground less. See <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_system2.md#full-harness-llm-system-2--dream-trained-system-1-10-runs-measured-2026-11-07" target="_blank" rel="noopener">v3_system2.md (§ Full harness) →</a>
-      </p>
+      <div class="gifs-grid" style="margin: 24px 0; align-items: center; grid-template-columns: 1fr 1fr;">
+        <div>
+          <p style="margin-bottom: 0;">
+            Full harness (10 runs, measured): with both halves swapped in, gemma4:31b as the planner and the ten dream-trained navigation skills, the agent won the badge in 10 of 10 runs, median 7,144.5 presses. The rule planner with the same skills and seeds needed 8,779.5, and every LLM run used fewer presses than the fastest rule run. No navigation press fell back to map-reading, and all 99 decisions were the LLM's own (14.5 s each on average). The saving is in planning, not walking: the LLM usually judged level 13 enough for Brock, so it ground less. See <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_system2.md#full-harness-llm-system-2--dream-trained-system-1-10-runs-measured-2026-11-07" target="_blank" rel="noopener">v3_system2.md (§ Full harness) →</a>
+          </p>
+        </div>
+        <figure class="glass-card">
+          <video autoplay muted loop playsinline poster="assets/v3/showcase_harness_llm_poster.png" src="assets/v3/showcase_harness_llm.mp4" style="width: 100%; border-radius: 8px; display: block;"></video>
+          <figcaption>LLM System 2 planner live in the real game: sub-goals chosen from RAM state, every decision validated, System 1 policies executing each leg.</figcaption>
+        </figure>
+      </div>
 
       <!-- Battles fidelity -->
       <h2 id="battles-eval">Battles: measured, and out of reach for this model</h2>
@@ -476,6 +527,12 @@
       </div>
 
       <h2 id="diffusion-world-model">1. Diffusion world model</h2>
+      <figure class="glass-card" style="padding: 12px; margin: 20px 0;">
+        <img src="assets/v3/screen_world_model.png" alt="PokéDreamer v3 EDM diffusion world model architecture" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
+        <figcaption style="text-align: center; margin-top: 10px;">
+          Architecture of the EDM diffusion world model: 4-frame context denoiser predicting next-frame pixels conditioned on past actions.
+        </figcaption>
+      </figure>
       <div class="table-wrapper">
         <table class="data-table">
           <tbody>
@@ -779,5 +836,38 @@ python -m lab.play --run main                        # play inside the world mod
   </footer>
 
   <script src="assets/main.js"></script>
+  <script>
+    (function() {
+      const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+      let vids = [];  // collected once the DOM is parsed: autoplay is removed below, and later videos must be included
+      function handleMotion(e) {
+        vids.forEach(v => {
+          if (e.matches) {
+            v.removeAttribute('autoplay');
+            v.pause();
+            v.currentTime = 0;
+          } else {
+            v.setAttribute('autoplay', '');
+            v.play().catch(() => {});
+          }
+        });
+      }
+      function init() {
+        vids = Array.from(document.querySelectorAll('video[autoplay]'));
+        handleMotion(mq);
+        mq.addEventListener('change', handleMotion);
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+    })();
+    function seekShowcase(time, e) {
+      if (e) e.preventDefault();
+      const v = document.getElementById('showcaseVideo');
+      if (v) {
+        v.currentTime = time;
+        v.play();
+        v.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  </script>
 </body>
 </html>
