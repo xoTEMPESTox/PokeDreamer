@@ -1899,7 +1899,10 @@ def build_rattata_voxel(
     vc = nt.nodes.new("ShaderNodeVertexColor")
     vc.layer_name = "col"
     nt.links.new(vc.outputs["Color"], bsdf.inputs["Base Color"])
-    bsdf.inputs["Roughness"].default_value = 0.65
+    bsdf.inputs["Roughness"].default_value = 0.85
+    if "Emission Color" in bsdf.inputs:  # flatter light, so the pixel art reads instead of noisy shading
+        nt.links.new(vc.outputs["Color"], bsdf.inputs["Emission Color"])
+        bsdf.inputs["Emission Strength"].default_value = 0.35
 
     root_obj = bpy.data.objects.new("WildRattata", None)
     root_obj.empty_display_type = "PLAIN_AXES"
@@ -1907,7 +1910,7 @@ def build_rattata_voxel(
     coll.objects.link(root_obj)
 
     H, W = sprite_mask.shape
-    voxel_size = 0.0048
+    voxel_size = 0.0052  # 33 px tall -> 0.17 m, about the player's height so it reads
     verts = []
     faces = []
     cols = []
@@ -1916,6 +1919,8 @@ def build_rattata_voxel(
     active_voxels = np.where(sprite_mask)
     for r_px, c_px in zip(*active_voxels):
         rgb = sprite_rgb[r_px, c_px]
+        if int(rgb.astype(int).sum()) < 160:  # darkest shade -> near-black outline, like the player's sprite
+            rgb = np.array([22, 12, 32], dtype=np.uint8)
         lin_col = srgb_to_linear(rgb)
         rgba = [float(lin_col[0]), float(lin_col[1]), float(lin_col[2]), 1.0]
 
@@ -1924,8 +1929,8 @@ def build_rattata_voxel(
         z0 = (H - 1 - r_px) * voxel_size
         z1 = z0 + voxel_size
 
-        for d in range(3):  # 3 voxels deep, so it isn't a thin card
-            y0 = (d - 1.5) * voxel_size
+        for d in range(4):  # 4 voxels deep like the player
+            y0 = (d - 2.0) * voxel_size
             y1 = y0 + voxel_size
             verts.extend([
                 (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),

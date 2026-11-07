@@ -60,7 +60,7 @@ def test_segment_frame_counts_sum_to_seconds_times_fps():
 
 
 def test_actual_storyboard_json_frame_counts():
-    """Verify lab/video/storyboard.json totals exactly 76.5 s (2295 frames at 30 fps): 70 s + three intro cards (6.5 s)."""
+    """Verify lab/video/storyboard.json totals exactly 77.25 s (2318 frames at 30 fps): 70 s + three intro cards (7.25 s)."""
     sb_path = Path("lab/video/storyboard.json")
     assert sb_path.exists(), "lab/video/storyboard.json must exist"
 
@@ -69,9 +69,9 @@ def test_actual_storyboard_json_frame_counts():
 
     fps = 30
     counts = calculate_segment_frames(storyboard, fps=fps)
-    assert sum(counts) == 2295, f"Expected 2295 frames, got {sum(counts)}"
+    assert sum(counts) == 2318, f"Expected 2318 frames, got {sum(counts)}"
     total_seconds = sum(s["seconds"] for s in storyboard)
-    assert abs(total_seconds - 76.5) < 1e-6, f"Expected 76.5 seconds, got {total_seconds}"
+    assert abs(total_seconds - 77.25) < 1e-6, f"Expected 77.25 seconds, got {total_seconds}"
 
 
 def test_storyboard_end_card_exact_numbers():
@@ -85,10 +85,10 @@ def test_storyboard_end_card_exact_numbers():
     end_text = end_segments[0].get("text", [])
 
     assert "Boulder Badge: 30 of 30 runs" in end_text
-    assert "14 of 30 runs: every walk by the dream-trained policy, no backup used" in end_text
+    assert "14 of 30 runs: every walk by the dream-trained System 1 policy, no backup used" in end_text
     assert "Colour and detail restored by neural nets: 99.27% of pixels, 91% of frames exact" in end_text
     # lab/results/v3_system2.md, full harness: median 7,144.5 vs 8,779.5 presses = 18.6% fewer
-    assert "Local LLM as the planner: 10 of 10 runs, 19% fewer presses than the rules" in end_text
+    assert "Local LLM as System 2 planner: 10 of 10 runs, 19% fewer presses than the rule-based planner" in end_text
 
 
 def test_fit_speed_maps_step_range():
@@ -125,22 +125,22 @@ def test_hud_badge_text_and_priority():
     """Verify HUD badge text and colors for in_battle / bfs / policy / scripted."""
     # 1. in_battle=True -> amber "Battle rules"
     text, bg, border, fg = get_hud_badge(in_battle=True, by="policy")
-    assert text == "Battle rules"
+    assert text == "Scripted battle policy"
 
     text, bg, border, fg = get_hud_badge(in_battle=True, by="bfs")
-    assert text == "Battle rules"
+    assert text == "Scripted battle policy"
 
     # 2. in_battle=False, by="bfs" -> grey "Backup path-finder"
     text, bg, border, fg = get_hud_badge(in_battle=False, by="bfs")
-    assert text == "Backup path-finder"
+    assert text == "Backup path-finder (BFS)"
 
     # 3. in_battle=False, by="policy" -> green "AI trained in the dream"
     text, bg, border, fg = get_hud_badge(in_battle=False, by="policy")
-    assert text == "AI trained in the dream"
+    assert text == "System 1 policy, dream-trained"
 
     # 4. in_battle=False, by="" (no navigation leg pressing) -> grey scripted badge, not the policy
     text, bg, border, fg = get_hud_badge(in_battle=False, by="")
-    assert text == "Scripted: menus, talking, waiting"
+    assert text == "Scripted: menus, dialogue, waiting"
 
 
 def test_toy_rendering_dimensions_and_types():
@@ -319,8 +319,8 @@ def test_hud_badge_does_not_credit_the_policy_for_scripted_steps():
     # by == "" outside battle means no navigation leg is pressing (menus, dialogue, the nurse-counter walk, grind
     # pacing): 2,757 of the 8,718 recorded steps. Showing "AI trained in the dream" there would overclaim.
     text, _, _, _ = get_hud_badge(in_battle=False, by="")
-    assert "trained in the dream" not in text.lower() and "scripted" in text.lower()
-    assert "trained in the dream" in get_hud_badge(in_battle=False, by="policy")[0].lower()
+    assert "dream-trained" not in text.lower() and "scripted" in text.lower()
+    assert "dream-trained" in get_hud_badge(in_battle=False, by="policy")[0].lower()
 
 
 @pytest.mark.skipif(not Path("work/video/traj/run_seed_100_color.npz").exists(),
@@ -485,14 +485,14 @@ def test_bakeoff_rows_load_from_storyboard():
     assert len(bakeoff_segs) == 1, "Expected exactly 1 bakeoff segment"
 
     bakeoff = bakeoff_segs[0]
-    assert bakeoff.get("title") == "Six local LLMs tested as the planner"
+    assert bakeoff.get("title") == "Six local LLMs as the System 2 planner"
     assert "RTX 4090" in bakeoff.get("footer", "")
 
     rows = bakeoff.get("rows", [])
     assert len(rows) == 7, f"Expected 7 table rows, got {len(rows)}"
 
-    # Rule planner must be first, labelled 'rules (reference)'
-    assert rows[0]["planner"] == "rules (reference)"
+    # Rule planner must be first, labelled 'rule-based (reference)'
+    assert rows[0]["planner"] == "rule-based (reference)"
     assert rows[0]["badges"] == "10/10"
 
     # gemma4:31b must be present and highlighted

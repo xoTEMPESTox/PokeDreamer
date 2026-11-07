@@ -47,7 +47,7 @@ SPLIT_FRAME_Y = 150                # top coordinate for frames
 
 # Mappings for status panel goals, legs, and badge subtext
 GOAL_MAP: Dict[str, str] = {
-    "grind": "Level up by fighting wild Pokémon",
+    "grind": "Grind wild Pokémon: level up",
     "heal": "Heal at the Pokémon Center",
     "travel_to_pewter": "Travel to Pewter City",
     "gym": "Beat the Pewter Gym",
@@ -70,7 +70,7 @@ LEG_MAP: Dict[str, str] = {
 }
 
 BADGE_SUBTEXT: Dict[str, str] = {
-    "Backup path-finder": "fallback: the learned policy missed",  # the only pill whose text needs explaining
+    "Backup path-finder (BFS)": "fallback after a System 1 miss",  # the only pill whose text needs explaining
 }
 
 _ICON_CACHE: Dict[int, Image.Image] = {}
@@ -234,19 +234,19 @@ def get_hud_badge(
     """Returns (badge_text, bg_rgb, border_rgb, text_rgb) based on step flags.
 
     Priority:
-    1. in_battles -> "Battle rules" (amber)
-    2. by == "bfs" -> "Backup path-finder" (grey)
-    3. by == "policy" -> "AI trained in the dream" (green)
-    4. otherwise (no navigation leg pressing) -> "Scripted: menus, talking, waiting" (dark grey)
+    1. in_battles -> "Scripted battle policy" (amber)
+    2. by == "bfs" -> "Backup path-finder (BFS)" (grey)
+    3. by == "policy" -> "System 1 policy, dream-trained" (green)
+    4. otherwise (no navigation leg pressing) -> "Scripted: menus, dialogue, waiting" (dark grey)
     """
     if in_battle:
-        return "Battle rules", (75, 45, 12), (180, 110, 25), (252, 211, 77)
+        return "Scripted battle policy", (75, 45, 12), (180, 110, 25), (252, 211, 77)
     elif str(by).lower() == "bfs":
-        return "Backup path-finder", (45, 55, 68), (100, 116, 139), (203, 213, 225)
+        return "Backup path-finder (BFS)", (45, 55, 68), (100, 116, 139), (203, 213, 225)
     elif str(by).lower() == "policy":
-        return "AI trained in the dream", (18, 65, 36), (46, 125, 50), (110, 231, 145)
+        return "System 1 policy, dream-trained", (18, 65, 36), (46, 125, 50), (110, 231, 145)
     else:  # no navigation leg is pressing: menus, dialogue, the nurse-counter walk, grind pacing (scripted)
-        return "Scripted: menus, talking, waiting", (40, 46, 56), (90, 100, 115), (190, 198, 210)
+        return "Scripted: menus, dialogue, waiting", (40, 46, 56), (90, 100, 115), (190, 198, 210)
 
 
 class FontManager:
@@ -390,9 +390,9 @@ def draw_hud_card(
     if is_large:
         # Header: one line (the section cards carry the rest); it stays so a shared still is honest on its own
         header = (
-            "Walking: learned in a dream · battles: rules · plan: local LLM"
+            "Walking: dream-trained · battles: scripted · System 2 plan: local LLM"
             if is_llm_planner
-            else "Walking: learned in a dream · battles and plan: rules"
+            else "Walking: dream-trained · battles: scripted · System 2 plan: rule-based"
         )
         draw.text((x0 + pad_x, y0 + 38), header, font=fonts.get(19), fill=(248, 250, 252))
         draw.line([(x0 + pad_x, y0 + 82), (x1 - pad_x, y0 + 82)], fill=(34, 45, 58), width=2)
@@ -419,18 +419,18 @@ def draw_hud_card(
         curr_y += step_y
 
         # 2. System 2 Goal / The Plan
-        plan_sub = "local LLM" if is_llm_planner else "rules"
+        plan_sub = "local LLM planner" if is_llm_planner else "rule-based planner"
         goal_val = GOAL_MAP.get(str(goal), "—") if goal else "—"
-        _draw_section("THE PLAN", plan_sub, goal_val, default_size=32, fill=(248, 250, 252))
+        _draw_section("SYSTEM 2 PLAN", plan_sub, goal_val, default_size=32, fill=(248, 250, 252))
         curr_y += step_y
 
         # 3. Active Leg / Walking to
         leg_val = LEG_MAP.get(str(leg), "—") if leg else "—"
-        _draw_section("WALKING TO", "learned in the dream", leg_val, default_size=30, fill=(147, 197, 253))
+        _draw_section("WALKING TO", "System 1 policy, dream-trained", leg_val, default_size=30, fill=(147, 197, 253))
         curr_y += step_y
 
         # 4. Control Badge
-        draw.text((x0 + pad_x, curr_y), "WHO'S PRESSING THE BUTTONS", font=fonts.get(16, bold=True), fill=(148, 163, 184))
+        draw.text((x0 + pad_x, curr_y), "ACTIVE CONTROLLER", font=fonts.get(16, bold=True), fill=(148, 163, 184))
 
         badge_text, badge_bg, badge_border, badge_fg = get_hud_badge(in_battle, by)
         badge_font = fonts.get(22, bold=True)
@@ -490,7 +490,7 @@ def draw_hud_card(
                     logo_im = logo_im.resize((22, 22), resample=getattr(Image, "Resampling", Image).LANCZOS)
                     img.paste(logo_im, (hdr_x, card_y0 + 10), logo_im)
                     hdr_x += 28
-            hdr_text = "Planner: gemma4:31b (local, via Ollama)"
+            hdr_text = "System 2 planner: gemma4:31b (local, via Ollama)"
             draw.text((hdr_x, card_y0 + 13), hdr_text, font=fonts.get(16, bold=True), fill=(248, 250, 252))
 
             # Latency tag when highlighted
@@ -523,7 +523,7 @@ def draw_hud_card(
 
     else:
         # Compact fallback for smaller scale/box
-        draw.text((x0 + 30, y0 + 16), "Walking: learned in an AI dream of the game. Battles: rules.", font=fonts.get(13), fill=(248, 250, 252))
+        draw.text((x0 + 30, y0 + 16), "Walking: dream-trained System 1 policy. Battles: scripted.", font=fonts.get(13), fill=(248, 250, 252))
         draw.line([(x0 + 30, y0 + 44), (x1 - 30, y0 + 44)], fill=(34, 45, 58), width=1)
 
         curr_y = y0 + 56
@@ -541,16 +541,16 @@ def draw_hud_card(
 
         # 2. System 2 Goal
         goal_val = GOAL_MAP.get(str(goal), "—") if goal else "—"
-        _draw_compact_section("THE PLAN", "rules", goal_val, 18, (248, 250, 252))
+        _draw_compact_section("SYSTEM 2 PLAN", "rule-based planner", goal_val, 18, (248, 250, 252))
         curr_y += 56
 
         # 3. Active Leg
         leg_val = LEG_MAP.get(str(leg), "—") if leg else "—"
-        _draw_compact_section("WALKING TO", "learned in the dream", leg_val, 18, (147, 197, 253))
+        _draw_compact_section("WALKING TO", "System 1 policy, dream-trained", leg_val, 18, (147, 197, 253))
         curr_y += 56
 
         # 4. Control Badge
-        draw.text((x0 + 30, curr_y), "WHO'S PRESSING THE BUTTONS", font=fonts.get(13), fill=(148, 163, 184))
+        draw.text((x0 + 30, curr_y), "ACTIVE CONTROLLER", font=fonts.get(13), fill=(148, 163, 184))
         badge_text, badge_bg, badge_border, badge_fg = get_hud_badge(in_battle, by)
         badge_font = fonts.get(16, bold=True)
         tb = draw.textbbox((0, 0), badge_text, font=badge_font)
@@ -674,7 +674,7 @@ def render_end_frame(
     # Footer note
     draw.text(
         (cx, cy + 220),
-        "walking learned only inside the world model · battles: hand-written rules · plan: rules (3 seeds x 10 runs) or a local LLM (10 runs)",
+        "Walking: zero real-game training steps · battles: scripted · System 2: rules (3 seeds x 10 runs) or local LLM (10 runs)",
         font=fonts.get(18),
         fill=(148, 163, 184),
         anchor="mm",
@@ -944,7 +944,7 @@ def render_split_frame(
 
     f_main = fonts.get(24, bold=True)
     f_sub = fonts.get(14)
-    main_txt = "The AI's dream of it"
+    main_txt = "The world model's imagination"
     sub_txt = "diffusion world model, same button presses"
     w_main = draw.textlength(main_txt, font=f_main)
     w_sub = draw.textlength(sub_txt, font=f_sub)

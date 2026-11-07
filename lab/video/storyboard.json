@@ -5,7 +5,7 @@
     "start": 111,
     "end": 400,
     "speed": "fit",
-    "caption": "The walking was learned in a dream. The fighting is a rulebook."
+    "caption": "Walking: dream-trained System 1 policy · battles: scripted battle policy"
   },
   {
     "type": "montage",
@@ -20,7 +20,7 @@
     ],
     "speed": "fit",
     "goal_text": "grind (level 8 to 14)",
-    "caption": "Levelling up: Charmander 8 → 14",
+    "caption": "System 2 orders a grind: Charmander 8 → 14",
     "progress": "Level 9 → 11"
   },
   {
@@ -36,7 +36,7 @@
     ],
     "speed": "fit",
     "goal_text": "grind (level 8 to 14)",
-    "caption": "Levelling up: Charmander 8 → 14",
+    "caption": "System 2 orders a grind: Charmander 8 → 14",
     "progress": "Level 11 → 12"
   },
   {
@@ -52,7 +52,7 @@
     ],
     "speed": "fit",
     "goal_text": "grind (level 8 to 14)",
-    "caption": "Levelling up: Charmander 8 → 14",
+    "caption": "System 2 orders a grind: Charmander 8 → 14",
     "progress": "Level 12 → 14"
   },
   {
@@ -61,15 +61,15 @@
     "start": 6608,
     "end": 6832,
     "speed": "fit",
-    "caption": "Going to heal: three more learned walks",
-    "subcaption": "no backup path-finder used in this run"
+    "caption": "Heal run: three System 1 walks",
+    "subcaption": "rule-based System 2 planner · 0 backup path-finder presses in this run"
   },
   {
     "type": "card",
-    "seconds": 2.0,
+    "seconds": 2.25,
     "tag": "The game harness",
-    "headline": "New planner: a local LLM",
-    "line": "A different run. Same dream-trained walkers; gemma4:31b now writes the plan.",
+    "headline": "System 2 planner: a local LLM",
+    "line": "New run: same harness, same System 1 policies; gemma4:31b writes the plan.",
     "bg_traj": "work/video/traj_llm/run_seed_100_color.npz",
     "bg_start": 4650,
     "bg_end": 4700
@@ -94,17 +94,17 @@
       ]
     ],
     "speed": "fit",
-    "caption": "10 of 10 runs got the badge, 19% fewer presses than the rules",
-    "subcaption": "median 7,144.5 vs 8,779.5 presses, 10 runs each, same walking skills"
+    "caption": "LLM planner: 10 of 10 badges, 19% fewer presses than rule-based",
+    "subcaption": "median 7,144.5 vs 8,779.5 presses, 10 runs each · 99/99 decisions valid"
   },
   {
     "type": "bakeoff",
     "seconds": 5.0,
-    "title": "Six local LLMs tested as the planner",
-    "footer": "10 quests each, median over all 10 · map-reading navigation so only the planner differs · measured on one RTX 4090",
+    "title": "Six local LLMs as the System 2 planner",
+    "footer": "10 quests each, median over all 10 · same harness, map-reading navigation · one RTX 4090",
     "rows": [
       {
-        "planner": "rules (reference)",
+        "planner": "rule-based (reference)",
         "badges": "10/10",
         "presses": "8,508.5",
         "vram": "—",
@@ -157,28 +157,28 @@
   },
   {
     "type": "card",
-    "seconds": 2.5,
+    "seconds": 2.75,
     "tag": "The world model",
     "headline": "Inside the dream",
-    "line": "Back to the first run. Left: real game. Right: the dream, 10 steps ahead.",
-    "bg_start": 6833,
-    "bg_end": 6900
+    "line": "First run. Left: real game. Right: diffusion world model, 10 steps ahead.",
+    "bg_start": 6834,
+    "bg_end": 6914
   },
   {
     "type": "split",
     "seconds": 15.0,
-    "start": 6833,
-    "end": 7723,
+    "start": 6834,
+    "end": 6914,
     "speed": "fit",
-    "caption": "The dream drifts. We measure where.",
-    "subcaption": "10 steps: the horizon the walkers trained on"
+    "caption": "Imagination rollout: Viridian City to Route 2",
+    "subcaption": "re-anchored on 4 real frames every 10 steps (H = 10)"
   },
   {
     "type": "card",
-    "seconds": 2.0,
+    "seconds": 2.25,
     "tag": "The badge",
     "headline": "Pewter City: Center, then Gym",
-    "line": "Doors: the learned walks that fail most often. Gym fights: by rules.",
+    "line": "Every walk in this run: System 1 policy. Both fights: scripted battle policy.",
     "bg_start": 7724,
     "bg_end": 7760
   },
@@ -206,8 +206,8 @@
       ]
     ],
     "speed": "fit",
-    "caption": "Pewter Gym: two fights by the rulebook, then the badge",
-    "subcaption": "the walker never trained on a battle; the badge is the whole system's"
+    "caption": "Pewter Gym: two fights by the scripted battle policy, then the badge",
+    "subcaption": "the whole game agent: System 2 planner, System 1 policies, scripted battle policy"
   },
   {
     "type": "end",
@@ -218,9 +218,9 @@
     "caption": "",
     "text": [
       "Boulder Badge: 30 of 30 runs",
-      "14 of 30 runs: every walk by the dream-trained policy, no backup used",
+      "14 of 30 runs: every walk by the dream-trained System 1 policy, no backup used",
       "Colour and detail restored by neural nets: 99.27% of pixels, 91% of frames exact",
-      "Local LLM as the planner: 10 of 10 runs, 19% fewer presses than the rules"
+      "Local LLM as System 2 planner: 10 of 10 runs, 19% fewer presses than the rule-based planner"
     ]
   }
 ]

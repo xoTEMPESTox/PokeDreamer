@@ -6,6 +6,7 @@ import math
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
+import cv2
 import numpy as np
 
 from lab.color.rules import PLAYER_BOX
@@ -463,19 +464,19 @@ def compute_hook_tracks(
     # Rattata at (4.08, -6.88): underground, hops up 665..677 (~0.4s), idles 678..709 (~1s)
     for f in range(F):
         if f < 635:
-            rattata_track[f] = [4.18, -6.88, -0.20, 0.0]
+            rattata_track[f] = [4.32, -6.80, -0.20, 0.0]
         elif f < 665:
             shk_z = -0.04 + (0.005 * math.sin(f * 2.5) if 652 <= f <= 670 else 0.0)
-            rattata_track[f] = [4.18, -6.88, shk_z, 0.0]
+            rattata_track[f] = [4.32, -6.80, shk_z, 0.0]
         elif f <= 677:
             t = (f - 665) / 12.0
             z = -0.04 + (0.010 - (-0.04)) * t + 0.06 * math.sin(math.pi * t)
-            rattata_track[f] = [4.18, -6.88, z, 1.0]
+            rattata_track[f] = [4.32, -6.80, z, 1.0]
         elif f <= 709:
             bob = 0.003 * math.sin((f - 678) * 0.5)
-            rattata_track[f] = [4.18, -6.88, 0.010 + bob, 1.0]
+            rattata_track[f] = [4.32, -6.80, 0.025 + bob, 1.0]
         else:
-            rattata_track[f] = [4.18, -6.88, 0.010, 1.0]
+            rattata_track[f] = [4.32, -6.80, 0.025, 1.0]
 
     # Calculate sun projected screen position per frame
     for f in range(F):
@@ -632,7 +633,12 @@ def compute_hook_tracks(
         frame122 = c_data["color"][min(122, len(c_data["color"]) - 1)]
         rattata_crop = frame122[21:54, 106:138].copy()
         bg_col = np.array([235, 248, 240], dtype=np.uint8)
-        rattata_mask = np.sum(np.abs(rattata_crop.astype(int) - bg_col.astype(int)), axis=-1) > 30
+        near_bg = np.sum(np.abs(rattata_crop.astype(int) - bg_col.astype(int)), axis=-1) <= 30
+        # Background = the near-background area connected to the crop border. Rattata's own white pixels (eye, belly,
+        # claws) lie inside its outline and stay: masked out, they left see-through holes (owner: 'unrecognisable').
+        _, lab = cv2.connectedComponents(near_bg.astype(np.uint8), connectivity=4)
+        border = np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))
+        rattata_mask = ~(near_bg & np.isin(lab, border[border > 0]))
     else:
         rattata_crop = np.zeros((33, 32, 3), dtype=np.uint8)
         rattata_mask = np.zeros((33, 32), dtype=bool)
