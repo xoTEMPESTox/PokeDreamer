@@ -1,22 +1,8 @@
 [
   {
-    "type": "title",
-    "seconds": 4.0,
-    "start": 78,
-    "end": 78,
-    "speed": "fit",
-    "caption": "It learned to walk inside a dream of the game, then earned a real Boulder Badge.",
-    "subcaption": "navigation trained only in a learned world model · battles and plan: rules",
-    "text": [
-      "PokeDreamer",
-      "It learned to walk inside a dream of the game,",
-      "then earned a real Boulder Badge."
-    ]
-  },
-  {
     "type": "play",
     "seconds": 8.0,
-    "start": 78,
+    "start": 111,
     "end": 400,
     "speed": "fit",
     "caption": "The walking was learned in a dream. The fighting is a rulebook.",
@@ -95,7 +81,7 @@
     "type": "bakeoff",
     "seconds": 5.0,
     "title": "Six local LLMs tested as the planner",
-    "footer": "10 quests each · map-reading navigation so only the planner differs · measured on one RTX 4090",
+    "footer": "10 quests each, median over all 10 · map-reading navigation so only the planner differs · measured on one RTX 4090",
     "rows": [
       {
         "planner": "rules (reference)",
@@ -107,7 +93,7 @@
       {
         "planner": "gemma4:26b (MoE)",
         "badges": "8/10",
-        "presses": "9,930.5 (8 runs)",
+        "presses": "11,624",
         "vram": "20.9 GB",
         "key": "gemma"
       },

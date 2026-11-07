@@ -342,8 +342,9 @@ def draw_hud_card(
     is_llm_planner: bool = False,
     planner_decision: Optional[Dict[str, Any]] = None,
     is_decision_highlighted: bool = False,
+    img: Optional[Image.Image] = None,
 ):
-    """Draws left-column HUD card with status, goals, badge, and counter."""
+    """Draws left-column HUD card with status, goals, badge, and counter. `img` (the canvas) is needed for logos."""
     x0, y0, x1, y1 = box
     box_h = y1 - y0
 
@@ -465,9 +466,17 @@ def draw_hud_card(
 
             draw.rounded_rectangle([card_x0, card_y0, card_x1, card_y1], radius=12, fill=c_fill, outline=c_border, width=b_width)
 
-            # Card Header
+            # Card Header, with the Gemma and Ollama logos in front when present (work/video/logos/SOURCE.txt)
+            hdr_x = card_x0 + 18
+            for key in ("gemma", "ollama"):
+                logo_path = Path("work/video/logos") / f"{key}.png"
+                if img is not None and logo_path.exists():
+                    logo_im = Image.open(logo_path).convert("RGBA")
+                    logo_im = logo_im.resize((22, 22), resample=getattr(Image, "Resampling", Image).LANCZOS)
+                    img.paste(logo_im, (hdr_x, card_y0 + 10), logo_im)
+                    hdr_x += 28
             hdr_text = "Planner: gemma4:31b (local, via Ollama)"
-            draw.text((card_x0 + 18, card_y0 + 13), hdr_text, font=fonts.get(16, bold=True), fill=(248, 250, 252))
+            draw.text((hdr_x, card_y0 + 13), hdr_text, font=fonts.get(16, bold=True), fill=(248, 250, 252))
 
             # Latency tag when highlighted
             if is_decision_highlighted:
@@ -821,6 +830,7 @@ def render_play_frame(
         is_llm_planner=is_llm_planner,
         planner_decision=planner_decision,
         is_decision_highlighted=is_decision_highlighted,
+        img=img,
     )
 
     # 5. Caption centred under the game frame

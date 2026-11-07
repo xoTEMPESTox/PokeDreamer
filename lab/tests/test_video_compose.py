@@ -60,7 +60,7 @@ def test_segment_frame_counts_sum_to_seconds_times_fps():
 
 
 def test_actual_storyboard_json_frame_counts():
-    """Verify lab/video/storyboard.json totals exactly 74.0 s (2220 frames at 30 fps)."""
+    """Verify lab/video/storyboard.json totals exactly 70.0 s (2100 frames at 30 fps); the 3D hook (19.7 s) goes before it."""
     sb_path = Path("lab/video/storyboard.json")
     assert sb_path.exists(), "lab/video/storyboard.json must exist"
 
@@ -69,9 +69,9 @@ def test_actual_storyboard_json_frame_counts():
 
     fps = 30
     counts = calculate_segment_frames(storyboard, fps=fps)
-    assert sum(counts) == 2220, f"Expected 2220 frames, got {sum(counts)}"
+    assert sum(counts) == 2100, f"Expected 2100 frames, got {sum(counts)}"
     total_seconds = sum(s["seconds"] for s in storyboard)
-    assert abs(total_seconds - 74.0) < 1e-6, f"Expected 74.0 seconds, got {total_seconds}"
+    assert abs(total_seconds - 70.0) < 1e-6, f"Expected 70.0 seconds, got {total_seconds}"
 
 
 def test_storyboard_end_card_exact_numbers():
