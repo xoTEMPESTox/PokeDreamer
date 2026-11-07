@@ -1000,7 +1000,16 @@ def render_diagram_frame(seg: Dict[str, Any], t_s: float, fonts: FontManager) ->
 
     # Section labels
     if "left_label" in seg and seg["left_label"]:
-        d.text((64, 184), spaced(seg["left_label"]), font=fonts.get(16, bold=True), fill=col(MUTED, a_hdr))
+        f16 = fonts.get(16, bold=True)
+        lbl = spaced(seg["left_label"])
+        d.text((64, 184), lbl, font=f16, fill=col(MUTED, a_hdr))
+        hl = seg.get("left_highlight")  # owner: the key term on a yellow highlighter box, dark text
+        if hl:
+            hx = 64 + int(d.textlength(lbl + "   ", font=f16))
+            htxt = spaced(hl)
+            bb = d.textbbox((hx, 184), htxt, font=f16)
+            d.rounded_rectangle([bb[0] - 8, bb[1] - 6, bb[2] + 8, bb[3] + 6], radius=6, fill=col((250, 204, 21), a_hdr))
+            d.text((hx, 184), htxt, font=f16, fill=col((15, 20, 25), a_hdr))
     if "right_label" in seg and seg["right_label"]:
         rx = seg.get("right_label_x", 1240)
         d.text((rx, 184), spaced(seg["right_label"]), font=fonts.get(16, bold=True), fill=col(MUTED, a_hdr))

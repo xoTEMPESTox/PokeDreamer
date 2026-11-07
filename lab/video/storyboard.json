@@ -4,7 +4,7 @@
     "seconds": 8.0,
     "title": "PokeDreamer v3",
     "title_right": "PokeDreamer v3 · 1 / 3",
-    "left_label": "ARCHITECTURE · DIFFUSION WORLD MODEL (WM31)",
+    "left_label": "ARCHITECTURE",
     "right_label": "SPECS AND MEASUREMENTS",
     "right_label_x": 1240,
     "elements": [
@@ -401,14 +401,15 @@
           }
         ]
       }
-    ]
+    ],
+    "left_highlight": "DIFFUSION WORLD MODEL (WM31)"
   },
   {
     "type": "diagram",
     "seconds": 9.0,
     "title": "PokeDreamer v3",
     "title_right": "System 1 / System 2 harness · 2 / 3",
-    "left_label": "ARCHITECTURE · ONE DECISION LOOP",
+    "left_label": "ARCHITECTURE",
     "elements": [
       {
         "kind": "box",
@@ -503,7 +504,7 @@
           "notebook (≤ 12 notes)",
           "out: JSON {goal, target_level,",
           "reason, note}",
-          "optional tool: web_search"
+          "tools: Pokédex + guide search"
         ],
         "t0": 0.9
       },
@@ -858,7 +859,8 @@
           }
         ]
       }
-    ]
+    ],
+    "left_highlight": "GAME AGENT HARNESS · SYSTEM 1: DREAM-TRAINED RL AGENT · SYSTEM 2: LLM PLANNER"
   },
   {
     "type": "diagram",
@@ -1170,7 +1172,7 @@
     "bg_traj": "work/video/traj_llm/run_seed_100_color.npz",
     "bg_start": 4650,
     "bg_end": 4700,
-    "line2": "Every decision is validated against game RAM before it runs."
+    "line2": "Calls tools (Pokédex, guide search) to plan; every decision is validated against RAM."
   },
   {
     "type": "harness",
