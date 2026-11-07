@@ -989,6 +989,7 @@ def run_gym_quest(
     llm_think: bool = True,
     llm_planner: Optional[Any] = None,
     max_llm_decisions: int = 60,
+    llm_tools: tuple[str, ...] | list[str] = (),
 ) -> dict[str, Any]:
     """Execute one full Gym Quest run from starter save state to Boulder Badge."""
     work_dir = Path(work_dir)
@@ -1114,7 +1115,7 @@ def run_gym_quest(
         if planner == "llm":
             if llm_planner is None:
                 from lab.agent.llm_planner import LLMPlanner
-                llm_planner = LLMPlanner(model=llm_model, think=llm_think)
+                llm_planner = LLMPlanner(model=llm_model, think=llm_think, tools=llm_tools)
             if hasattr(llm_planner, "warmup"):
                 load_sec = llm_planner.warmup()
                 print(f"[GymQuest seed={seed}] Model {llm_model} warmed up in {load_sec:.2f}s (load_seconds={load_sec})")
@@ -1175,6 +1176,7 @@ def run_gym_quest(
                     "thinking": last_rec.get("thinking", ""),
                     "rejection_reason": last_rec.get("rejection_reason"),
                     "target_level": effective_target_level,
+                    "tool_calls": last_rec.get("tool_calls", []),
                 })
 
             timeline.append(log_entry)
@@ -1325,6 +1327,7 @@ def run_gym_quest(
                 "max_latency": 0.0,
                 "total_tokens": 0,
                 "notebook": [],
+                "tool_calls": 0,
             }
         if nav == "learned" or run_legs:
             result["legs"] = run_legs
@@ -1404,6 +1407,7 @@ def main() -> None:
     parser.add_argument("--llm-model", type=str, default="gemma4:26b", help="Ollama model name for LLM planner")
     parser.add_argument("--no-think", action="store_true", help="Disable thinking in LLM planner")
     parser.add_argument("--max-llm-decisions", type=int, default=60, help="Max LLM planner decisions before stopping run")
+    parser.add_argument("--llm-tools", type=str, default="", help="Comma-separated tools for LLM planner (e.g. web_search)")
     args = parser.parse_args()
     if args.save_color and not args.save_traj:
         parser.error("--save-color requires --save-traj")
@@ -1420,6 +1424,7 @@ def main() -> None:
                 policies_override[k.strip()] = v.strip()
 
     results: list[dict[str, Any]] = []
+    tools_list = tuple(t.strip() for t in args.llm_tools.split(",") if t.strip()) if getattr(args, "llm_tools", None) else ()
 
     for r_idx in range(args.runs):
         cur_seed = args.seed + r_idx
@@ -1442,6 +1447,7 @@ def main() -> None:
             llm_model=args.llm_model,
             llm_think=not args.no_think,
             max_llm_decisions=args.max_llm_decisions,
+            llm_tools=tools_list,
         )
         results.append(res)
 

@@ -87,6 +87,25 @@ PLANNER_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
 }
 
+# ── Web Search Tool Definition ───────────────────────────────────────────────
+WEB_SEARCH_TOOL: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "web_search",
+        "description": "Search Bulbapedia for game knowledge: maps, gym leaders, Pokémon types, moves.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Bulbapedia search query (e.g. Brock, Pewter Gym, Onix, Rock type)",
+                }
+            },
+            "required": ["query"],
+        },
+    },
+}
+
 # ── Prompts ──────────────────────────────────────────────────────────────────
 # Honest System Prompt: contains pure game mechanics and harness constraints,
 # but strictly NO rule planner thresholds (e.g. no 0.35, no >= 14, no 12-15).
@@ -164,12 +183,13 @@ class OllamaClient:
     def chat(
         self,
         model: str,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         schema: Optional[dict[str, Any]] = None,
         think: bool = True,
         keep_alive: Optional[str] = "30m",
         options: Optional[dict[str, Any]] = None,
         retry_delay: Optional[float] = None,
+        tools: Optional[list[dict[str, Any]]] = None,
     ) -> dict[str, Any]:
         """POST /api/chat with model, messages, format schema, think, and options.
 
@@ -186,6 +206,8 @@ class OllamaClient:
             payload["format"] = schema
         if keep_alive is not None:
             payload["keep_alive"] = keep_alive
+        if tools is not None:
+            payload["tools"] = tools
 
         opts: dict[str, Any] = {
             "temperature": 0.1,
@@ -225,6 +247,7 @@ class OllamaClient:
         msg = resp_json.get("message", {})
         raw_content = msg.get("content", "")
         thinking = msg.get("thinking", "") or resp_json.get("thinking", "")
+        tool_calls = msg.get("tool_calls", None)
 
         parsed_content: Any = raw_content
         if isinstance(raw_content, str):
@@ -240,6 +263,8 @@ class OllamaClient:
             "prompt_eval_count": resp_json.get("prompt_eval_count", 0),
             "eval_count": resp_json.get("eval_count", 0),
             "raw_content": raw_content if isinstance(raw_content, str) else json.dumps(raw_content),
+            "tool_calls": tool_calls,
+            "message": msg,
         }
 
     def unload(self, model: str, timeout: Optional[float] = None) -> bool:
@@ -371,6 +396,8 @@ class LLMPlanner:
         max_notebook_notes: int = 12,
         max_notebook_chars: int = 800,
         options: Optional[dict[str, Any]] = None,
+        tools: tuple[str, ...] | list[str] = (),
+        max_tool_calls: int = 3,
     ) -> None:
         self.model = model
         self.think = think
@@ -380,6 +407,9 @@ class LLMPlanner:
         self.max_notebook_notes = max_notebook_notes
         self.max_notebook_chars = max_notebook_chars
         self.options = options or {"temperature": 0.1, "seed": 42, "num_ctx": 16384}
+        self.tools: tuple[str, ...] = tuple(tools) if tools else ()
+        self.max_tool_calls: int = max_tool_calls
+        self.total_tool_calls: int = 0
 
         # Internal state
         self.notebook: list[str] = []
@@ -515,11 +545,12 @@ class LLMPlanner:
 
     def _call_client(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         schema: Optional[dict[str, Any]] = PLANNER_SCHEMA,
         think: Optional[bool] = None,
         keep_alive: str = "30m",
         options: Optional[dict[str, Any]] = None,
+        tools: Optional[list[dict[str, Any]]] = None,
     ) -> dict[str, Any]:
         """Invoke client with error and format handling."""
         use_think = self.think if think is None else think
@@ -528,6 +559,16 @@ class LLMPlanner:
             use_options.update(options)
 
         if hasattr(self.client, "chat") and callable(self.client.chat):
+            if tools is not None:
+                return self.client.chat(
+                    model=self.model,
+                    messages=messages,
+                    schema=schema,
+                    think=use_think,
+                    keep_alive=keep_alive,
+                    options=use_options,
+                    tools=tools,
+                )
             return self.client.chat(
                 model=self.model,
                 messages=messages,
@@ -537,6 +578,16 @@ class LLMPlanner:
                 options=use_options,
             )
         elif callable(self.client):
+            if tools is not None:
+                return self.client(
+                    model=self.model,
+                    messages=messages,
+                    schema=schema,
+                    think=use_think,
+                    keep_alive=keep_alive,
+                    options=use_options,
+                    tools=tools,
+                )
             return self.client(
                 model=self.model,
                 messages=messages,
@@ -568,14 +619,125 @@ class LLMPlanner:
         t0 = time.time()
         client_error: Optional[Exception] = None
         resp_data: dict[str, Any] = {}
+        decision_tool_calls: list[dict[str, Any]] = []
+        extra_prompt_tokens: int = 0
+        extra_eval_tokens: int = 0
 
-        try:
-            resp_data = self._call_client(messages, schema=PLANNER_SCHEMA, think=self.think, keep_alive="30m")
-        except (OllamaConnectionError, urllib.error.URLError, TimeoutError, socket.timeout):
-            # Connection and timeout errors must raise clearly
-            raise
-        except Exception as err:
-            client_error = err
+        if "web_search" in self.tools:
+            try:
+                from lab.agent.web_search import web_search
+
+                tool_sys_prompt = SYSTEM_PROMPT.strip() + "\nYou may search Bulbapedia for game knowledge: maps, gym leaders, Pokémon types, moves.\n"
+                tool_messages = [
+                    {"role": "system", "content": tool_sys_prompt},
+                    {"role": "user", "content": user_content},
+                ]
+                tool_calls_count = 0
+                while tool_calls_count < self.max_tool_calls:
+                    turn_resp = self._call_client(
+                        messages=tool_messages,
+                        schema=PLANNER_SCHEMA if tool_calls_count > 0 else None,
+                        think=self.think,
+                        keep_alive="30m",
+                        tools=[WEB_SEARCH_TOOL],
+                    )
+
+                    t_calls = turn_resp.get("tool_calls")
+                    if not t_calls and isinstance(turn_resp.get("message"), dict):
+                        t_calls = turn_resp["message"].get("tool_calls")
+
+                    # Fallback check for schema-based action protocol
+                    if not t_calls:
+                        c_val = turn_resp.get("content")
+                        if isinstance(c_val, dict) and c_val.get("action") == "search" and "query" in c_val:
+                            t_calls = [{"function": {"name": "web_search", "arguments": {"query": c_val["query"]}}}]
+
+                    if not t_calls:
+                        resp_data = turn_resp
+                        break
+
+                    extra_prompt_tokens += int(turn_resp.get("prompt_eval_count", 0))
+                    extra_eval_tokens += int(turn_resp.get("eval_count", 0))
+
+                    asst_msg = turn_resp.get("message")
+                    if not asst_msg or not isinstance(asst_msg, dict):
+                        asst_msg = {
+                            "role": "assistant",
+                            "content": turn_resp.get("raw_content", ""),
+                            "tool_calls": t_calls,
+                        }
+                    tool_messages.append(asst_msg)
+
+                    for tc in t_calls:
+                        if tool_calls_count >= self.max_tool_calls:
+                            break
+                        fn_info = tc.get("function", {}) if isinstance(tc, dict) else {}
+                        fn_name = fn_info.get("name", "web_search")
+                        fn_args = fn_info.get("arguments", {})
+                        if isinstance(fn_args, str):
+                            try:
+                                fn_args = json.loads(fn_args)
+                            except Exception:
+                                fn_args = {"query": fn_args}
+                        query_str = fn_args.get("query", "") if isinstance(fn_args, dict) else str(fn_args)
+
+                        t_tool_start = time.time()
+                        try:
+                            results = web_search(query_str) if fn_name == "web_search" else []
+                        except Exception:
+                            results = []
+                        call_lat = round(time.time() - t_tool_start, 3)
+                        titles = [r.get("title", "") for r in results if isinstance(r, dict)]
+
+                        decision_tool_calls.append({
+                            "tool": fn_name,
+                            "query": query_str,
+                            "titles": titles,
+                            "latency": call_lat,
+                        })
+                        tool_calls_count += 1
+                        self.total_tool_calls += 1
+
+                        tool_messages.append({
+                            "role": "tool",
+                            "content": json.dumps(results),
+                        })
+
+                # Check if final schema-constrained call is needed
+                need_final = False
+                if not resp_data:
+                    need_final = True
+                else:
+                    cand = resp_data.get("content") if isinstance(resp_data, dict) else None
+                    is_c_valid, _, _ = validate_decision(cand, status)
+                    if not is_c_valid:
+                        need_final = True
+                        if resp_data.get("raw_content"):
+                            tool_messages.append({"role": "assistant", "content": resp_data.get("raw_content")})
+
+                if need_final:
+                    if resp_data:
+                        extra_prompt_tokens += int(resp_data.get("prompt_eval_count", 0))
+                        extra_eval_tokens += int(resp_data.get("eval_count", 0))
+                    resp_data = self._call_client(
+                        messages=tool_messages,
+                        schema=PLANNER_SCHEMA,
+                        think=self.think,
+                        keep_alive="30m",
+                        tools=None,
+                    )
+            except (OllamaConnectionError, urllib.error.URLError, TimeoutError, socket.timeout):
+                raise
+            except Exception as err:
+                client_error = err
+        if "web_search" not in self.tools:
+            try:
+                resp_data = self._call_client(messages, schema=PLANNER_SCHEMA, think=self.think, keep_alive="30m")
+            except (OllamaConnectionError, urllib.error.URLError, TimeoutError, socket.timeout):
+                # Connection and timeout errors must raise clearly
+                raise
+            except Exception as err:
+                client_error = err
 
         latency = round(time.time() - t0, 3)
         self.latencies.append(latency)
@@ -592,6 +754,10 @@ class LLMPlanner:
                 thinking = str(resp_data.get("thinking", ""))
                 prompt_tokens = int(resp_data.get("prompt_eval_count", 0))
                 eval_tokens = int(resp_data.get("eval_count", 0))
+                if extra_prompt_tokens:
+                    prompt_tokens += extra_prompt_tokens
+                if extra_eval_tokens:
+                    eval_tokens += extra_eval_tokens
                 raw_output = resp_data.get("raw_content", parsed_decision)
             else:
                 # Direct JSON output from client
@@ -664,6 +830,7 @@ class LLMPlanner:
             "goal": str(final_goal),
             "reason": final_goal.reason,
             "target_level": getattr(final_goal, "target_level", effective_fallback_target),
+            "tool_calls": decision_tool_calls,
         }
 
         # Append to history
@@ -693,4 +860,5 @@ class LLMPlanner:
             "max_latency": max_lat,
             "total_tokens": self.total_tokens,
             "notebook": list(self.notebook),
+            "tool_calls": self.total_tool_calls,
         }
