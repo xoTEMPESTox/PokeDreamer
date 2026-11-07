@@ -11,22 +11,22 @@ def test_hook_tracks_structure_and_counts():
     tracks = compute_hook_tracks()
 
     total_frames = len(tracks["cam_pos"])
-    assert total_frames == 741
+    assert total_frames == 723
 
     shot_id = tracks["shot_id"]
-    # Check storyboard frame counts per shot (741-frame timeline)
+    # Check storyboard frame counts per shot (723-frame timeline)
     expected_counts = {
         "1a": 24,
         "1b": 105,
         "1c": 21,
         "2a": 24,
-        "2b": 54,
-        "2c": 123,
+        "2b": 46,
+        "2c": 131,
         "2d": 90,
         "3a": 30,
         "3b": 84,
-        "3c": 165,
-        "3d": 21,
+        "3c": 80,
+        "3d": 88,
     }
 
     for sid, exp_count in expected_counts.items():
@@ -35,7 +35,7 @@ def test_hook_tracks_structure_and_counts():
 
 
 def test_player_positions_and_door():
-    """Verify player starts at PC door tile (23, 26) and ends at step 110."""
+    """Verify player starts at PC door tile (23, 26) and ends at step 99."""
     tracks = compute_hook_tracks()
     player = tracks["player_track"]
 
@@ -43,8 +43,8 @@ def test_player_positions_and_door():
     np.testing.assert_allclose(player[0, :2], [3.76, -4.24], atol=1e-3)
     assert player[0, 2] == 75.0
 
-    # Frame 740: Route 1 tall grass at step 110
-    assert player[740, 2] == 110.0
+    # Frame 722: Route 1 tall grass at step 99
+    assert player[722, 2] == 99.0
 
 
 def test_camera_clearance_and_boundaries():
@@ -70,13 +70,15 @@ def test_reveal_edges():
     edge_a = tracks["edge_a"]
     edge_b = tracks["edge_b"]
 
-    # In shot 2c (frames 228..350), edges are active
-    for f in range(228, 351):
+    # In shot 2c (frames 220..350), edges are active
+    for f in range(220, 351):
         assert edge_b[f] <= edge_a[f] + 1e-4, f"Frame {f}: edge_b ({edge_b[f]}) overtook edge_a ({edge_a[f]})"
 
     # Edges sweep across visible ground (x_min <= 2.4, x_max >= 5.0)
-    assert edge_a[228] <= 2.41
-    assert edge_a[317] >= 5.00
+    assert edge_a[220] <= 2.41
+    assert edge_a[309] >= 5.00
+    # owner review 2: the colorizer edge trails the upscaler edge by 20 frames (0.65 s), not 12
+    assert abs(edge_b[260] - edge_a[240]) < 1e-4
     assert edge_b[329] >= 5.00
 
 
@@ -108,9 +110,38 @@ def test_walk_continuity_and_hop():
     # Hop height is between 0 and 0.004 m
     assert np.all(hop >= 0.0)
     assert np.max(hop) <= 0.0041
-    # Hop is 0 when player is still (f < 461 and f >= 720)
+    # Hop is 0 when player is still (f < 461 and f >= 634)
     assert np.all(hop[:461] == 0.0)
-    assert np.all(hop[720:] == 0.0)
+    assert np.all(hop[634:] == 0.0)
+
+
+def test_camera_smoothness_and_framing():
+    """Verify camera aim and pos second differences drop significantly and player stays within central 60% of frame."""
+    from lab.viz3d.shots import project_point_to_frame
+
+    tracks = compute_hook_tracks()
+    cam_pos = tracks["cam_pos"]
+    cam_aim = tracks["cam_aim"]
+    player = tracks["player_track"]
+
+    # Bound second difference over frames 441..end
+    d2_aim = np.linalg.norm(np.diff(cam_aim[441:], n=2, axis=0), axis=1)
+    d2_pos = np.linalg.norm(np.diff(cam_pos[441:], n=2, axis=0), axis=1)
+    max_d2_aim = float(np.max(d2_aim))
+    max_d2_pos = float(np.max(d2_pos))
+
+    assert max_d2_aim < 0.003, f"cam_aim second difference too high: {max_d2_aim:.6f} m"
+    assert max_d2_pos < 0.012, f"cam_pos second difference too high: {max_d2_pos:.6f} m"
+
+    # Player stays inside central 60% of frame width (u in [0.20, 0.80]) across walk frames
+    u_min, u_max = 1.0, 0.0
+    for f in range(441, 635):
+        p_world = np.array([player[f, 0], player[f, 1], 0.08])
+        u, v = project_point_to_frame(p_world, cam_pos[f], cam_aim[f], lens=40.0)
+        u_min = min(u_min, u)
+        u_max = max(u_max, u)
+
+    assert 0.20 <= u_min and u_max <= 0.80, f"Player outside central 60% width: [{u_min:.3f}, {u_max:.3f}]"
 
 
 def test_sprite_validation():
@@ -127,7 +158,7 @@ def test_sprite_validation():
 
 
 def test_title_margins_and_scale():
-    """Assert title + ball coverage >= 55% from frame 60 and margins >= 5% across frames 60-128."""
+    """Assert title + ball coverage >= 40% from frame 60 (owner: 25% smaller than round 4) and margins >= 5% across frames 60-128."""
     from lab.viz3d.shots import project_point_to_frame
 
     tracks_path = Path("work/viz3d/v2/hook_tracks.npz")
@@ -145,11 +176,11 @@ def test_title_margins_and_scale():
     for f in range(60, 129):
         t = (f - 60) / 68.0
         ease = 3.0 * t * t - 2.0 * t * t * t
-        s_xy = 0.55 + (0.25 - 0.55) * ease
+        s_xy = 0.4125 + (0.1875 - 0.4125) * ease
 
         # title + ball span in font units, measured on the render: text ~3.5 wide (r4_f128.png: 795 px at s_xy 0.152),
         # gap 0.15, ball 0.61; the group is centred on the pond centre
-        half_w = 2.13 * s_xy
+        half_w = 2.35 * s_xy  # spacing 1.08: text ~3.78 wide + gap 0.3 + ball 0.62
         p_left = pond_center - half_w * u_r + 0.12 * u_up
         p_right = pond_center + half_w * u_r + 0.12 * u_up
 
@@ -162,15 +193,15 @@ def test_title_margins_and_scale():
         left_margin = u_min
         right_margin = 1.0 - u_max
 
-        assert coverage >= 0.55, f"Frame {f}: coverage {coverage:.1%} < 55%"
+        assert coverage >= 0.40, f"Frame {f}: coverage {coverage:.1%} < 40%"
         assert left_margin >= 0.05, f"Frame {f}: left margin {left_margin:.1%} < 5%"
         assert right_margin >= 0.05, f"Frame {f}: right margin {right_margin:.1%} < 5%"
 
     # Frame 128 should be around 80% coverage
-    s128 = 0.25
-    half_w128 = 2.13 * s128
+    s128 = 0.1875
+    half_w128 = 2.35 * s128
     u_l128, _ = project_point_to_frame(pond_center - half_w128 * u_r + 0.12 * u_up, cam_pos[128], cam_aim[128], lens=40.0)
     u_r128, _ = project_point_to_frame(pond_center + half_w128 * u_r + 0.12 * u_up, cam_pos[128], cam_aim[128], lens=40.0)
     cov128 = abs(u_r128 - u_l128)
-    assert 0.75 <= cov128 <= 0.85, f"Frame 128: coverage {cov128:.1%} not ~80%"
+    assert 0.55 <= cov128 <= 0.70, f"Frame 128: coverage {cov128:.1%} not ~63% (25% smaller than the 81% of round 4)"
 

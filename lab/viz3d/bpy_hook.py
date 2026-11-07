@@ -398,6 +398,214 @@ def setup_lookstate_ground_material(
     return driver_obj
 
 
+def setup_lookstate_solid_color(
+    mat: bpy.types.Material,
+    base_color: tuple,
+    driver_obj: bpy.types.Object,
+    roughness: float = 0.80,
+) -> None:
+    """Setup LookState desaturation on a solid color material (greyscale when world X > EdgeB)."""
+    nt = mat.node_tree
+    nt.nodes.clear()
+
+    out_node = nt.nodes.new("ShaderNodeOutputMaterial")
+    bsdf = nt.nodes.new("ShaderNodeBsdfPrincipled")
+    bsdf.inputs["Roughness"].default_value = roughness
+    nt.links.new(bsdf.outputs["BSDF"], out_node.inputs["Surface"])
+
+    geom = nt.nodes.new("ShaderNodeNewGeometry")
+    sep_pos = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geom.outputs["Position"], sep_pos.inputs["Vector"])
+
+    val_b = nt.nodes.new("ShaderNodeValue")
+    val_b.name = "EdgeB"
+    drv_b = val_b.outputs["Value"].driver_add("default_value")
+    drv_b.driver.type = "AVERAGE"
+    var_b = drv_b.driver.variables.new()
+    var_b.name = "eb"
+    var_b.type = "TRANSFORMS"
+    var_b.targets[0].id = driver_obj
+    var_b.targets[0].transform_type = "LOC_Y"
+
+    sub_b = nt.nodes.new("ShaderNodeMath")
+    sub_b.operation = "SUBTRACT"
+    nt.links.new(sep_pos.outputs["X"], sub_b.inputs[0])
+    nt.links.new(val_b.outputs["Value"], sub_b.inputs[1])
+
+    cmp_b = nt.nodes.new("ShaderNodeMath")
+    cmp_b.operation = "GREATER_THAN"
+    cmp_b.inputs[1].default_value = 0.0
+    nt.links.new(sub_b.outputs["Value"], cmp_b.inputs[0])
+
+    col_node = nt.nodes.new("ShaderNodeRGB")
+    col_node.outputs["Color"].default_value = (base_color[0], base_color[1], base_color[2], 1.0)
+
+    # Luminance L = 0.299 R + 0.587 G + 0.114 B
+    lum = 0.299 * base_color[0] + 0.587 * base_color[1] + 0.114 * base_color[2]
+    grey_node = nt.nodes.new("ShaderNodeRGB")
+    grey_node.outputs["Color"].default_value = (lum, lum, lum, 1.0)
+
+    mix_col = nt.nodes.new("ShaderNodeMixRGB")
+    nt.links.new(cmp_b.outputs["Value"], mix_col.inputs["Fac"])
+    nt.links.new(col_node.outputs["Color"], mix_col.inputs[1])
+    nt.links.new(grey_node.outputs["Color"], mix_col.inputs[2])
+
+    nt.links.new(mix_col.outputs["Color"], bsdf.inputs["Base Color"])
+
+
+def setup_lookstate_sign_face_material(
+    sign_face_mat: bpy.types.Material,
+    world_dir: Path,
+    driver_obj: bpy.types.Object,
+) -> None:
+    """Setup LookState 3-texture mix (raw -> crisp -> color + cyan hairline) for sign face."""
+    s_nt = sign_face_mat.node_tree
+    s_nt.nodes.clear()
+
+    out_node = s_nt.nodes.new("ShaderNodeOutputMaterial")
+    bsdf = s_nt.nodes.new("ShaderNodeBsdfPrincipled")
+    bsdf.inputs["Roughness"].default_value = 0.70
+    s_nt.links.new(bsdf.outputs["BSDF"], out_node.inputs["Surface"])
+
+    tex_coord = s_nt.nodes.new("ShaderNodeTexCoord")
+    geom = s_nt.nodes.new("ShaderNodeNewGeometry")
+    sep_pos = s_nt.nodes.new("ShaderNodeSeparateXYZ")
+    s_nt.links.new(geom.outputs["Position"], sep_pos.inputs["Vector"])
+
+    val_a = s_nt.nodes.new("ShaderNodeValue")
+    val_a.name = "EdgeA"
+    drv_a = val_a.outputs["Value"].driver_add("default_value")
+    drv_a.driver.type = "AVERAGE"
+    var_a = drv_a.driver.variables.new()
+    var_a.name = "ea"
+    var_a.type = "TRANSFORMS"
+    var_a.targets[0].id = driver_obj
+    var_a.targets[0].transform_type = "LOC_X"
+
+    val_b = s_nt.nodes.new("ShaderNodeValue")
+    val_b.name = "EdgeB"
+    drv_b = val_b.outputs["Value"].driver_add("default_value")
+    drv_b.driver.type = "AVERAGE"
+    var_b = drv_b.driver.variables.new()
+    var_b.name = "eb"
+    var_b.type = "TRANSFORMS"
+    var_b.targets[0].id = driver_obj
+    var_b.targets[0].transform_type = "LOC_Y"
+
+    col_path = world_dir / "sign_texture.png"
+    crisp_path = world_dir / "sign_crisp.png"
+    raw_path = world_dir / "sign_raw.png"
+
+    img_col = bpy.data.images.load(str(col_path.resolve()))
+    tex_col = s_nt.nodes.new("ShaderNodeTexImage")
+    tex_col.image = img_col
+    tex_col.interpolation = "Closest"
+    s_nt.links.new(tex_coord.outputs["UV"], tex_col.inputs["Vector"])
+
+    img_crisp = bpy.data.images.load(str(crisp_path.resolve()))
+    tex_crisp = s_nt.nodes.new("ShaderNodeTexImage")
+    tex_crisp.image = img_crisp
+    tex_crisp.interpolation = "Closest"
+    s_nt.links.new(tex_coord.outputs["UV"], tex_crisp.inputs["Vector"])
+
+    img_raw = bpy.data.images.load(str(raw_path.resolve()))
+    tex_raw = s_nt.nodes.new("ShaderNodeTexImage")
+    tex_raw.image = img_raw
+    tex_raw.interpolation = "Linear"
+    s_nt.links.new(tex_coord.outputs["UV"], tex_raw.inputs["Vector"])
+
+    # Step 01: world X > Edge A -> raw, else crisp
+    sub_a = s_nt.nodes.new("ShaderNodeMath")
+    sub_a.operation = "SUBTRACT"
+    s_nt.links.new(sep_pos.outputs["X"], sub_a.inputs[0])
+    s_nt.links.new(val_a.outputs["Value"], sub_a.inputs[1])
+
+    cmp_a = s_nt.nodes.new("ShaderNodeMath")
+    cmp_a.operation = "GREATER_THAN"
+    cmp_a.inputs[1].default_value = 0.0
+    s_nt.links.new(sub_a.outputs["Value"], cmp_a.inputs[0])
+
+    mix_01 = s_nt.nodes.new("ShaderNodeMixRGB")
+    s_nt.links.new(cmp_a.outputs["Value"], mix_01.inputs["Fac"])
+    s_nt.links.new(tex_crisp.outputs["Color"], mix_01.inputs[1])
+    s_nt.links.new(tex_raw.outputs["Color"], mix_01.inputs[2])
+
+    # Step 12: world X > Edge B -> mix_01, else tex_col
+    sub_b = s_nt.nodes.new("ShaderNodeMath")
+    sub_b.operation = "SUBTRACT"
+    s_nt.links.new(sep_pos.outputs["X"], sub_b.inputs[0])
+    s_nt.links.new(val_b.outputs["Value"], sub_b.inputs[1])
+
+    cmp_b = s_nt.nodes.new("ShaderNodeMath")
+    cmp_b.operation = "GREATER_THAN"
+    cmp_b.inputs[1].default_value = 0.0
+    s_nt.links.new(sub_b.outputs["Value"], cmp_b.inputs[0])
+
+    mix_final = s_nt.nodes.new("ShaderNodeMixRGB")
+    s_nt.links.new(cmp_b.outputs["Value"], mix_final.inputs["Fac"])
+    s_nt.links.new(tex_col.outputs["Color"], mix_final.inputs[1])
+    s_nt.links.new(mix_01.outputs["Color"], mix_final.inputs[2])
+
+    s_nt.links.new(mix_final.outputs["Color"], bsdf.inputs["Base Color"])
+
+    # Cyan laser hairlines emission
+    div_a = s_nt.nodes.new("ShaderNodeMath")
+    div_a.operation = "DIVIDE"
+    div_a.inputs[1].default_value = 0.008
+    s_nt.links.new(sub_a.outputs["Value"], div_a.inputs[0])
+    sq_a = s_nt.nodes.new("ShaderNodeMath")
+    sq_a.operation = "MULTIPLY"
+    s_nt.links.new(div_a.outputs["Value"], sq_a.inputs[0])
+    s_nt.links.new(div_a.outputs["Value"], sq_a.inputs[1])
+    exp_a = s_nt.nodes.new("ShaderNodeMath")
+    exp_a.operation = "EXPONENT"
+    neg_sq_a = s_nt.nodes.new("ShaderNodeMath")
+    neg_sq_a.operation = "MULTIPLY"
+    neg_sq_a.inputs[1].default_value = -1.0
+    s_nt.links.new(sq_a.outputs["Value"], neg_sq_a.inputs[0])
+    s_nt.links.new(neg_sq_a.outputs["Value"], exp_a.inputs[0])
+
+    div_b = s_nt.nodes.new("ShaderNodeMath")
+    div_b.operation = "DIVIDE"
+    div_b.inputs[1].default_value = 0.008
+    s_nt.links.new(sub_b.outputs["Value"], div_b.inputs[0])
+    sq_b = s_nt.nodes.new("ShaderNodeMath")
+    sq_b.operation = "MULTIPLY"
+    s_nt.links.new(div_b.outputs["Value"], sq_b.inputs[0])
+    s_nt.links.new(div_b.outputs["Value"], sq_b.inputs[1])
+    exp_b = s_nt.nodes.new("ShaderNodeMath")
+    exp_b.operation = "EXPONENT"
+    neg_sq_b = s_nt.nodes.new("ShaderNodeMath")
+    neg_sq_b.operation = "MULTIPLY"
+    neg_sq_b.inputs[1].default_value = -1.0
+    s_nt.links.new(sq_b.outputs["Value"], neg_sq_b.inputs[0])
+    s_nt.links.new(neg_sq_b.outputs["Value"], exp_b.inputs[0])
+
+    cmp_gate = s_nt.nodes.new("ShaderNodeMath")
+    cmp_gate.operation = "LESS_THAN"
+    cmp_gate.inputs[1].default_value = 10.0
+    s_nt.links.new(val_a.outputs["Value"], cmp_gate.inputs[0])
+
+    add_lines = s_nt.nodes.new("ShaderNodeMath")
+    add_lines.operation = "ADD"
+    s_nt.links.new(exp_a.outputs["Value"], add_lines.inputs[0])
+    s_nt.links.new(exp_b.outputs["Value"], add_lines.inputs[1])
+
+    gated_lines = s_nt.nodes.new("ShaderNodeMath")
+    gated_lines.operation = "MULTIPLY"
+    s_nt.links.new(add_lines.outputs["Value"], gated_lines.inputs[0])
+    s_nt.links.new(cmp_gate.outputs["Value"], gated_lines.inputs[1])
+
+    mult_emis = s_nt.nodes.new("ShaderNodeMath")
+    mult_emis.operation = "MULTIPLY"
+    mult_emis.inputs[1].default_value = 3.5
+    s_nt.links.new(gated_lines.outputs["Value"], mult_emis.inputs[0])
+
+    if "Emission Color" in bsdf.inputs:
+        bsdf.inputs["Emission Color"].default_value = (0.49, 0.83, 0.99, 1.0)
+        s_nt.links.new(mult_emis.outputs["Value"], bsdf.inputs["Emission Strength"])
+
+
 def build_solid_buildings(cls_map: np.ndarray, ground_mat: bpy.types.Material) -> bpy.types.Object | None:
     """Build fully enclosed solid buildings with capped roofs, capped walls, and textured facades."""
     H_px, W_px = cls_map.shape
@@ -681,6 +889,7 @@ def build_sign_posts(
     sign_boards: np.ndarray | None = None,
     world_dir: Path | None = None,
     ground_mat: bpy.types.Material | None = None,
+    driver_obj: bpy.types.Object | None = None,
 ) -> bpy.types.Collection | None:
     """Build low wooden posts for ledge markers and standing 3D sign boards for real signs."""
     has_tiles = sign_tiles is not None and len(sign_tiles) > 0
@@ -693,9 +902,12 @@ def build_sign_posts(
 
     post_mat = bpy.data.materials.new("SignPostMat")
     post_mat.use_nodes = True
-    bsdf = post_mat.node_tree.nodes["Principled BSDF"]
-    bsdf.inputs["Base Color"].default_value = (0.35, 0.22, 0.12, 1.0)
-    bsdf.inputs["Roughness"].default_value = 0.80
+    if driver_obj:
+        setup_lookstate_solid_color(post_mat, (0.35, 0.22, 0.12, 1.0), driver_obj, roughness=0.80)
+    else:
+        bsdf = post_mat.node_tree.nodes["Principled BSDF"]
+        bsdf.inputs["Base Color"].default_value = (0.35, 0.22, 0.12, 1.0)
+        bsdf.inputs["Roughness"].default_value = 0.80
 
     # 1. Low wooden posts for ledge markers (24 instances)
     if has_tiles:
@@ -716,21 +928,25 @@ def build_sign_posts(
     if has_boards:
         sign_face_mat = bpy.data.materials.new("SignFaceMat")
         sign_face_mat.use_nodes = True
-        s_nt = sign_face_mat.node_tree
-        s_bsdf = s_nt.nodes["Principled BSDF"]
-        s_bsdf.inputs["Roughness"].default_value = 0.70
+        w_dir = world_dir or Path("work/viz3d/v2/world")
 
-        sign_tex_path = ((world_dir / "sign_texture.png") if world_dir else Path("work/viz3d/v2/world/sign_texture.png")).resolve()
-        if sign_tex_path.exists():
-            tex_img = bpy.data.images.load(str(sign_tex_path))
-            img_node = s_nt.nodes.new("ShaderNodeTexImage")
-            img_node.image = tex_img
-            img_node.interpolation = "Closest"
-            tex_coord = s_nt.nodes.new("ShaderNodeTexCoord")
-            s_nt.links.new(tex_coord.outputs["UV"], img_node.inputs["Vector"])
-            s_nt.links.new(img_node.outputs["Color"], s_bsdf.inputs["Base Color"])
+        if driver_obj and (w_dir / "sign_texture.png").exists():
+            setup_lookstate_sign_face_material(sign_face_mat, w_dir, driver_obj)
         else:
-            s_bsdf.inputs["Base Color"].default_value = (0.78, 0.68, 0.52, 1.0)
+            s_nt = sign_face_mat.node_tree
+            s_bsdf = s_nt.nodes["Principled BSDF"]
+            s_bsdf.inputs["Roughness"].default_value = 0.70
+            sign_tex_path = (w_dir / "sign_texture.png").resolve()
+            if sign_tex_path.exists():
+                tex_img = bpy.data.images.load(str(sign_tex_path))
+                img_node = s_nt.nodes.new("ShaderNodeTexImage")
+                img_node.image = tex_img
+                img_node.interpolation = "Closest"
+                tex_coord = s_nt.nodes.new("ShaderNodeTexCoord")
+                s_nt.links.new(tex_coord.outputs["UV"], img_node.inputs["Vector"])
+                s_nt.links.new(img_node.outputs["Color"], s_bsdf.inputs["Base Color"])
+            else:
+                s_bsdf.inputs["Base Color"].default_value = (0.78, 0.68, 0.52, 1.0)
 
         for idx, (cx, cy, r_top, c_left) in enumerate(sign_boards):
             # Cylinder post: radius 0.008, depth 0.060, location z = 0.030
@@ -781,7 +997,7 @@ def build_sign_posts(
 
 
 
-def build_tree_prototypes() -> bpy.types.Object:
+def build_tree_prototypes(driver_obj: bpy.types.Object | None = None) -> bpy.types.Object:
     """Build low-poly tree prototype mesh in hidden Prototypes collection."""
     proto_coll = bpy.data.collections.get("Prototypes")
     if proto_coll is None:
@@ -792,9 +1008,12 @@ def build_tree_prototypes() -> bpy.types.Object:
 
     trunk_mat = bpy.data.materials.new("TreeTrunkMat")
     trunk_mat.use_nodes = True
-    t_bsdf = trunk_mat.node_tree.nodes["Principled BSDF"]
-    t_bsdf.inputs["Base Color"].default_value = (0.32, 0.20, 0.10, 1.0)
-    t_bsdf.inputs["Roughness"].default_value = 0.85
+    if driver_obj:
+        setup_lookstate_solid_color(trunk_mat, (0.32, 0.20, 0.10, 1.0), driver_obj, roughness=0.85)
+    else:
+        t_bsdf = trunk_mat.node_tree.nodes["Principled BSDF"]
+        t_bsdf.inputs["Base Color"].default_value = (0.32, 0.20, 0.10, 1.0)
+        t_bsdf.inputs["Roughness"].default_value = 0.85
 
     canopy_mat = bpy.data.materials.new("TreeCanopyMat")
     canopy_mat.use_nodes = True
@@ -813,7 +1032,43 @@ def build_tree_prototypes() -> bpy.types.Object:
     c_mix.inputs["Color1"].default_value = (0.16, 0.44, 0.22, 1.0)
     c_mix.inputs["Color2"].default_value = (0.34, 0.68, 0.36, 1.0)
     c_nt.links.new(c_noise.outputs["Fac"], c_mix.inputs["Fac"])
-    c_nt.links.new(c_mix.outputs["Color"], c_bsdf.inputs["Base Color"])
+
+    if driver_obj:
+        geom = c_nt.nodes.new("ShaderNodeNewGeometry")
+        sep_pos = c_nt.nodes.new("ShaderNodeSeparateXYZ")
+        c_nt.links.new(geom.outputs["Position"], sep_pos.inputs["Vector"])
+
+        val_b = c_nt.nodes.new("ShaderNodeValue")
+        val_b.name = "EdgeB"
+        drv_b = val_b.outputs["Value"].driver_add("default_value")
+        drv_b.driver.type = "AVERAGE"
+        var_b = drv_b.driver.variables.new()
+        var_b.name = "eb"
+        var_b.type = "TRANSFORMS"
+        var_b.targets[0].id = driver_obj
+        var_b.targets[0].transform_type = "LOC_Y"
+
+        sub_b = c_nt.nodes.new("ShaderNodeMath")
+        sub_b.operation = "SUBTRACT"
+        c_nt.links.new(sep_pos.outputs["X"], sub_b.inputs[0])
+        c_nt.links.new(val_b.outputs["Value"], sub_b.inputs[1])
+
+        cmp_b = c_nt.nodes.new("ShaderNodeMath")
+        cmp_b.operation = "GREATER_THAN"
+        cmp_b.inputs[1].default_value = 0.0
+        c_nt.links.new(sub_b.outputs["Value"], cmp_b.inputs[0])
+
+        hsv_c = c_nt.nodes.new("ShaderNodeHueSaturation")
+        hsv_c.inputs["Saturation"].default_value = 0.0
+        c_nt.links.new(c_mix.outputs["Color"], hsv_c.inputs["Color"])
+
+        mix_final = c_nt.nodes.new("ShaderNodeMixRGB")
+        c_nt.links.new(cmp_b.outputs["Value"], mix_final.inputs["Fac"])
+        c_nt.links.new(c_mix.outputs["Color"], mix_final.inputs[1])
+        c_nt.links.new(hsv_c.outputs["Color"], mix_final.inputs[2])
+        c_nt.links.new(mix_final.outputs["Color"], c_bsdf.inputs["Base Color"])
+    else:
+        c_nt.links.new(c_mix.outputs["Color"], c_bsdf.inputs["Base Color"])
     c_bsdf.inputs["Roughness"].default_value = 0.50
 
     c_bump = c_nt.nodes.new("ShaderNodeBump")
@@ -1052,6 +1307,7 @@ def add_grass_scatter_modifier(
     flower_proto: bpy.types.Object,
     driver_obj: bpy.types.Object | None = None,
     player_obj: bpy.types.Object | None = None,
+    shake_obj: bpy.types.Object | None = None,
     map_w: float = 6.40,
     map_h: float = 11.52,
 ) -> None:
@@ -1260,7 +1516,50 @@ def add_grass_scatter_modifier(
         ng.links.new(mult_angle.outputs["Value"], comb_rustle.inputs["X"])
         ng.links.new(mult_angle.outputs["Value"], comb_rustle.inputs["Y"])
         ng.links.new(comb_rustle.outputs["Vector"], add_rot.inputs[1])
-        ng.links.new(add_rot.outputs["Vector"], rot_tg.inputs["Rotation"])
+
+        if shake_obj:
+            obj_shk = ng.nodes.new("GeometryNodeObjectInfo")
+            obj_shk.inputs["Object"].default_value = shake_obj
+            obj_shk.transform_space = "RELATIVE"
+
+            pos_shk = ng.nodes.new("GeometryNodeInputPosition")
+            dist_shk = ng.nodes.new("ShaderNodeVectorMath")
+            dist_shk.operation = "DISTANCE"
+            ng.links.new(pos_shk.outputs["Position"], dist_shk.inputs[0])
+            ng.links.new(obj_shk.outputs["Location"], dist_shk.inputs[1])
+
+            map_shk = ng.nodes.new("ShaderNodeMapRange")
+            map_shk.interpolation_type = "SMOOTHSTEP"
+            map_shk.inputs["From Min"].default_value = 0.0
+            map_shk.inputs["From Max"].default_value = 0.16
+            map_shk.inputs["To Min"].default_value = 1.0
+            map_shk.inputs["To Max"].default_value = 0.0
+            ng.links.new(dist_shk.outputs["Value"], map_shk.inputs["Value"])
+
+            sep_scale = ng.nodes.new("ShaderNodeSeparateXYZ")
+            ng.links.new(obj_shk.outputs["Scale"], sep_scale.inputs["Vector"])
+
+            mult_shk = ng.nodes.new("ShaderNodeMath")
+            mult_shk.operation = "MULTIPLY"
+            ng.links.new(map_shk.outputs["Result"], mult_shk.inputs[0])
+            ng.links.new(sep_scale.outputs["X"], mult_shk.inputs[1])
+
+            mult_shk_deg = ng.nodes.new("ShaderNodeMath")
+            mult_shk_deg.operation = "MULTIPLY"
+            mult_shk_deg.inputs[1].default_value = math.radians(35.0)
+            ng.links.new(mult_shk.outputs["Value"], mult_shk_deg.inputs[0])
+
+            comb_shk = ng.nodes.new("ShaderNodeCombineXYZ")
+            ng.links.new(mult_shk_deg.outputs["Value"], comb_shk.inputs["X"])
+            ng.links.new(mult_shk_deg.outputs["Value"], comb_shk.inputs["Y"])
+
+            add_rot_total = ng.nodes.new("ShaderNodeVectorMath")
+            add_rot_total.operation = "ADD"
+            ng.links.new(add_rot.outputs["Vector"], add_rot_total.inputs[0])
+            ng.links.new(comb_shk.outputs["Vector"], add_rot_total.inputs[1])
+            ng.links.new(add_rot_total.outputs["Vector"], rot_tg.inputs["Rotation"])
+        else:
+            ng.links.new(add_rot.outputs["Vector"], rot_tg.inputs["Rotation"])
     else:
         ng.links.new(rand_tgyaw.outputs["Value"], rot_tg.inputs["Rotation"])
 
@@ -1514,7 +1813,167 @@ def setup_hook_compositor(sun_pos_track: np.ndarray | None = None):
     tree.links.new(mix_beams.outputs["Image"], composite.inputs["Image"])
 
 
-def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.16, 0.0), total_frames: int = 741):
+def build_exclamation_mark(exclamation_track: np.ndarray) -> bpy.types.Object:
+    """Build 3D '!' popping above player's head with white face and black outline."""
+    excl_coll = bpy.data.collections.get("Exclamation")
+    if excl_coll is None:
+        excl_coll = bpy.data.collections.new("Exclamation")
+        bpy.context.scene.collection.children.link(excl_coll)
+
+    font_curve = bpy.data.curves.new(type="FONT", name="ExclamationCurve")
+    font_curve.body = "!"
+    font_curve.font = bpy.data.fonts.load("C:/Windows/Fonts/seguibl.ttf")  # Segoe UI Black: a thin "!" was hard to see
+    font_curve.extrude = 0.02
+    font_curve.bevel_depth = 0.005
+    font_curve.align_x = "CENTER"
+    font_curve.align_y = "CENTER"
+
+    mat_white = bpy.data.materials.new("ExclamationWhiteMat")
+    mat_white.use_nodes = True
+    bsdf_w = mat_white.node_tree.nodes["Principled BSDF"]
+    bsdf_w.inputs["Base Color"].default_value = (1.0, 1.0, 1.0, 1.0)
+    if "Emission Color" in bsdf_w.inputs:
+        bsdf_w.inputs["Emission Color"].default_value = (1.0, 1.0, 1.0, 1.0)
+        bsdf_w.inputs["Emission Strength"].default_value = 0.5
+    font_curve.materials.append(mat_white)
+
+    excl_obj = bpy.data.objects.new("ExclamationMark", font_curve)
+    excl_obj.rotation_euler = (math.radians(90.0), 0.0, math.radians(-15.0))
+    excl_coll.objects.link(excl_obj)
+
+    font_curve_outline = bpy.data.curves.new(type="FONT", name="ExclamationOutlineCurve")
+    font_curve_outline.body = "!"
+    font_curve_outline.font = font_curve.font
+    font_curve_outline.extrude = 0.022
+    font_curve_outline.offset = 0.035
+    font_curve_outline.align_x = "CENTER"
+    font_curve_outline.align_y = "CENTER"
+
+    mat_black = bpy.data.materials.new("ExclamationBlackMat")
+    mat_black.use_nodes = True
+    bsdf_b = mat_black.node_tree.nodes["Principled BSDF"]
+    bsdf_b.inputs["Base Color"].default_value = (0.02, 0.02, 0.02, 1.0)
+    font_curve_outline.materials.append(mat_black)
+
+    outline_obj = bpy.data.objects.new("ExclamationOutline", font_curve_outline)
+    outline_obj.parent = excl_obj
+    excl_coll.objects.link(outline_obj)
+
+    F = len(exclamation_track)
+    for f in range(F):
+        x, y, z, s = exclamation_track[f]
+        excl_obj.location = (float(x), float(y), float(z))
+        s_val = float(s) * 0.16
+        excl_obj.scale = (s_val, s_val, s_val)
+        hide = (s_val <= 1e-4)
+        excl_obj.hide_render = hide
+        excl_obj.hide_viewport = hide
+        outline_obj.hide_render = hide
+        outline_obj.hide_viewport = hide
+
+        excl_obj.keyframe_insert(data_path="location", frame=f)
+        excl_obj.keyframe_insert(data_path="scale", frame=f)
+        excl_obj.keyframe_insert(data_path="hide_render", frame=f)
+        excl_obj.keyframe_insert(data_path="hide_viewport", frame=f)
+        outline_obj.keyframe_insert(data_path="hide_render", frame=f)
+        outline_obj.keyframe_insert(data_path="hide_viewport", frame=f)
+
+    return excl_obj
+
+
+def build_rattata_voxel(
+    rattata_track: np.ndarray,
+    sprite_rgb: np.ndarray,
+    sprite_mask: np.ndarray,
+) -> bpy.types.Object:
+    """Build standup voxel Rattata model from real battle sprite color[122]."""
+    coll = bpy.data.collections.get("Encounter")
+    if coll is None:
+        coll = bpy.data.collections.new("Encounter")
+        bpy.context.scene.collection.children.link(coll)
+
+    mat = bpy.data.materials.new("RattataMat")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+    vc = nt.nodes.new("ShaderNodeVertexColor")
+    vc.layer_name = "col"
+    nt.links.new(vc.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.65
+
+    root_obj = bpy.data.objects.new("WildRattata", None)
+    root_obj.empty_display_type = "PLAIN_AXES"
+    root_obj.empty_display_size = 0.05
+    coll.objects.link(root_obj)
+
+    H, W = sprite_mask.shape
+    voxel_size = 0.0048
+    verts = []
+    faces = []
+    cols = []
+    v_idx = 0
+
+    active_voxels = np.where(sprite_mask)
+    for r_px, c_px in zip(*active_voxels):
+        rgb = sprite_rgb[r_px, c_px]
+        lin_col = srgb_to_linear(rgb)
+        rgba = [float(lin_col[0]), float(lin_col[1]), float(lin_col[2]), 1.0]
+
+        x0 = (c_px - W * 0.5) * voxel_size
+        x1 = x0 + voxel_size
+        z0 = (H - 1 - r_px) * voxel_size
+        z1 = z0 + voxel_size
+
+        for d in range(3):  # 3 voxels deep, so it isn't a thin card
+            y0 = (d - 1.5) * voxel_size
+            y1 = y0 + voxel_size
+            verts.extend([
+                (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
+                (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1),
+            ])
+            quad = [(0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]
+            for q in quad:
+                faces.append((v_idx + q[0], v_idx + q[1], v_idx + q[2], v_idx + q[3]))
+            v_idx += 8
+            cols.extend([rgba] * 24)
+
+    me = bpy.data.meshes.new("RattataVoxelMesh")
+    me.from_pydata(verts, [], faces)
+    me.update(calc_edges=True)
+
+    col_attr = me.color_attributes.new("col", "FLOAT_COLOR", "CORNER")
+    col_attr.data.foreach_set("color", np.array(cols, dtype=np.float32).reshape(-1))
+    me.materials.append(mat)
+
+    mesh_obj = bpy.data.objects.new("RattataMesh", me)
+    # vertices are built upright (pixel rows along +Z), so only the yaw towards the camera; a 90-degree X rotation laid it flat
+    mesh_obj.rotation_euler = (0.0, 0.0, math.radians(-15.0))
+    mesh_obj.parent = root_obj
+    coll.objects.link(mesh_obj)
+
+    F = len(rattata_track)
+    for f in range(F):
+        x, y, z, s = rattata_track[f]
+        root_obj.location = (float(x), float(y), float(z))
+        s_val = float(s)
+        root_obj.scale = (s_val, s_val, s_val)
+        hide = (f < 665 or s_val <= 1e-4)
+        root_obj.hide_render = hide
+        root_obj.hide_viewport = hide
+        mesh_obj.hide_render = hide
+        mesh_obj.hide_viewport = hide
+
+        root_obj.keyframe_insert(data_path="location", frame=f)
+        root_obj.keyframe_insert(data_path="scale", frame=f)
+        root_obj.keyframe_insert(data_path="hide_render", frame=f)
+        root_obj.keyframe_insert(data_path="hide_viewport", frame=f)
+        mesh_obj.keyframe_insert(data_path="hide_render", frame=f)
+        mesh_obj.keyframe_insert(data_path="hide_viewport", frame=f)
+
+    return root_obj
+
+
+def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.16, 0.0), total_frames: int = 723):
     """Build 3D extruded title 'PokeDreamer' and stylized Pokéball icon rising from pond per DESIGN §2.7 and Round 4 review.
     
     Round 4 Owner Review:
@@ -1540,6 +1999,7 @@ def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.
     font_curve.bevel_depth = 0.012
     font_curve.align_x = "CENTER"
     font_curve.align_y = "BOTTOM"
+    font_curve.space_character = 1.08  # owner: a bit more space between letters
 
     text_obj = bpy.data.objects.new("TitleText", font_curve)
     text_obj.rotation_euler = (math.radians(90.0), 0.0, math.radians(yaw_deg))
@@ -1566,11 +2026,12 @@ def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.
     # Bottom white: sRGB #F4F4F4 -> linear (0.909, 0.909, 0.909, 1.0)
     t_ramp.color_ramp.elements[0].position = 0.0
     t_ramp.color_ramp.elements[0].color = (0.909, 0.909, 0.909, 1.0)
-    # Middle black: 7% of cap height centered at 0.50 (0.465 to 0.535)
-    el_mid = t_ramp.color_ramp.elements.new(0.465)
+    # Middle black: 7% of cap height, centred on the middle of the lowercase letters (owner): x-height 500 / cap 701
+    # units in segoeuib.ttf -> 0.357 of the cap height (0.322 to 0.392)
+    el_mid = t_ramp.color_ramp.elements.new(0.322)
     el_mid.color = (0.01, 0.01, 0.01, 1.0)
     # Top red: sRGB #E3350D -> linear (0.768, 0.036, 0.003, 1.0)
-    el_top = t_ramp.color_ramp.elements.new(0.535)
+    el_top = t_ramp.color_ramp.elements.new(0.392)
     el_top.color = (0.768, 0.036, 0.003, 1.0)
 
     t_nt.links.new(div_h.outputs["Value"], t_ramp.inputs["Fac"])
@@ -1594,6 +2055,7 @@ def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.
     font_curve_outline.offset = 0.035
     font_curve_outline.align_x = "CENTER"
     font_curve_outline.align_y = "BOTTOM"
+    font_curve_outline.space_character = font_curve.space_character
 
     outline_obj = bpy.data.objects.new("TitleTextOutline", font_curve_outline)
     outline_obj.parent = text_obj
@@ -1610,9 +2072,10 @@ def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.
     # 3. Stylized Pokéball Sphere (UV sphere r 5.5 cm)
     rad_ball = 0.055
     bpy.ops.mesh.primitive_uv_sphere_add(
-        segments=24, ring_count=16, radius=rad_ball, location=(pond_center[0], pond_center[1], -0.20)
+        segments=64, ring_count=32, radius=rad_ball, location=(pond_center[0], pond_center[1], -0.20)
     )
     ball_obj = bpy.context.active_object
+    bpy.ops.object.shade_smooth()  # owner: the faceted 24x16 sphere looked like square segments
     ball_obj.name = "PokeBallSphere"
     title_coll.objects.link(ball_obj)
     if ball_obj.name in bpy.context.scene.collection.objects:
@@ -1629,11 +2092,11 @@ def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.
 
     b_ramp = b_nt.nodes.new("ShaderNodeValToRGB")
     b_ramp.color_ramp.interpolation = "CONSTANT"
-    b_ramp.color_ramp.elements[0].position = 0.465
+    b_ramp.color_ramp.elements[0].position = 0.0
     b_ramp.color_ramp.elements[0].color = (0.909, 0.909, 0.909, 1.0)
-    b_el_mid = b_ramp.color_ramp.elements.new(0.485)
+    b_el_mid = b_ramp.color_ramp.elements.new(0.46)  # black band 8% of the diameter, like a real ball
     b_el_mid.color = (0.01, 0.01, 0.01, 1.0)
-    b_el_top = b_ramp.color_ramp.elements.new(0.535)
+    b_el_top = b_ramp.color_ramp.elements.new(0.54)
     b_el_top.color = (0.768, 0.036, 0.003, 1.0)
 
     b_math_add = b_nt.nodes.new("ShaderNodeMath")
@@ -1655,17 +2118,36 @@ def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.
 
     ball_obj.data.materials.append(mat_ball)
 
-    drv_spin = ball_obj.driver_add("rotation_euler", 2)
-    drv_spin.driver.expression = "(frame / 30.0) * 0.436"
+    # Front button (white disc in a black ring) facing the camera like the text (yaw 35 deg); no spin, so it stays in view
+    front = (math.sin(math.radians(35.0)), -math.cos(math.radians(35.0)), 0.0)
+    for name, r_frac, d_frac, out_frac, col in (("PokeBallRing", 0.40, 0.10, 0.955, (0.01, 0.01, 0.01, 1.0)),
+                                                ("PokeBallButton", 0.27, 0.10, 0.995, (0.95, 0.95, 0.95, 1.0))):
+        bpy.ops.mesh.primitive_cylinder_add(vertices=48, radius=r_frac * rad_ball, depth=d_frac * rad_ball,
+                                            location=(0.0, 0.0, 0.0))
+        part = bpy.context.active_object
+        part.name = name
+        bpy.ops.object.shade_smooth()
+        part.rotation_euler = (math.radians(90.0), 0.0, math.radians(35.0))  # cylinder axis along the front direction
+        part.location = tuple(out_frac * rad_ball * c for c in front)
+        m = bpy.data.materials.new(name + "Mat")
+        m.use_nodes = True
+        m.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = col
+        m.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.3
+        part.data.materials.append(m)
+        part.parent = ball_obj
+        title_coll.objects.link(part)
+        if part.name in bpy.context.scene.collection.objects:
+            bpy.context.scene.collection.objects.unlink(part)
 
     # Keyframing across all frames:
     # 0..23: submerged (z = -0.20), scale = 0, hide_render = True
-    # 24..60: rises out of pond water (1.2 s), scales 0 -> 0.55 in-plane, z -> target_z
-    # 60..128: full size, steady crane push-in (s_xy 0.55 -> 0.25, s_z = 0.18 constant!)
+    # 24..60: rises out of pond water (1.2 s), scales 0 -> 0.4125 in-plane, z -> target_z
+    # 60..128: full size, steady crane push-in (s_xy 0.4125 -> 0.1875, s_z = 0.18 constant!)
+    # Owner review 2: 25% smaller than 0.55 -> 0.25, letter spacing 1.08.
     # Sizes measured on the render (r4_f128.png: text 795 px = 41% of the frame at s_xy 0.152, so the text is
     # ~3.5 font units wide); title + ball now cover ~57% at frame 60 and ~79% at frame 128 (lab/viz3d/tests/test_hook.py).
-    # 129..144: sinks into pond, scales down to 0
-    # 145+: hidden (z = -0.20, scale = 0, hide_render = True)
+    # 126..140: sinks into pond, scales down to 0 (owner review 3: starts during the fade, done while the pond is in view)
+    # 141+: hidden (z = -0.20, scale = 0, hide_render = True)
     target_z_text = 0.12
     target_z_ball = 0.14
 
@@ -1678,21 +2160,21 @@ def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.
         elif f <= 60:
             t = (f - 24) / 36.0
             ease = 3.0 * t * t - 2.0 * t * t * t
-            s_xy = ease * 0.55
+            s_xy = ease * 0.4125
             z_t = -0.15 + ease * (target_z_text - (-0.15))
             z_b = -0.15 + ease * (target_z_ball - (-0.15))
             hide = False
-        elif f <= 128:
+        elif f <= 125:
             t = (f - 60) / 68.0
             ease = 3.0 * t * t - 2.0 * t * t * t
-            s_xy = 0.55 + (0.25 - 0.55) * ease
+            s_xy = 0.4125 + (0.1875 - 0.4125) * ease
             z_t = target_z_text
             z_b = target_z_ball
             hide = False
-        elif f <= 144:
-            t = (144 - f) / 16.0
+        elif f <= 140:
+            t = (140 - f) / 15.0
             s = max(0.0, 3.0 * t * t - 2.0 * t * t * t)
-            s_xy = s * 0.25
+            s_xy = s * 0.1875
             z_t = s * target_z_text - (1.0 - s) * 0.15
             z_b = s * target_z_ball - (1.0 - s) * 0.15
             hide = False
@@ -1719,9 +2201,9 @@ def build_3d_title_and_ball(pond_center: tuple[float, float, float] = (1.76, -4.
         outline_obj.keyframe_insert(data_path="hide_render", frame=f)
         outline_obj.keyframe_insert(data_path="hide_viewport", frame=f)
 
-        # ball centre: text half-width 1.75 + gap 0.15 + ball radius 0.31 (font units) left of the text centre
-        bx = tx - 2.21 * s_xy * u_rx
-        by = ty - 2.21 * s_xy * u_ry
+        # ball centre: text half-width 1.89 (1.75 x spacing 1.08) + gap 0.15 + ball radius 0.31 (font units)
+        bx = tx - 2.5 * s_xy * u_rx
+        by = ty - 2.5 * s_xy * u_ry
         bz = z_b + 0.38 * s_xy
         s_ball = (s_xy / 0.18) if s_xy > 0.0 else 0.0
         ball_obj.location = (bx, by, bz)
@@ -1927,10 +2409,14 @@ def main():
     build_hook_water_surface(cls_map)
     build_solid_buildings(cls_map, ground_mat)
     build_fences(cls_map)
-    sign_boards = w_data.get("sign_boards", np.empty((0, 4), dtype=np.float32))
-    build_sign_posts(sign_tiles, sign_boards=sign_boards, world_dir=world_dir, ground_mat=ground_mat)
+    fence_mat = bpy.data.materials.get("FenceMat")
+    if fence_mat and driver_obj:
+        setup_lookstate_solid_color(fence_mat, (0.50, 0.38, 0.24, 1.0), driver_obj, roughness=0.70)
 
-    tree_proto = build_tree_prototypes()
+    sign_boards = w_data.get("sign_boards", np.empty((0, 4), dtype=np.float32))
+    build_sign_posts(sign_tiles, sign_boards=sign_boards, world_dir=world_dir, ground_mat=ground_mat, driver_obj=driver_obj)
+
+    tree_proto = build_tree_prototypes(driver_obj=driver_obj)
     tree_pc_obj = build_tree_instances(tree_blocks, tree_proto)
 
     player_obj = None
@@ -1943,11 +2429,27 @@ def main():
             player_track, p_sprites_cls, p_sprites_sh, distinct_steps, player_hop=player_hop
         )
 
+    # Encounter: Rattata & Exclamation mark & Grass Shake Driver
+    if "rattata_track" in t_data and "rattata_sprite_rgb" in t_data:
+        build_rattata_voxel(t_data["rattata_track"], t_data["rattata_sprite_rgb"], t_data["rattata_sprite_mask"])
+    if "exclamation_track" in t_data:
+        build_exclamation_mark(t_data["exclamation_track"])
+
+    shake_obj = None
+    if "shake_track" in t_data:
+        shake_obj = bpy.data.objects.new("GrassShakeDriver", None)
+        shake_obj.empty_display_size = 0.01
+        shake_obj.location = (4.08, -6.88, 0.0)
+        bpy.context.scene.collection.objects.link(shake_obj)
+        for f in range(len(t_data["shake_track"])):
+            shake_obj.scale.x = float(t_data["shake_track"][f])
+            shake_obj.keyframe_insert(data_path="scale", frame=f)
+
     blade_proto, tg_proto, flower_proto = build_blade_prototypes()
     mask_png_path = world_dir / "scatter_mask.png"
     add_grass_scatter_modifier(
         ground_obj, mask_png_path, blade_proto, tg_proto, flower_proto,
-        driver_obj=driver_obj, player_obj=player_obj, map_w=map_w, map_h=map_h
+        driver_obj=driver_obj, player_obj=player_obj, shake_obj=shake_obj, map_w=map_w, map_h=map_h
     )
 
     build_apron_and_hills(tree_proto, map_w=map_w, map_h=map_h)

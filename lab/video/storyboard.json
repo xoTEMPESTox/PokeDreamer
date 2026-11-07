@@ -5,8 +5,7 @@
     "start": 111,
     "end": 400,
     "speed": "fit",
-    "caption": "The walking was learned in a dream. The fighting is a rulebook.",
-    "subcaption": "every step of this walk: a policy trained only inside the world model, seeing frames"
+    "caption": "The walking was learned in a dream. The fighting is a rulebook."
   },
   {
     "type": "montage",
@@ -22,7 +21,6 @@
     "speed": "fit",
     "goal_text": "grind (level 8 to 14)",
     "caption": "Levelling up: Charmander 8 → 14",
-    "subcaption": "the plan (grind, heal, travel, gym) is a rule-based planner; it chooses, the walker walks",
     "progress": "Level 9 → 11"
   },
   {
@@ -39,7 +37,6 @@
     "speed": "fit",
     "goal_text": "grind (level 8 to 14)",
     "caption": "Levelling up: Charmander 8 → 14",
-    "subcaption": "the plan (grind, heal, travel, gym) is a rule-based planner; it chooses, the walker walks",
     "progress": "Level 11 → 12"
   },
   {
@@ -56,7 +53,6 @@
     "speed": "fit",
     "goal_text": "grind (level 8 to 14)",
     "caption": "Levelling up: Charmander 8 → 14",
-    "subcaption": "the plan (grind, heal, travel, gym) is a rule-based planner; it chooses, the walker walks",
     "progress": "Level 12 → 14"
   },
   {
@@ -65,8 +61,18 @@
     "start": 6608,
     "end": 6832,
     "speed": "fit",
-    "caption": "Going to heal: three more walks, all learned in the dream",
-    "subcaption": "to the Center, out of the Center, back to the grass: three navigation legs, no fallback in this run"
+    "caption": "Going to heal: three more learned walks",
+    "subcaption": "no backup path-finder used in this run"
+  },
+  {
+    "type": "card",
+    "seconds": 2.0,
+    "tag": "The game harness",
+    "headline": "New planner: a local LLM",
+    "line": "A different run. Same dream-trained walkers; gemma4:31b now writes the plan.",
+    "bg_traj": "work/video/traj_llm/run_seed_100_color.npz",
+    "bg_start": 4650,
+    "bg_end": 4700
   },
   {
     "type": "harness",
@@ -88,8 +94,8 @@
       ]
     ],
     "speed": "fit",
-    "caption": "Same agent, new brain: a local LLM plans the quest",
-    "subcaption": "measured over 10 runs: 10/10 badges, median 7,144.5 presses vs 8,779.5 for rules on the same skills"
+    "caption": "10 of 10 runs got the badge, 19% fewer presses than the rules",
+    "subcaption": "median 7,144.5 vs 8,779.5 presses, 10 runs each, same walking skills"
   },
   {
     "type": "bakeoff",
@@ -150,13 +156,31 @@
     ]
   },
   {
+    "type": "card",
+    "seconds": 2.5,
+    "tag": "The world model",
+    "headline": "Inside the dream",
+    "line": "Back to the first run. Left: real game. Right: the dream, 10 steps ahead.",
+    "bg_start": 6833,
+    "bg_end": 6900
+  },
+  {
     "type": "split",
     "seconds": 15.0,
     "start": 6833,
     "end": 7723,
     "speed": "fit",
-    "caption": "Back to the first run. Right: what the AI dreams will happen next, 10 steps ahead",
-    "subcaption": "from 4 real frames and the same buttons; 10 steps is the horizon the walkers trained on; the dream drifts, and we measure where"
+    "caption": "The dream drifts. We measure where.",
+    "subcaption": "10 steps: the horizon the walkers trained on"
+  },
+  {
+    "type": "card",
+    "seconds": 2.0,
+    "tag": "The badge",
+    "headline": "Pewter City: Center, then Gym",
+    "line": "Doors: the learned walks that fail most often. Gym fights: by rules.",
+    "bg_start": 7724,
+    "bg_end": 7760
   },
   {
     "type": "play",
@@ -164,8 +188,7 @@
     "start": 7724,
     "end": 7760,
     "speed": "fit",
-    "caption": "Pewter Center, in and out",
-    "subcaption": "two learned legs; these doors are where the policies fail most often in other runs"
+    "caption": "Pewter Center, in and out"
   },
   {
     "type": "play",
@@ -183,8 +206,8 @@
       ]
     ],
     "speed": "fit",
-    "caption": "Into the gym. The walk is learned; the fights are rules.",
-    "subcaption": "the AI never trained on a battle; the badge is the whole system's, not the policy's"
+    "caption": "Pewter Gym: two fights by the rulebook, then the badge",
+    "subcaption": "the walker never trained on a battle; the badge is the whole system's"
   },
   {
     "type": "end",

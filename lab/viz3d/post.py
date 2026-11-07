@@ -9,6 +9,8 @@ from PIL import Image, ImageDraw, ImageFilter
 
 from lab.video.compose import FontManager
 
+CAPTION_PANEL_OPACITY = 0.45  # dark rounded panel behind every hook caption (owner: 35% -> 45%)
+
 BG_COLOR = (15, 20, 25)
 BORDER_COLOR = (60, 75, 95)
 
@@ -159,6 +161,16 @@ def draw_caption(
     y_head = y
     y_sub = y + h_h + gap
 
+    # 0. Dark rounded panel behind the text (owner: text over the scene alone was hard to read)
+    pad_px, pad_py = int(size * 0.6), int(size * 0.4)
+    top = y_head + (bbox_h[1] if headline else 0)
+    bottom = (y_sub + bbox_s[3]) if sub else (y_head + bbox_h[3])
+    panel = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(panel).rounded_rectangle(
+        [x - pad_px, top - pad_py, x + total_w + pad_px, bottom + pad_py],
+        radius=int(size * 0.5), fill=(10, 14, 22, int(255 * CAPTION_PANEL_OPACITY * alpha_fac)))
+    img_pil.alpha_composite(panel)
+
     # 1. Soft dark drop shadow (blurred 60%-black copy offset 2px)
     shadow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     sdraw = ImageDraw.Draw(shadow)
@@ -246,10 +258,10 @@ def compose_single_frame(
             fade = float(f) / 12.0
             img = (img.astype(np.float32) * fade).astype(np.uint8)
 
-        # 6. Final Battle Wipe (Shot 3d, frames 728..740; the old 578..590 is mid-walk now)
-        is_wipe = f >= 728
+        # 6. Final Battle Wipe (Shot 3d, frames 710..721, hold at 722)
+        is_wipe = f >= 710
         if is_wipe and battle_frame is not None:
-            f_start_wipe = 728
+            f_start_wipe = 710
             t_wipe = min(1.0, max(0.0, (f - f_start_wipe) / 12.0))
             split_x = int(1920 * t_wipe)
             wipe_composite = img.copy()
@@ -293,7 +305,7 @@ def assemble_hook(
     traj_color_npz_path: Path,
     out_mp4_path: Path,
     out_sheet_path: Path,
-    total_frames: int = 741,
+    total_frames: int = 723,
     fps: int = 30,
 ) -> dict:
     """Assembles hook_v2.mp4 and contact sheets from 3D rendered frames and 2D inserts."""
@@ -311,10 +323,10 @@ def assemble_hook(
         t_data = np.load(tracks_npz)
         total_frames = len(t_data["cam_pos"])
 
-    # Load Step 111 battle frame with blurred 3D background if available
+    # Load Step 122 battle frame with blurred 3D background if available
     color_npz = np.load(traj_color_npz_path)
-    f111_rgb = color_npz["color"][min(111, len(color_npz["color"]) - 1)]
-    f111_bgr = cv2.cvtColor(f111_rgb, cv2.COLOR_RGB2BGR)
+    f122_rgb = color_npz["color"][min(122, len(color_npz["color"]) - 1)]
+    f122_bgr = cv2.cvtColor(f122_rgb, cv2.COLOR_RGB2BGR)
 
     bg_cand = None
     for cand in [frames_dir / f"frame_{total_frames - 1:04d}.png", frames_dir / "frame_0590.png", frames_dir / "frame_0250.png"]:
@@ -326,7 +338,7 @@ def assemble_hook(
         blurred = cv2.GaussianBlur(bg_cand, (51, 51), 25)
         darkened_bg = np.clip(blurred.astype(np.float32) * 0.60, 0, 255).astype(np.uint8)
 
-    battle_frame_bgr = create_battle_play_frame(f111_bgr, bg_image=darkened_bg)
+    battle_frame_bgr = create_battle_play_frame(f122_bgr, bg_image=darkened_bg)
 
     # Video writer
     out_mp4_path.parent.mkdir(parents=True, exist_ok=True)
@@ -334,7 +346,7 @@ def assemble_hook(
     writer = cv2.VideoWriter(str(out_mp4_path), fourcc, fps, (1920, 1080))
 
     saved_sheet_frames = {}
-    sheet_targets = [0, 60, 128, 174, 200, 280, 340, 395, 480, 520, 600, 740]
+    sheet_targets = [0, 60, 128, 174, 200, 260, 345, 395, 480, 520, 634, 722]
 
     print(f"Assembling {total_frames} frames into {out_mp4_path.name}...")
 

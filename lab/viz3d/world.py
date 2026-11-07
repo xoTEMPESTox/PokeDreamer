@@ -363,12 +363,27 @@ def build_world(
         pond_bed_depth=elements["pond_bed_depth"],
     )
 
-    # 5. Save sign texture image (16x16 RGB): the game's own sign pixels, coloured with the sign ramp
+    # 5. Save sign texture images (16x16 RGB colour, 16x16 crisp grey, 8x8 raw grey)
     sign_ramp = PALETTE_SRGB.get("sign", PALETTE_SRGB["other"])
     sign_rgb = np.zeros((16, 16, 3), dtype=np.uint8)
     for sh in range(4):
         sign_rgb[sign_art == sh] = sign_ramp[sh]
     cv2.imwrite(str(out_path / "sign_texture.png"), cv2.cvtColor(sign_rgb, cv2.COLOR_RGB2BGR))
+
+    # Crisp: 4 Game Boy grey shades (16x16)
+    grey_lut = np.array([255, 170, 85, 0], dtype=np.uint8)
+    sign_crisp = grey_lut[sign_art]
+    cv2.imwrite(str(out_path / "sign_crisp.png"), sign_crisp)
+
+    # Raw: 2x downsampled 2x2 float mean (8x8)
+    raw_sign_f = (
+        sign_crisp[0::2, 0::2].astype(np.float32)
+        + sign_crisp[0::2, 1::2].astype(np.float32)
+        + sign_crisp[1::2, 0::2].astype(np.float32)
+        + sign_crisp[1::2, 1::2].astype(np.float32)
+    ) / 4.0
+    sign_raw = np.round(raw_sign_f).astype(np.uint8)
+    cv2.imwrite(str(out_path / "sign_raw.png"), sign_raw)
 
     print(f"Built world assets in {out_path}:")
     print(f"  world.npz (size: {cls_px.shape})")

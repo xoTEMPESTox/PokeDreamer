@@ -70,10 +70,7 @@ LEG_MAP: Dict[str, str] = {
 }
 
 BADGE_SUBTEXT: Dict[str, str] = {
-    "Battle rules": "hand-written, not learned",
-    "Backup path-finder": "fallback: the learned policy missed",
-    "Scripted: menus, talking, waiting": "rules, not learned",
-    "AI trained in the dream": "world-model policy, frames only",
+    "Backup path-finder": "fallback: the learned policy missed",  # the only pill whose text needs explaining
 }
 
 _ICON_CACHE: Dict[int, Image.Image] = {}
@@ -391,24 +388,13 @@ def draw_hud_card(
     avail_w = (x1 - x0) - 2 * pad_x
 
     if is_large:
-        # Title / header (two lines at 19 px regular, white)
-        draw.text(
-            (x0 + pad_x, y0 + 26),
-            "Walking was learned only inside an AI dream of this game.",
-            font=fonts.get(19),
-            fill=(248, 250, 252),
-        )
-        line2 = (
-            "Here the plan comes from a local LLM, not rules."
+        # Header: one line (the section cards carry the rest); it stays so a shared still is honest on its own
+        header = (
+            "Walking: learned in a dream · battles: rules · plan: local LLM"
             if is_llm_planner
-            else "Battles and the plan follow hand-written rules."
+            else "Walking: learned in a dream · battles and plan: rules"
         )
-        draw.text(
-            (x0 + pad_x, y0 + 52),
-            line2,
-            font=fonts.get(19),
-            fill=(248, 250, 252),
-        )
+        draw.text((x0 + pad_x, y0 + 38), header, font=fonts.get(19), fill=(248, 250, 252))
         draw.line([(x0 + pad_x, y0 + 82), (x1 - pad_x, y0 + 82)], fill=(34, 45, 58), width=2)
 
         if is_llm_planner:
@@ -429,24 +415,22 @@ def draw_hud_card(
             draw.text((x0 + pad_x, curr_y + 28), val_text, font=fonts.get(sz, bold=is_bold), fill=fill)
 
         # 1. Map name
-        _draw_section("WHERE", "current map", map_name or "—", default_size=34, fill=(248, 250, 252))
+        _draw_section("WHERE", "", map_name or "—", default_size=34, fill=(248, 250, 252))
         curr_y += step_y
 
         # 2. System 2 Goal / The Plan
-        plan_sub = "System 2 · local LLM" if is_llm_planner else "System 2 · rules"
+        plan_sub = "local LLM" if is_llm_planner else "rules"
         goal_val = GOAL_MAP.get(str(goal), "—") if goal else "—"
         _draw_section("THE PLAN", plan_sub, goal_val, default_size=32, fill=(248, 250, 252))
         curr_y += step_y
 
         # 3. Active Leg / Walking to
         leg_val = LEG_MAP.get(str(leg), "—") if leg else "—"
-        _draw_section("WALKING TO", "navigation leg · learned in the dream", leg_val, default_size=30, fill=(147, 197, 253))
+        _draw_section("WALKING TO", "learned in the dream", leg_val, default_size=30, fill=(147, 197, 253))
         curr_y += step_y
 
         # 4. Control Badge
         draw.text((x0 + pad_x, curr_y), "WHO'S PRESSING THE BUTTONS", font=fonts.get(16, bold=True), fill=(148, 163, 184))
-        lw = draw.textlength("WHO'S PRESSING THE BUTTONS", font=fonts.get(16, bold=True))
-        draw.text((x0 + pad_x + lw + 12, curr_y + 2), "control mode", font=fonts.get(13), fill=(100, 116, 139))
 
         badge_text, badge_bg, badge_border, badge_fg = get_hud_badge(in_battle, by)
         badge_font = fonts.get(22, bold=True)
@@ -471,8 +455,6 @@ def draw_hud_card(
 
         # 5. Press Counter (step + 1)
         draw.text((x0 + pad_x, curr_y), "BUTTONS PRESSED", font=fonts.get(16, bold=True), fill=(148, 163, 184))
-        lw = draw.textlength("BUTTONS PRESSED", font=fonts.get(16, bold=True))
-        draw.text((x0 + pad_x + lw + 12, curr_y + 2), "since the run started", font=fonts.get(13), fill=(100, 116, 139))
         draw.text((x0 + pad_x, curr_y + 28), f"{step + 1:,}", font=fonts.get(42 if is_llm_planner else 44, bold=True), fill=(56, 189, 248))
         curr_y += (step_y - 2) if is_llm_planner else step_y
 
@@ -554,23 +536,21 @@ def draw_hud_card(
             draw.text((x0 + 30, curr_y + 18), val_text, font=fonts.get(default_size, bold=True), fill=fill)
 
         # 1. Map name
-        _draw_compact_section("WHERE", "current map", map_name or "—", 20, (248, 250, 252))
+        _draw_compact_section("WHERE", "", map_name or "—", 20, (248, 250, 252))
         curr_y += 56
 
         # 2. System 2 Goal
         goal_val = GOAL_MAP.get(str(goal), "—") if goal else "—"
-        _draw_compact_section("THE PLAN", "System 2 · rules", goal_val, 18, (248, 250, 252))
+        _draw_compact_section("THE PLAN", "rules", goal_val, 18, (248, 250, 252))
         curr_y += 56
 
         # 3. Active Leg
         leg_val = LEG_MAP.get(str(leg), "—") if leg else "—"
-        _draw_compact_section("WALKING TO", "navigation leg · learned in the dream", leg_val, 18, (147, 197, 253))
+        _draw_compact_section("WALKING TO", "learned in the dream", leg_val, 18, (147, 197, 253))
         curr_y += 56
 
         # 4. Control Badge
         draw.text((x0 + 30, curr_y), "WHO'S PRESSING THE BUTTONS", font=fonts.get(13), fill=(148, 163, 184))
-        lw = draw.textlength("WHO'S PRESSING THE BUTTONS", font=fonts.get(13))
-        draw.text((x0 + 30 + lw + 8, curr_y + 1), "control mode", font=fonts.get(11), fill=(100, 116, 139))
         badge_text, badge_bg, badge_border, badge_fg = get_hud_badge(in_battle, by)
         badge_font = fonts.get(16, bold=True)
         tb = draw.textbbox((0, 0), badge_text, font=badge_font)
@@ -590,8 +570,6 @@ def draw_hud_card(
 
         # 5. Press Counter (step + 1)
         draw.text((x0 + 30, curr_y), "BUTTONS PRESSED", font=fonts.get(13), fill=(148, 163, 184))
-        lw = draw.textlength("BUTTONS PRESSED", font=fonts.get(13))
-        draw.text((x0 + 30 + lw + 8, curr_y + 1), "since the run started", font=fonts.get(11), fill=(100, 116, 139))
         draw.text((x0 + 30, curr_y + 18), f"{step + 1:,}", font=fonts.get(26, bold=True), fill=(56, 189, 248))
         curr_y += 56
 
@@ -706,6 +684,54 @@ def render_end_frame(
     if fade_alpha < 0.999:
         res = (res.astype(np.float32) * max(0.0, min(1.0, fade_alpha))).astype(np.uint8)
     return res
+
+
+def render_card_frame(
+    bg_frame: np.ndarray,
+    t: float,
+    tag: str,
+    headline: str,
+    line: str,
+    fonts: FontManager,
+) -> np.ndarray:
+    """Section intro card (owner review 3, Fable's design) at progress t in [0, 1].
+
+    So 2-2.5 s of text is not a blank screen, the next section's own gameplay plays behind it (slowed, blurred,
+    muted towards the UI background, slow push-in). Over it, staggered: a small tag naming the part of the system,
+    the headline sliding up, a rule drawing in left to right, then one line; everything fades out at the end.
+    """
+    W, H = CANVAS_WIDTH, CANVAS_HEIGHT
+
+    def ease(a: float, b: float) -> float:  # smoothstep of t over [a, b]
+        x = min(1.0, max(0.0, (t - a) / (b - a)))
+        return x * x * (3.0 - 2.0 * x)
+
+    zoom = 1.0 + 0.06 * t
+    big = cv2.resize(bg_frame, (W, int(W * bg_frame.shape[0] / bg_frame.shape[1])), interpolation=cv2.INTER_NEAREST)
+    ch, cw = int(H / zoom), int(W / zoom)
+    y0, x0 = (big.shape[0] - ch) // 2, (W - cw) // 2
+    bg = cv2.resize(big[y0:y0 + ch, x0:x0 + cw], (W, H), interpolation=cv2.INTER_LINEAR)
+    bg = cv2.GaussianBlur(bg, (0, 0), 14)
+    bg = (bg.astype(np.float32) * 0.38 + np.array(BG_COLOR, np.float32) * 0.62).astype(np.uint8)
+
+    img = Image.fromarray(bg).convert("RGBA")
+    ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(ov)
+    cx, cy = W // 2, H // 2
+    out = 1.0 - ease(0.88, 1.0)
+    a_tag, a_head, a_line = ease(0.0, 0.2) * out, ease(0.07, 0.27) * out, ease(0.24, 0.44) * out
+    f_tag, f_head, f_line = fonts.get(20, bold=True), fonts.get(60, bold=True), fonts.get(28)
+
+    d.text((cx, cy - 92), " ".join(tag.upper()), font=f_tag, fill=(56, 189, 248, int(255 * a_tag)), anchor="mm")
+    hy = cy - 30 + int((1.0 - ease(0.07, 0.27)) * 24)
+    d.text((cx, hy), headline, font=f_head, fill=(248, 250, 252, int(255 * a_head)), anchor="mm")
+    hw = int(d.textlength(headline, font=f_head))
+    rw = int(hw * ease(0.17, 0.37))
+    if rw > 0:
+        d.rectangle([cx - hw // 2, cy + 22, cx - hw // 2 + rw, cy + 24], fill=(147, 197, 253, int(255 * out)))
+    d.text((cx, cy + 66), line, font=f_line, fill=(190, 200, 214, int(255 * a_line)), anchor="mm")
+    img.alpha_composite(ov)
+    return np.asarray(img.convert("RGB"))
 
 
 def render_bakeoff_frame(
@@ -1189,6 +1215,24 @@ def compose_video(
                     stills_to_save["harness_decision"] = frame
                 elif not is_highlighted and "harness_between" not in stills_to_save and f_idx > 30:
                     stills_to_save["harness_between"] = frame
+
+            elif seg_type == "card":
+                if f_idx == 0:
+                    bg_path = seg.get("bg_traj", traj_color_path)
+                    bg_npz = np.load(bg_path) if bg_path != traj_color_path else None
+                    bg_colors = bg_npz["color"] if bg_npz is not None else colors
+                    bg_flash = battle_flash_mask(bg_colors, bg_npz["in_battles"]) if bg_npz is not None else flash_main
+                    bg_steps = deflash_steps(np.linspace(seg["bg_start"], seg["bg_end"], n_frames).round().astype(int), bg_flash)
+                frame = render_card_frame(
+                    bg_colors[bg_steps[f_idx]],
+                    f_idx / max(1, n_frames - 1),
+                    tag=seg.get("tag", ""),
+                    headline=seg.get("headline", ""),
+                    line=seg.get("line", ""),
+                    fonts=fonts,
+                )
+                if f_idx == int(n_frames * 0.6):
+                    stills_to_save[f"card_{seg_idx:02d}"] = frame
 
             elif seg_type == "bakeoff":
                 fade = 1.0

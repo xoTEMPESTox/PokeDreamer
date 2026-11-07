@@ -63,6 +63,28 @@ def assert_camera_building_clearance_world(
     return min_dist_overall
 
 
+def gaussian_smooth_1d(arr: np.ndarray, sigma: float = 10.0, radius: int = 21) -> np.ndarray:
+    """Centered 1D Gaussian smoothing using pure numpy."""
+    x = np.arange(-radius, radius + 1)
+    kernel = np.exp(-0.5 * (x / sigma) ** 2)
+    kernel /= kernel.sum()
+    pad_left = np.repeat(arr[:1], radius, axis=0)
+    pad_right = np.repeat(arr[-1:], radius, axis=0)
+    padded = np.concatenate([pad_left, arr, pad_right], axis=0)
+    smoothed = np.empty_like(arr)
+    for i in range(len(arr)):
+        smoothed[i] = np.sum(padded[i : i + 2 * radius + 1] * kernel[:, None], axis=0)
+    smoothed[0] = arr[0]
+    smoothed[-1] = arr[-1]
+    return smoothed
+
+
+def smootherstep(t: float | np.ndarray) -> float | np.ndarray:
+    """Quintic smootherstep (zero 1st and 2nd derivatives at endpoints)."""
+    t_c = np.clip(t, 0.0, 1.0)
+    return t_c * t_c * t_c * (t_c * (t_c * 6.0 - 15.0) + 10.0)
+
+
 def compute_hook_tracks(
     xs: np.ndarray | None = None,
     ys: np.ndarray | None = None,
@@ -71,7 +93,7 @@ def compute_hook_tracks(
     traj_path: str | Path = "work/video/traj/run_seed_100.npz",
     world_npz_path: str | Path = "work/viz3d/v2/world/world.npz",
 ) -> Dict[str, np.ndarray]:
-    """Compute the 591-frame hook timeline tracks for camera, player, focus, reveal edges, sun pos, and titles."""
+    """Compute the 723-frame hook timeline tracks for camera, player, focus, reveal edges, sun pos, and titles."""
     if xs is None or ys is None:
         traj_data = np.load(traj_path)
         xs = traj_data["xs"]
@@ -81,7 +103,7 @@ def compute_hook_tracks(
         traj_data = np.load(traj_path)
         map_ids = traj_data["map_ids"]
 
-    total_frames = 741
+    total_frames = 723
     F = total_frames
 
     # Key scene landmarks (Blender meters)
@@ -102,6 +124,9 @@ def compute_hook_tracks(
     title_rise = np.zeros((F,), dtype=np.float32)
     sun_pos = np.zeros((F, 2), dtype=np.float32)
     focus_object_id = np.zeros((F,), dtype=np.int32)  # 0: Title, 1: PC Door, 2: Player
+    rattata_track = np.zeros((F, 4), dtype=np.float32)  # [x, y, z, scale]
+    exclamation_track = np.zeros((F, 4), dtype=np.float32)  # [x, y, z, scale]
+    shake_track = np.zeros((F,), dtype=np.float32)
 
     # Sun direction from North-West (elevation 14 deg, azimuth 38 deg NW)
     # Light comes from NW (-X, +Y, +Z)
@@ -115,7 +140,7 @@ def compute_hook_tracks(
     ], dtype=np.float32)
 
     # -------------------------------------------------------------
-    # 1. Player positions and continuous walk across all 741 frames
+    # 1. Player positions and continuous walk across all 723 frames
     # -------------------------------------------------------------
     def get_world_pos(st: int) -> np.ndarray:
         m = map_ids[st]
@@ -169,10 +194,10 @@ def compute_hook_tracks(
             player_track[f] = [pos[0], pos[1], float(s1), float(s0) + p]
             player_hop[f] = hop
 
-    # Route 1 continuous walk: 22 moves (steps 88..110) over frames 555..720
-    r1_bounds = np.round(np.linspace(555, 720, 23)).astype(int)
-    steps_r1 = list(range(88, 111))
-    for i in range(22):
+    # Route 1 continuous walk: 11 moves (steps 88..99) over frames 555..634
+    r1_bounds = np.round(np.linspace(555, 634, 12)).astype(int)
+    steps_r1 = list(range(88, 100))
+    for i in range(11):
         f_start = r1_bounds[i]
         f_end = r1_bounds[i + 1]
         s0 = steps_r1[i]
@@ -188,10 +213,10 @@ def compute_hook_tracks(
             player_track[f] = [pos[0], pos[1], float(s1), float(s0) + p]
             player_hop[f] = hop
 
-    # Frames 720..740: hold at step 110 in tall grass
-    p_end = get_world_pos(110)
-    for f in range(720, 741):
-        player_track[f] = [p_end[0], p_end[1], 110.0, 110.0]
+    # Frames 634..722: hold at step 99 in tall grass (first tall grass tile on Route 1)
+    p_end = get_world_pos(99)
+    for f in range(634, F):
+        player_track[f] = [p_end[0], p_end[1], 99.0, 99.0]
         player_hop[f] = 0.0
 
     # -------------------------------------------------------------
@@ -248,42 +273,32 @@ def compute_hook_tracks(
             title_rise[f] = 0.06
             title_alpha[f] = max(0.0, tout)
 
-    # Shot 1c: frames 129..149 (21 frames)
-    # Glide east along pond's south shore, rising towards PC door
-    for f in range(129, 150):
-        shot_id[f] = "1c"
-        t = (f - 129) / (149 - 129)
-        s = 3.0 * t * t - 2.0 * t * t * t
-        dist = 1.5 + s * (2.2 - 1.5)
-        elev = 15.0 + s * (38.0 - 15.0)
-        azim = 22.0 + s * (25.0 - 22.0)
-        aim = pond_center + s * (pc_door - pond_center)
+    # Shots 1c + 2a (owner review 3, Fable's plan): ONE continuous move from the title hold (1b's last pose) to the 2b
+    # framing over frames 129..163, smootherstep on a single parameter (zero velocity and acceleration at both ends),
+    # then a static hold 164..173. The old 1c popped elevation 8 -> 15 deg in one frame and dollied out to 2.2 m, and
+    # 2a crept back in to 2.0 m: out, pan, in. Now the 0.5 m pull-back is spread along a truck east + crane up.
+    start_aim = pond_center + np.array([0, 0, 0.05], dtype=np.float32)
+    start_focus = pond_center + np.array([0, 0, 0.14], dtype=np.float32)
+    for f in range(129, 174):
+        shot_id[f] = "1c" if f < 150 else "2a"
+        t = min(1.0, (f - 129) / 34.0)
+        s = 6.0 * t ** 5 - 15.0 * t ** 4 + 10.0 * t ** 3
+        aim = start_aim + s * (pc_door - start_aim)
         cam_aim[f] = aim
-        cam_pos[f] = get_cam_pos(aim, dist, elev, azim)
-        cam_focus[f] = pc_door
+        cam_pos[f] = get_cam_pos(aim, 1.5 + 0.5 * s, 8.0 + 30.0 * s, 22.0 + 3.0 * s)
+        cam_focus[f] = start_focus + s * (pc_door - start_focus)
         cam_fstop[f] = 2.8
-        focus_object_id[f] = 1  # PC Door
-
-    # Shot 2a: frames 150..173 (24 frames)
-    # Reveal framing: aim PC door, distance 2.2 -> 2.0 m, elevation 38, azimuth 25
-    for f in range(150, 174):
-        shot_id[f] = "2a"
-        t = (f - 150) / (173 - 150)
-        dist = 2.2 + t * (2.0 - 2.2)
-        cam_aim[f] = pc_door
-        cam_pos[f] = get_cam_pos(pc_door, dist, 38.0, 25.0)
-        cam_focus[f] = pc_door
-        cam_fstop[f] = 2.8
-        focus_object_id[f] = 1
+        focus_object_id[f] = 0 if s < 0.5 else 1
 
     # Visible ground X-range at reveal framing (frame 174):
     x_min_reveal = 2.40
     x_max_reveal = 5.00
 
-    # Shot 2b: frames 174..227 (54 frames)
-    # Snap into raw: right-to-left wipe in 0.25s (8 frames = 174..181), hold ~1.5s (182..227)
+    # Shot 2b: frames 174..219 (46 frames)
+    # Snap into raw: right-to-left wipe in 0.25s (8 frames = 174..181), hold ~1.25s (182..219)
+    # (owner review 2: the raw hold is 0.25 s shorter; that time goes to the gap between edges A and B)
     # Focus pulls 10 cm short (f/1.4)
-    for f in range(174, 228):
+    for f in range(174, 220):
         shot_id[f] = "2b"
         cam_aim[f] = pc_door
         cam_pos[f] = get_cam_pos(pc_door, 2.0, 38.0, 25.0)
@@ -302,27 +317,27 @@ def compute_hook_tracks(
             edge_a[f] = x_min_reveal - 0.40
             edge_b[f] = x_min_reveal - 0.40
 
-    # Shot 2c: frames 228..350 (123 frames)
-    # Reveal: Edge A sweeps left -> right over 3.0 s (90 frames, 228..317)
-    # Edge B follows 12 frames behind (240..329)
+    # Shot 2c: frames 220..350 (131 frames)
+    # Reveal: Edge A (upscaler) sweeps left -> right over 3.0 s (90 frames, 220..309)
+    # Edge B (colorizer) follows 20 frames (0.65 s) behind (240..329)
     # Hold on full colour for frames 330..350 (21 frames)
-    for f in range(228, 351):
+    for f in range(220, 351):
         shot_id[f] = "2c"
-        t_cam = (f - 228) / (350 - 228)
+        t_cam = (f - 220) / (350 - 220)
         dist = 2.0 - t_cam * 0.05
         cam_aim[f] = pc_door
         cam_pos[f] = get_cam_pos(pc_door, dist, 38.0, 25.0)
         cam_focus[f] = pc_door
         focus_object_id[f] = 1
 
-        # Edge A sweep: sweeps across visible ground [2.20, 5.60] in frames 228..317 (90 frames)
-        if f <= 317:
-            t_a = (f - 228) / 89.0
+        # Edge A sweep: sweeps across visible ground [2.20, 5.60] in frames 220..309 (90 frames)
+        if f <= 309:
+            t_a = (f - 220) / 89.0
             edge_a[f] = 2.20 + t_a * 3.40
         else:
             edge_a[f] = 999.0
 
-        # Edge B sweep: follows 12 frames behind (240..329, 90 frames)
+        # Edge B sweep: follows 20 frames behind (240..329, 90 frames)
         if f < 240:
             edge_b[f] = 2.00
         elif f <= 329:
@@ -331,9 +346,9 @@ def compute_hook_tracks(
         else:
             edge_b[f] = 999.0
 
-        # F-stop recovery to 2.8 as A crosses center (frame 272)
-        if f < 272:
-            cam_fstop[f] = 1.4 + ((f - 228) / 44.0) * (2.8 - 1.4)
+        # F-stop recovery to 2.8 as A crosses center (frame 264)
+        if f < 264:
+            cam_fstop[f] = 1.4 + ((f - 220) / 44.0) * (2.8 - 1.4)
         else:
             cam_fstop[f] = 2.8
 
@@ -349,63 +364,118 @@ def compute_hook_tracks(
         edge_a[f] = 999.0
         edge_b[f] = 999.0
 
-    # Shot 3a: frames 441..470 (30 frames)
-    # Push to follow distance: distance 1.95 -> 1.25 m, elevation 38 -> 48 deg, azimuth +25 -> -25 deg
-    for f in range(441, 471):
-        shot_id[f] = "3a"
-        t = (f - 441) / (470 - 441)
-        s = 3.0 * t * t - 2.0 * t * t * t
-        dist = 1.95 + s * (1.25 - 1.95)
-        elev = 38.0 + s * (48.0 - 38.0)
-        azim = 25.0 + s * (-25.0 - 25.0)
-        aim = player_track[f][:2]
-        aim_3d = np.array([aim[0], aim[1], 0.0], dtype=np.float32)
-        cam_aim[f] = aim_3d
-        cam_pos[f] = get_cam_pos(aim_3d, dist, elev, azim)
-        cam_focus[f] = np.array([player_track[f, 0], player_track[f, 1], 0.06], dtype=np.float32)
-        cam_fstop[f] = 4.0
-        focus_object_id[f] = 2  # Player
+    # -------------------------------------------------------------
+    # Shots 3a-3d: Heavily smoothed follow & encounter (frames 441..722)
+    # Centered Gaussian smoothing over ±0.7s (±21 frames, sigma=10.0)
+    # -------------------------------------------------------------
+    raw_player_xy = player_track[441:, :2].copy()
+    smoothed_player_xy = gaussian_smooth_1d(raw_player_xy, sigma=10.0, radius=21)
 
-    # Shot 3b: frames 471..554 (84 frames)
-    # Follow player through Viridian (steps 78-88)
-    for f in range(471, 555):
-        shot_id[f] = "3b"
-        t = (f - 471) / (554 - 471)
-        azim = -25.0 + t * (-19.0 - (-25.0))
-        aim = player_track[f][:2]
-        aim_3d = np.array([aim[0], aim[1], 0.0], dtype=np.float32)
-        cam_aim[f] = aim_3d
-        cam_pos[f] = get_cam_pos(aim_3d, 1.25, 48.0, azim)
-        cam_focus[f] = np.array([player_track[f, 0], player_track[f, 1], 0.06], dtype=np.float32)
-        cam_fstop[f] = 4.0
-        focus_object_id[f] = 2
+    for f in range(441, F):
+        idx = f - 441
+        if f <= 470:
+            # Shot 3a: frames 441..470 (30 frames)
+            # Push to follow: smootherstep dist 1.95 -> 1.25, elev 38 -> 48, azim 25 -> -25
+            shot_id[f] = "3a"
+            t = (f - 441) / 29.0
+            s = smootherstep(t)
+            dist = 1.95 + s * (1.25 - 1.95)
+            elev = 38.0 + s * (48.0 - 38.0)
+            azim = 25.0 + s * (-25.0 - 25.0)
+            aim = np.array([smoothed_player_xy[idx, 0], smoothed_player_xy[idx, 1], 0.0], dtype=np.float32)
+            cam_focus[f] = np.array([player_track[f, 0], player_track[f, 1], 0.06], dtype=np.float32)
+            cam_fstop[f] = 4.0
+            focus_object_id[f] = 2
+        elif f <= 554:
+            # Shot 3b: frames 471..554 (84 frames)
+            # Viridian walk: dist 1.25, elev 48, smootherstep azim -25 -> -19
+            shot_id[f] = "3b"
+            t = (f - 471) / (554 - 471)
+            s = smootherstep(t)
+            dist = 1.25
+            elev = 48.0
+            azim = -25.0 + s * (-19.0 - (-25.0))
+            aim = np.array([smoothed_player_xy[idx, 0], smoothed_player_xy[idx, 1], 0.0], dtype=np.float32)
+            cam_focus[f] = np.array([player_track[f, 0], player_track[f, 1], 0.06], dtype=np.float32)
+            cam_fstop[f] = 4.0
+            focus_object_id[f] = 2
+        elif f <= 634:
+            # Shot 3c: frames 555..634 (80 frames)
+            # Route 1 walk into tall grass: dist 1.25, elev 48, azim -19
+            shot_id[f] = "3c"
+            dist = 1.25
+            elev = 48.0
+            azim = -19.0
+            aim = np.array([smoothed_player_xy[idx, 0], smoothed_player_xy[idx, 1], 0.0], dtype=np.float32)
+            cam_focus[f] = np.array([player_track[f, 0], player_track[f, 1], 0.06], dtype=np.float32)
+            cam_fstop[f] = 4.0
+            focus_object_id[f] = 2
+        else:
+            # Shot 3d: frames 635..722 (88 frames)
+            # Encounter beat: push-in to dist 1.05, elev 42, azim -15 over 60 frames (635..695)
+            shot_id[f] = "3d"
+            t_push = min(1.0, (f - 635) / 60.0)
+            s_push = smootherstep(t_push)
+            dist = 1.25 + s_push * (1.05 - 1.25)
+            elev = 48.0 + s_push * (42.0 - 48.0)
+            azim = -19.0 + s_push * (-15.0 - (-19.0))
+            aim_p = np.array([smoothed_player_xy[idx, 0], smoothed_player_xy[idx, 1], 0.0], dtype=np.float32)
+            aim_encounter = np.array([4.08, -6.80, 0.05], dtype=np.float32)
+            aim = (1.0 - s_push) * aim_p + s_push * aim_encounter
+            cam_focus[f] = (1.0 - s_push) * np.array([player_track[f, 0], player_track[f, 1], 0.06], dtype=np.float32) + s_push * np.array([4.08, -6.80, 0.06], dtype=np.float32)
+            cam_fstop[f] = 4.0
+            focus_object_id[f] = 2
 
-    # Shot 3c: frames 555..719 (165 frames)
-    # Follow crosses into Route 1 (steps 89-110)
-    for f in range(555, 720):
-        shot_id[f] = "3c"
-        aim = player_track[f][:2]
-        aim_3d = np.array([aim[0], aim[1], 0.0], dtype=np.float32)
-        cam_aim[f] = aim_3d
-        cam_pos[f] = get_cam_pos(aim_3d, 1.25, 48.0, -19.0)
-        cam_focus[f] = np.array([player_track[f, 0], player_track[f, 1], 0.06], dtype=np.float32)
-        cam_fstop[f] = 4.0
-        focus_object_id[f] = 2
+        cam_aim[f] = aim
+        cam_pos[f] = get_cam_pos(aim, dist, elev, azim)
 
-    # Shot 3d: frames 720..740 (21 frames)
-    # Hold in Route 1 tall grass at step 110
-    for f in range(720, 741):
-        shot_id[f] = "3d"
-        aim = player_track[f][:2]
-        aim_3d = np.array([aim[0], aim[1], 0.0], dtype=np.float32)
-        cam_aim[f] = aim_3d
-        cam_pos[f] = get_cam_pos(aim_3d, 1.25, 48.0, -19.0)
-        cam_focus[f] = np.array([player_track[f, 0], player_track[f, 1], 0.06], dtype=np.float32)
-        cam_fstop[f] = 4.0
-        focus_object_id[f] = 2
+    # -------------------------------------------------------------
+    # Encounter animations (frames 635..722)
+    # -------------------------------------------------------------
+    # Exclamation mark above player head (4.08, -6.72, 0.22)
+    # Scale-in with overshoot over frames 635..658 (~0.8s)
+    for f in range(F):
+        if f < 635 or f > 658:
+            exclamation_track[f] = [4.08, -6.72, 0.22, 0.0]
+        elif f <= 642:
+            t = (f - 635) / 7.0
+            s = 1.25 * (3.0 * t * t - 2.0 * t * t * t)
+            exclamation_track[f] = [4.08, -6.72, 0.22, s]
+        elif f <= 646:
+            t = (f - 642) / 4.0
+            s = 1.25 + (1.0 - 1.25) * t
+            exclamation_track[f] = [4.08, -6.72, 0.22, s]
+        elif f <= 654:
+            exclamation_track[f] = [4.08, -6.72, 0.22, 1.0]
+        else:
+            t = (f - 654) / 4.0
+            s = max(0.0, 1.0 - t)
+            exclamation_track[f] = [4.08, -6.72, 0.22, s]
 
-    # Smooth aim track during follow (shots 3a-3d)
-    cam_aim[441:] = smooth_exponential(cam_aim[441:], alpha=0.20)
+    # Grass shake around (4.08, -6.88) over frames 652..670 (~0.6s)
+    for f in range(F):
+        if 652 <= f <= 670:
+            env = math.sin(math.pi * (f - 652) / 18.0)
+            shake_track[f] = env * math.sin(f * 2.8)
+        else:
+            shake_track[f] = 0.0
+
+    # Rattata at (4.08, -6.88): underground, hops up 665..677 (~0.4s), idles 678..709 (~1s)
+    for f in range(F):
+        if f < 635:
+            rattata_track[f] = [4.18, -6.88, -0.20, 0.0]
+        elif f < 665:
+            shk_z = -0.04 + (0.005 * math.sin(f * 2.5) if 652 <= f <= 670 else 0.0)
+            rattata_track[f] = [4.18, -6.88, shk_z, 0.0]
+        elif f <= 677:
+            t = (f - 665) / 12.0
+            z = -0.04 + (0.010 - (-0.04)) * t + 0.06 * math.sin(math.pi * t)
+            rattata_track[f] = [4.18, -6.88, z, 1.0]
+        elif f <= 709:
+            bob = 0.003 * math.sin((f - 678) * 0.5)
+            rattata_track[f] = [4.18, -6.88, 0.010 + bob, 1.0]
+        else:
+            rattata_track[f] = [4.18, -6.88, 0.010, 1.0]
 
     # Calculate sun projected screen position per frame
     for f in range(F):
@@ -555,6 +625,18 @@ def compute_hook_tracks(
         player_sprites_cls = np.zeros((1, 16, 16), dtype=np.int8)
         player_sprites_shade = np.zeros((1, 16, 16), dtype=np.uint8)
 
+    # Extract Rattata sprite and mask from real battle frame (run_seed_100_color.npz, color[122])
+    color_npz_path = Path("work/video/traj/run_seed_100_color.npz")
+    if color_npz_path.exists():
+        c_data = np.load(color_npz_path)
+        frame122 = c_data["color"][min(122, len(c_data["color"]) - 1)]
+        rattata_crop = frame122[21:54, 106:138].copy()
+        bg_col = np.array([235, 248, 240], dtype=np.uint8)
+        rattata_mask = np.sum(np.abs(rattata_crop.astype(int) - bg_col.astype(int)), axis=-1) > 30
+    else:
+        rattata_crop = np.zeros((33, 32, 3), dtype=np.uint8)
+        rattata_mask = np.zeros((33, 32), dtype=bool)
+
     return {
         "cam_pos": cam_pos,
         "cam_aim": cam_aim,
@@ -573,6 +655,11 @@ def compute_hook_tracks(
         "player_sprites_shade": player_sprites_shade,
         "distinct_steps": distinct_steps,
         "captions": captions,
+        "rattata_track": rattata_track,
+        "exclamation_track": exclamation_track,
+        "shake_track": shake_track,
+        "rattata_sprite_rgb": rattata_crop,
+        "rattata_sprite_mask": rattata_mask,
     }
 
 
@@ -605,13 +692,23 @@ def save_hook_tracks(
         player_sprites_cls=tracks["player_sprites_cls"],
         player_sprites_shade=tracks["player_sprites_shade"],
         distinct_steps=tracks["distinct_steps"],
+        rattata_track=tracks["rattata_track"],
+        exclamation_track=tracks["exclamation_track"],
+        shake_track=tracks["shake_track"],
+        rattata_sprite_rgb=tracks["rattata_sprite_rgb"],
+        rattata_sprite_mask=tracks["rattata_sprite_mask"],
     )
 
+    # The captions JSON is hand-edited (position, size, timing; then `python -m lab.viz3d.post`), so it is only
+    # bootstrapped here; regenerating the tracks must not overwrite those edits.
     caption_json_path = out_path / "hook_captions.json"
-    caption_json_path.write_text(json.dumps(tracks["captions"], indent=2), encoding="utf-8")
+    if not caption_json_path.exists():
+        caption_json_path.write_text(json.dumps(tracks["captions"], indent=2), encoding="utf-8")
+        print(f"Saved captions to {caption_json_path}")
+    else:
+        print(f"Kept existing {caption_json_path} (hand-edited)")
 
     print(f"Saved hook tracks ({len(tracks['cam_pos'])} frames) to {npz_path}")
-    print(f"Saved captions to {caption_json_path}")
     return npz_path
 
 

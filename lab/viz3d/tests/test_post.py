@@ -91,7 +91,7 @@ def test_insert_replacement_range():
 
 
 def test_battle_frame_wipe():
-    """Verify battle frame wipes in during frames 728..740 only (584 is mid-walk now)."""
+    """Verify battle frame wipes in during frames 710..721 only (584 is mid-walk now)."""
     fonts = FontManager()
     vignette = create_vignette_mask(1080, 1920)
     chroma_maps = create_chromatic_maps(1080, 1920)
@@ -100,11 +100,11 @@ def test_battle_frame_wipe():
     dummy_3d = np.full((1080, 1920, 3), 40, dtype=np.uint8)
     dummy_battle = np.full((1080, 1920, 3), 220, dtype=np.uint8)
 
-    # Frame 727: no wipe yet
-    out_577 = compose_single_frame(
-        727, dummy_3d, fonts, captions, vignette, chroma_maps, battle_frame=dummy_battle
+    # Frame 709: no wipe yet
+    out_pre = compose_single_frame(
+        709, dummy_3d, fonts, captions, vignette, chroma_maps, battle_frame=dummy_battle
     )
-    assert float(out_577[540, 100].mean()) < 100.0  # 3D (graded darker near the end), not the battle frame (220)
+    assert float(out_pre[540, 100].mean()) < 100.0  # 3D, not the battle frame (220)
 
     # Frame 584 (mid-walk): no wipe
     out_mid = compose_single_frame(
@@ -112,19 +112,19 @@ def test_battle_frame_wipe():
     )
     assert float(out_mid[540, 100].mean()) < 100.0  # 3D, not the battle frame (220)
 
-    # Frame 734 (half-way wipe): left side is battle frame (220), right side is 3D (31 with vignette)
-    out_584 = compose_single_frame(
-        734, dummy_3d, fonts, captions, vignette, chroma_maps, battle_frame=dummy_battle
+    # Frame 716 (half-way wipe): left side is battle frame (220), right side is 3D (31 with vignette)
+    out_half = compose_single_frame(
+        716, dummy_3d, fonts, captions, vignette, chroma_maps, battle_frame=dummy_battle
     )
-    assert abs(float(out_584[540, 100].mean()) - 220.0) < 5.0
-    assert 25.0 < float(out_584[540, 1800].mean()) < 40.0
+    assert abs(float(out_half[540, 100].mean()) - 220.0) < 5.0
+    assert 25.0 < float(out_half[540, 1800].mean()) < 40.0
 
-    # Frame 740 (final frame): full battle frame
-    out_590 = compose_single_frame(
-        740, dummy_3d, fonts, captions, vignette, chroma_maps, battle_frame=dummy_battle
+    # Frame 722 (final frame): full battle frame
+    out_end = compose_single_frame(
+        722, dummy_3d, fonts, captions, vignette, chroma_maps, battle_frame=dummy_battle
     )
-    assert abs(float(out_590[540, 100].mean()) - 220.0) < 5.0
-    assert abs(float(out_590[540, 1800].mean()) - 220.0) < 5.0
+    assert abs(float(out_end[540, 100].mean()) - 220.0) < 5.0
+    assert abs(float(out_end[540, 1800].mean()) - 220.0) < 5.0
 
 
 def test_caption_anchor_moves_text():

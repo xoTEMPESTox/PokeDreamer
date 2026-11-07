@@ -60,7 +60,7 @@ def test_segment_frame_counts_sum_to_seconds_times_fps():
 
 
 def test_actual_storyboard_json_frame_counts():
-    """Verify lab/video/storyboard.json totals exactly 70.0 s (2100 frames at 30 fps); the 3D hook (19.7 s) goes before it."""
+    """Verify lab/video/storyboard.json totals exactly 76.5 s (2295 frames at 30 fps): 70 s + three intro cards (6.5 s)."""
     sb_path = Path("lab/video/storyboard.json")
     assert sb_path.exists(), "lab/video/storyboard.json must exist"
 
@@ -69,9 +69,9 @@ def test_actual_storyboard_json_frame_counts():
 
     fps = 30
     counts = calculate_segment_frames(storyboard, fps=fps)
-    assert sum(counts) == 2100, f"Expected 2100 frames, got {sum(counts)}"
+    assert sum(counts) == 2295, f"Expected 2295 frames, got {sum(counts)}"
     total_seconds = sum(s["seconds"] for s in storyboard)
-    assert abs(total_seconds - 70.0) < 1e-6, f"Expected 70.0 seconds, got {total_seconds}"
+    assert abs(total_seconds - 76.5) < 1e-6, f"Expected 76.5 seconds, got {total_seconds}"
 
 
 def test_storyboard_end_card_exact_numbers():
@@ -343,16 +343,18 @@ def test_mapping_dicts_cover_all_trajectory_legs_and_goals():
 
 
 def test_storyboard_subcaptions_present_and_match_spec():
-    """Verify storyboard segments have two-tier captions with subcaptions."""
+    """Every play/montage/split segment has a caption; subcaptions are optional since the intro cards (owner
+    review 3) carry the context, but never empty when present. Every card has a tag, headline and line."""
     sb_path = Path("lab/video/storyboard.json")
-    with open(sb_path, "r") as f:
+    with open(sb_path, "r", encoding="utf-8") as f:
         storyboard = json.load(f)
 
-    # Check that play, montage, and split segments have non-empty subcaption
     for i, seg in enumerate(storyboard):
         if seg.get("type") in ("play", "montage", "split"):
-            assert "subcaption" in seg, f"Segment {i} ({seg['type']}) missing 'subcaption'"
-            assert len(seg["subcaption"]) > 0, f"Segment {i} subcaption is empty"
+            assert seg.get("caption"), f"Segment {i} ({seg['type']}) has no caption"
+            assert seg.get("subcaption", "x") != "", f"Segment {i} subcaption is empty"
+        if seg.get("type") == "card":
+            assert seg.get("tag") and seg.get("headline") and seg.get("line"), f"Card {i} is missing text"
 
 
 def test_no_do_not_say_phrases():
@@ -385,6 +387,9 @@ def test_no_do_not_say_phrases():
             strings_to_check.append(s["subcaption"])
         for t in s.get("text", []):
             strings_to_check.append(t)
+        for k in ("tag", "headline", "line"):
+            if s.get(k):
+                strings_to_check.append(s[k])
 
     for g_val in GOAL_MAP.values():
         strings_to_check.append(g_val)
