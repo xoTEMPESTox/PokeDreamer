@@ -60,7 +60,7 @@ def test_segment_frame_counts_sum_to_seconds_times_fps():
 
 
 def test_actual_storyboard_json_frame_counts():
-    """Verify lab/video/storyboard.json totals exactly 77.25 s (2318 frames at 30 fps): 70 s + three intro cards (7.25 s)."""
+    """Verify lab/video/storyboard.json totals exactly 75 s (2250 frames at 30 fps): four 4 s intro cards, trimmed gameplay, a 7 s end screen."""
     sb_path = Path("lab/video/storyboard.json")
     assert sb_path.exists(), "lab/video/storyboard.json must exist"
 
@@ -69,26 +69,26 @@ def test_actual_storyboard_json_frame_counts():
 
     fps = 30
     counts = calculate_segment_frames(storyboard, fps=fps)
-    assert sum(counts) == 2318, f"Expected 2318 frames, got {sum(counts)}"
+    assert sum(counts) == 2250, f"Expected 2250 frames, got {sum(counts)}"
     total_seconds = sum(s["seconds"] for s in storyboard)
-    assert abs(total_seconds - 77.25) < 1e-6, f"Expected 77.25 seconds, got {total_seconds}"
+    assert abs(total_seconds - 75.0) < 1e-6, f"Expected 75.0 seconds, got {total_seconds}"
 
 
 def test_storyboard_end_card_exact_numbers():
     """Verify end card has exact required numbers and phrases."""
     sb_path = Path("lab/video/storyboard.json")
-    with open(sb_path, "r") as f:
+    with open(sb_path, "r", encoding="utf-8") as f:  # "Pokémon": not cp1252
         storyboard = json.load(f)
 
     end_segments = [s for s in storyboard if s.get("type") == "end"]
     assert len(end_segments) >= 1, "Storyboard must have at least one end segment"
     end_text = end_segments[0].get("text", [])
 
-    assert "Boulder Badge: 30 of 30 runs" in end_text
-    assert "14 of 30 runs: every walk by the dream-trained System 1 policy, no backup used" in end_text
-    assert "Colour and detail restored by neural nets: 99.27% of pixels, 91% of frames exact" in end_text
-    # lab/results/v3_system2.md, full harness: median 7,144.5 vs 8,779.5 presses = 18.6% fewer
-    assert "Local LLM as System 2 planner: 10 of 10 runs, 19% fewer presses than the rule-based planner" in end_text
+    assert "Diffusion world model: 16.7M params, 72×80, 4-frame context, 3.6 GPU-hours" in end_text
+    assert "System 1 RL: 10 actor-critic policies trained in imagination, 0 real steps" in end_text
+    assert "Neural upscaler + colorizer: 91% of frames pixel-exact, 99.27% of pixels" in end_text
+    # owner review 5: the end screen lists what v3 built (lab/results/compute.md, lab/play.py, v3_gym.md, v3_system2.md)
+    assert "System 1/2 harness: a local LLM plans, System 1 walks, in the real game" in end_text
 
 
 def test_fit_speed_maps_step_range():
@@ -387,7 +387,7 @@ def test_no_do_not_say_phrases():
             strings_to_check.append(s["subcaption"])
         for t in s.get("text", []):
             strings_to_check.append(t)
-        for k in ("tag", "headline", "line"):
+        for k in ("tag", "headline", "line", "line2", "heading", "footer"):
             if s.get(k):
                 strings_to_check.append(s[k])
 

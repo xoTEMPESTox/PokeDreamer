@@ -1,11 +1,21 @@
 [
   {
+    "type": "card",
+    "seconds": 4.0,
+    "tag": "The game agent",
+    "headline": "System 1 walks, System 2 plans",
+    "line": "Walking: System 1 policies trained only in the world model's imagination.",
+    "line2": "A System 2 planner sets the goals; battles follow a scripted battle policy.",
+    "bg_start": 111,
+    "bg_end": 180
+  },
+  {
     "type": "play",
-    "seconds": 8.0,
+    "seconds": 6.0,
     "start": 111,
     "end": 400,
     "speed": "fit",
-    "caption": "Walking: dream-trained System 1 policy · battles: scripted battle policy"
+    "caption": "The game agent in the real game: System 1 walks, scripted battles"
   },
   {
     "type": "montage",
@@ -20,7 +30,7 @@
     ],
     "speed": "fit",
     "goal_text": "grind (level 8 to 14)",
-    "caption": "System 2 orders a grind: Charmander 8 → 14",
+    "caption": "System 2 sets a grind goal · the scripted battle policy fights",
     "progress": "Level 9 → 11"
   },
   {
@@ -36,7 +46,7 @@
     ],
     "speed": "fit",
     "goal_text": "grind (level 8 to 14)",
-    "caption": "System 2 orders a grind: Charmander 8 → 14",
+    "caption": "System 2 sets a grind goal · the scripted battle policy fights",
     "progress": "Level 11 → 12"
   },
   {
@@ -52,31 +62,32 @@
     ],
     "speed": "fit",
     "goal_text": "grind (level 8 to 14)",
-    "caption": "System 2 orders a grind: Charmander 8 → 14",
+    "caption": "System 2 sets a grind goal · the scripted battle policy fights",
     "progress": "Level 12 → 14"
   },
   {
     "type": "play",
-    "seconds": 5.0,
+    "seconds": 4.0,
     "start": 6608,
     "end": 6832,
     "speed": "fit",
-    "caption": "Heal run: three System 1 walks",
+    "caption": "One heal: three System 1 policies in a row",
     "subcaption": "rule-based System 2 planner · 0 backup path-finder presses in this run"
   },
   {
     "type": "card",
-    "seconds": 2.25,
+    "seconds": 4.0,
     "tag": "The game harness",
     "headline": "System 2 planner: a local LLM",
-    "line": "New run: same harness, same System 1 policies; gemma4:31b writes the plan.",
+    "line": "Same harness, same System 1 policies; gemma4:31b writes the plan.",
     "bg_traj": "work/video/traj_llm/run_seed_100_color.npz",
     "bg_start": 4650,
-    "bg_end": 4700
+    "bg_end": 4700,
+    "line2": "Every decision is validated against game RAM before it runs."
   },
   {
     "type": "harness",
-    "seconds": 9.0,
+    "seconds": 8.0,
     "traj": "work/video/traj_llm/run_seed_100_color.npz",
     "run_json": "work/video/quest_s100_llm/run_seed_100.json",
     "ranges": [
@@ -157,42 +168,36 @@
   },
   {
     "type": "card",
-    "seconds": 2.75,
+    "seconds": 4.0,
     "tag": "The world model",
-    "headline": "Inside the dream",
-    "line": "First run. Left: real game. Right: diffusion world model, 10 steps ahead.",
+    "headline": "Inside the imagination",
+    "line": "Left: real game. Right: the diffusion world model, 10 steps ahead.",
     "bg_start": 6834,
-    "bg_end": 6914
+    "bg_end": 6914,
+    "line2": "16.7M params · 72×80 · 4 context frames + actions · playable by keyboard"
   },
   {
     "type": "split",
-    "seconds": 15.0,
+    "seconds": 12.0,
     "start": 6834,
     "end": 6914,
     "speed": "fit",
-    "caption": "Imagination rollout: Viridian City to Route 2",
+    "caption": "Imagination rollout vs the real game, same actions",
     "subcaption": "re-anchored on 4 real frames every 10 steps (H = 10)"
   },
   {
     "type": "card",
-    "seconds": 2.25,
-    "tag": "The badge",
-    "headline": "Pewter City: Center, then Gym",
-    "line": "Every walk in this run: System 1 policy. Both fights: scripted battle policy.",
-    "bg_start": 7724,
-    "bg_end": 7760
+    "seconds": 4.0,
+    "tag": "The real game",
+    "headline": "The whole agent, one quest",
+    "line": "Every walk: System 1 policy. Both fights: scripted battle policy.",
+    "bg_start": 7761,
+    "bg_end": 7800,
+    "line2": "Gym badge in 30 of 30 runs; LLM planner 10 of 10."
   },
   {
     "type": "play",
-    "seconds": 3.0,
-    "start": 7724,
-    "end": 7760,
-    "speed": "fit",
-    "caption": "Pewter Center, in and out"
-  },
-  {
-    "type": "play",
-    "seconds": 14.0,
+    "seconds": 11.0,
     "start": 7761,
     "end": 8717,
     "ranges": [
@@ -206,21 +211,23 @@
       ]
     ],
     "speed": "fit",
-    "caption": "Pewter Gym: two fights by the scripted battle policy, then the badge",
-    "subcaption": "the whole game agent: System 2 planner, System 1 policies, scripted battle policy"
+    "caption": "System 1 walks in, two scripted battles, the badge"
   },
   {
     "type": "end",
-    "seconds": 5.0,
+    "seconds": 7.0,
     "start": 8717,
     "end": 8717,
     "speed": "fit",
     "caption": "",
     "text": [
-      "Boulder Badge: 30 of 30 runs",
-      "14 of 30 runs: every walk by the dream-trained System 1 policy, no backup used",
-      "Colour and detail restored by neural nets: 99.27% of pixels, 91% of frames exact",
-      "Local LLM as System 2 planner: 10 of 10 runs, 19% fewer presses than the rule-based planner"
-    ]
+      "Diffusion world model: 16.7M params, 72×80, 4-frame context, 3.6 GPU-hours",
+      "Playable: a keyboard drives the dream, frame by frame",
+      "System 1 RL: 10 actor-critic policies trained in imagination, 0 real steps",
+      "System 1/2 harness: a local LLM plans, System 1 walks, in the real game",
+      "Neural upscaler + colorizer: 91% of frames pixel-exact, 99.27% of pixels"
+    ],
+    "heading": "PokeDreamer v3: what we built",
+    "footer": "Everything on one RTX 4090: 50 GPU-hours of training · numbers in lab/results/"
   }
 ]

@@ -289,8 +289,16 @@ def compose_single_frame(
             elif en - t_sec < 0.20:
                 alpha_fac = (en - t_sec) / 0.20
 
-            if cap_key == "subtitle" and f > 115:
-                alpha_fac = max(0.0, (128 - f) / 13.0)
+            wipe = cap.get("wipe_out_s")  # [a, b]: erased right to left over a..b (e.g. with the grey raw wipe)
+            if wipe and t_sec >= float(wipe[0]):
+                alpha_fac = 1.0
+                x_edge = int(pil_img.size[0] * (1.0 - min(1.0, (t_sec - float(wipe[0])) / (float(wipe[1]) - float(wipe[0])))))
+                layer = Image.new("RGBA", pil_img.size, (0, 0, 0, 0))
+                draw_caption(layer, cap, fonts, alpha_fac=1.0)
+                a = np.asarray(layer).copy()
+                a[:, x_edge:, 3] = 0
+                pil_img.alpha_composite(Image.fromarray(a))
+                continue
 
             draw_caption(pil_img, cap, fonts, alpha_fac=alpha_fac)
 

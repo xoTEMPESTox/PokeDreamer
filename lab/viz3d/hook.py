@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 
 from lab.color.rules import PLAYER_BOX
-from lab.viz3d.classes import frame_classes
+from lab.viz3d.classes import frame_classes, load_palette
 from lab.viz3d.shots import project_point_to_frame, smooth_exponential
 
 S = 0.01  # 1 cm per GB pixel
@@ -592,6 +592,7 @@ def compute_hook_tracks(
         p_sh_list = []
         valid_cls = None
         valid_sh = None
+        tall_grass_idx = load_palette()[0].index("tall_grass")
         for st in distinct_steps:
             st_idx = min(st, len(color_frames) - 1)
             cf = color_frames[st_idx]
@@ -608,6 +609,11 @@ def compute_hook_tracks(
                 if gap >= 2:
                     is_invalid = True
                     print(f"Detected invalid player sprite at step {st} (vertical gap of {gap} rows).")
+            # The game draws tall grass over the player's lower half, so a sprite captured on a grass tile has grass
+            # where the legs are; built as voxels it looked broken (owner, 0:20). Reuse the last clean sprite.
+            if int(np.sum(c_cls == tall_grass_idx)) > 20:
+                is_invalid = True
+                print(f"Player sprite at step {st} is covered by tall grass.")
 
             if is_invalid and valid_cls is not None:
                 print(f"Replacing invalid step {st} sprite with step {st - 1} valid sprite.")

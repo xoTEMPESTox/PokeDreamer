@@ -46,26 +46,26 @@ SPLIT_MARGIN_X = (CANVAS_WIDTH - 2 * SPLIT_FRAME_W - SPLIT_GAP) // 2  # 120 px
 SPLIT_FRAME_Y = 150                # top coordinate for frames
 
 # Mappings for status panel goals, legs, and badge subtext
-GOAL_MAP: Dict[str, str] = {
-    "grind": "Grind wild Pokémon: level up",
-    "heal": "Heal at the Pokémon Center",
-    "travel_to_pewter": "Travel to Pewter City",
-    "gym": "Beat the Pewter Gym",
+GOAL_MAP: Dict[str, str] = {  # research-first labels (owner review 6); keys are the planner's goals
+    "grind": "Grind: level up, scripted fights",
+    "heal": "Heal: restore HP",
+    "travel_to_pewter": "Travel: chain of System 1 walks",
+    "gym": "Gym: scripted battle policy",
     "": "—",
 }
 
-LEG_MAP: Dict[str, str] = {
-    "to_grass": "the tall grass on Route 1",
-    "to_viridian_pc": "the Viridian Pokémon Center",
-    "leave_viridian_pc": "out of the Pokémon Center",
-    "viridian": "Viridian City",
-    "to_route2": "Route 2",
-    "to_gate": "the gate to Viridian Forest",
-    "forest": "through Viridian Forest",
-    "to_pewter": "Pewter City",
-    "to_pewter_pc": "the Pewter Pokémon Center",
-    "leave_pewter_pc": "out of the Pokémon Center",
-    "to_gym": "the Pewter Gym",
+LEG_MAP: Dict[str, str] = {  # the System 1 policy names as trained (lab/results/compute.md, run JSON legs[].leg)
+    "to_grass": "to_grass",
+    "to_viridian_pc": "to_viridian_pc",
+    "leave_viridian_pc": "leave_viridian_pc",
+    "viridian": "viridian",
+    "to_route2": "to_route2",
+    "to_gate": "to_gate",
+    "forest": "forest",
+    "to_pewter": "to_pewter",
+    "to_pewter_pc": "to_pewter_pc",
+    "leave_pewter_pc": "leave_pewter_pc",
+    "to_gym": "to_gym",
     "": "—",
 }
 
@@ -415,7 +415,7 @@ def draw_hud_card(
             draw.text((x0 + pad_x, curr_y + 28), val_text, font=fonts.get(sz, bold=is_bold), fill=fill)
 
         # 1. Map name
-        _draw_section("WHERE", "", map_name or "—", default_size=34, fill=(248, 250, 252))
+        _draw_section("ENVIRONMENT", "", "real game, Game Boy emulator", default_size=30, fill=(248, 250, 252))
         curr_y += step_y
 
         # 2. System 2 Goal / The Plan
@@ -426,7 +426,7 @@ def draw_hud_card(
 
         # 3. Active Leg / Walking to
         leg_val = LEG_MAP.get(str(leg), "—") if leg else "—"
-        _draw_section("WALKING TO", "System 1 policy, dream-trained", leg_val, default_size=30, fill=(147, 197, 253))
+        _draw_section("SYSTEM 1 POLICY", "1.58M params · trained in imagination", leg_val, default_size=30, fill=(147, 197, 253))
         curr_y += step_y
 
         # 4. Control Badge
@@ -454,13 +454,15 @@ def draw_hud_card(
         curr_y += (step_y + 10) if is_llm_planner else step_y
 
         # 5. Press Counter (step + 1)
-        draw.text((x0 + pad_x, curr_y), "BUTTONS PRESSED", font=fonts.get(16, bold=True), fill=(148, 163, 184))
+        draw.text((x0 + pad_x, curr_y), "ACTIONS", font=fonts.get(16, bold=True), fill=(148, 163, 184))
+        draw.text((x0 + pad_x + draw.textlength("ACTIONS", font=fonts.get(16, bold=True)) + 12, curr_y + 2), "button presses",
+                  font=fonts.get(13), fill=(100, 116, 139))
         draw.text((x0 + pad_x, curr_y + 28), f"{step + 1:,}", font=fonts.get(42 if is_llm_planner else 44, bold=True), fill=(56, 189, 248))
         curr_y += (step_y - 2) if is_llm_planner else step_y
 
         # 6. Optional level progress (for montage)
         if progress_text:
-            _draw_section("LEVELLING UP", "Charmander", progress_text, default_size=30, fill=(250, 204, 21))
+            _draw_section("GRIND PROGRESS", "scripted battles", progress_text, default_size=30, fill=(250, 204, 21))
 
         # 7. Planner card (for harness)
         if is_llm_planner and planner_decision is not None:
@@ -536,7 +538,7 @@ def draw_hud_card(
             draw.text((x0 + 30, curr_y + 18), val_text, font=fonts.get(default_size, bold=True), fill=fill)
 
         # 1. Map name
-        _draw_compact_section("WHERE", "", map_name or "—", 20, (248, 250, 252))
+        _draw_compact_section("ENVIRONMENT", "", "real game, Game Boy emulator", 20, (248, 250, 252))
         curr_y += 56
 
         # 2. System 2 Goal
@@ -546,7 +548,7 @@ def draw_hud_card(
 
         # 3. Active Leg
         leg_val = LEG_MAP.get(str(leg), "—") if leg else "—"
-        _draw_compact_section("WALKING TO", "System 1 policy, dream-trained", leg_val, 18, (147, 197, 253))
+        _draw_compact_section("SYSTEM 1 POLICY", "1.58M params · trained in imagination", leg_val, 18, (147, 197, 253))
         curr_y += 56
 
         # 4. Control Badge
@@ -569,13 +571,13 @@ def draw_hud_card(
         curr_y += 58
 
         # 5. Press Counter (step + 1)
-        draw.text((x0 + 30, curr_y), "BUTTONS PRESSED", font=fonts.get(13), fill=(148, 163, 184))
+        draw.text((x0 + 30, curr_y), "ACTIONS", font=fonts.get(13), fill=(148, 163, 184))
         draw.text((x0 + 30, curr_y + 18), f"{step + 1:,}", font=fonts.get(26, bold=True), fill=(56, 189, 248))
         curr_y += 56
 
         # 6. Optional level progress (for montage)
         if progress_text:
-            _draw_compact_section("LEVELLING UP", "Charmander", progress_text, 18, (250, 204, 21))
+            _draw_compact_section("GRIND PROGRESS", "scripted battles", progress_text, 18, (250, 204, 21))
 
 
 def render_title_frame(
@@ -631,13 +633,19 @@ def render_title_frame(
     return res
 
 
+END_HEADING = "PokeDreamer · results"
+END_FOOTER = "Walking: zero real-game training steps · battles: scripted · System 2: rules (3 seeds x 10 runs) or local LLM (10 runs)"
+
+
 def render_end_frame(
     text_lines: List[str],
     caption: str,
     fonts: FontManager,
     fade_alpha: float = 1.0,
+    heading: str = END_HEADING,
+    footer: str = END_FOOTER,
 ) -> np.ndarray:
-    """Renders the end card with the exact results numbers."""
+    """Renders the end card: a heading, up to 6 coloured lines, a footer (all from the storyboard when given)."""
     img = Image.new("RGB", (CANVAS_WIDTH, CANVAS_HEIGHT), BG_COLOR)
     draw = ImageDraw.Draw(img)
     cx, cy = CANVAS_WIDTH // 2, CANVAS_HEIGHT // 2
@@ -653,7 +661,7 @@ def render_end_frame(
     )
 
     # Title header
-    draw_heading(img, draw, fonts, cx=cx, cy=cy - 210, text="PokeDreamer · results", font_size=20, icon_size=22, fill=(100, 116, 139))
+    draw_heading(img, draw, fonts, cx=cx, cy=cy - 210, text=heading, font_size=20, icon_size=22, fill=(100, 116, 139))
     draw.line([(cx - card_w // 2 + 50, cy - 180), (cx + card_w // 2 - 50, cy - 180)], fill=(34, 45, 58), width=1)
 
     colors = [
@@ -661,20 +669,22 @@ def render_end_frame(
         (74, 222, 128),   # Green for learned navigation
         (56, 189, 248),   # Cyan for restored color/detail
         (167, 139, 250),  # Violet for the LLM planner
+        (244, 114, 182),  # Pink for the upscaler/colorizer
     ]
 
-    base_y = cy - 110
+    many = len(text_lines) > 4  # up to 6 lines fit between the rule and the footer
+    base_y, step = (cy - 130, 64) if many else (cy - 110, 85)
     for idx, line in enumerate(text_lines):
         color = colors[idx % len(colors)]
-        size = 34
+        size = 30 if many else 34
         while size > 18 and draw.textlength(line, font=fonts.get(size, bold=True)) > card_w - 100:
             size -= 2                                     # shrink a long line until it fits inside the card
-        draw.text((cx, base_y + idx * 85), line, font=fonts.get(size, bold=True), fill=color, anchor="mm")
+        draw.text((cx, base_y + idx * step), line, font=fonts.get(size, bold=True), fill=color, anchor="mm")
 
     # Footer note
     draw.text(
         (cx, cy + 220),
-        "Walking: zero real-game training steps · battles: scripted · System 2: rules (3 seeds x 10 runs) or local LLM (10 runs)",
+        footer,
         font=fonts.get(18),
         fill=(148, 163, 184),
         anchor="mm",
@@ -693,6 +703,8 @@ def render_card_frame(
     headline: str,
     line: str,
     fonts: FontManager,
+    line2: str = "",
+    seconds: float = 2.0,
 ) -> np.ndarray:
     """Section intro card (owner review 3, Fable's design) at progress t in [0, 1].
 
@@ -702,8 +714,8 @@ def render_card_frame(
     """
     W, H = CANVAS_WIDTH, CANVAS_HEIGHT
 
-    def ease(a: float, b: float) -> float:  # smoothstep of t over [a, b]
-        x = min(1.0, max(0.0, (t - a) / (b - a)))
+    def ease(a: float, b: float) -> float:  # smoothstep over [a, b] in seconds, so long cards are readable sooner
+        x = min(1.0, max(0.0, (t * seconds - a) / (b - a)))
         return x * x * (3.0 - 2.0 * x)
 
     zoom = 1.0 + 0.06 * t
@@ -718,18 +730,21 @@ def render_card_frame(
     ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(ov)
     cx, cy = W // 2, H // 2
-    out = 1.0 - ease(0.88, 1.0)
-    a_tag, a_head, a_line = ease(0.0, 0.2) * out, ease(0.07, 0.27) * out, ease(0.24, 0.44) * out
+    out = 1.0 - ease(seconds - 0.5, seconds)
+    a_tag, a_head, a_line = ease(0.0, 0.4) * out, ease(0.2, 0.8) * out, ease(0.5, 1.2) * out
     f_tag, f_head, f_line = fonts.get(20, bold=True), fonts.get(60, bold=True), fonts.get(28)
 
     d.text((cx, cy - 92), " ".join(tag.upper()), font=f_tag, fill=(56, 189, 248, int(255 * a_tag)), anchor="mm")
-    hy = cy - 30 + int((1.0 - ease(0.07, 0.27)) * 24)
+    hy = cy - 30 + int((1.0 - ease(0.2, 0.8)) * 24)
     d.text((cx, hy), headline, font=f_head, fill=(248, 250, 252, int(255 * a_head)), anchor="mm")
     hw = int(d.textlength(headline, font=f_head))
-    rw = int(hw * ease(0.17, 0.37))
+    rw = int(hw * ease(0.4, 1.0))
     if rw > 0:
         d.rectangle([cx - hw // 2, cy + 22, cx - hw // 2 + rw, cy + 24], fill=(147, 197, 253, int(255 * out)))
     d.text((cx, cy + 66), line, font=f_line, fill=(190, 200, 214, int(255 * a_line)), anchor="mm")
+    if line2:
+        a_line2 = ease(0.7, 1.4) * out
+        d.text((cx, cy + 108), line2, font=f_line, fill=(190, 200, 214, int(255 * a_line2)), anchor="mm")
     img.alpha_composite(ov)
     return np.asarray(img.convert("RGB"))
 
@@ -968,7 +983,7 @@ def render_split_frame(
 
         # Flashing re-anchor tag
         if is_anchor_flashing:
-            tag_text = "reset: shown 4 real frames"
+            tag_text = "re-anchor: 4 real context frames"
             tag_font = fonts.get(18, bold=True)
             tb = draw.textbbox((0, 0), tag_text, font=tag_font)
             pw, ph = (tb[2] - tb[0]) + 28, (tb[3] - tb[1]) + 14
@@ -1230,6 +1245,8 @@ def compose_video(
                     headline=seg.get("headline", ""),
                     line=seg.get("line", ""),
                     fonts=fonts,
+                    line2=seg.get("line2", ""),
+                    seconds=float(seg["seconds"]),
                 )
                 if f_idx == int(n_frames * 0.6):
                     stills_to_save[f"card_{seg_idx:02d}"] = frame
@@ -1274,7 +1291,8 @@ def compose_video(
                         fade = (f_idx + 1) / 15.0
                     elif f_idx >= n_frames - 15:
                         fade = (n_frames - f_idx) / 15.0
-                    frame = render_end_frame(text_lines, caption, fonts, fade_alpha=fade)
+                    frame = render_end_frame(text_lines, caption, fonts, fade_alpha=fade,
+                                             heading=seg.get("heading", END_HEADING), footer=seg.get("footer", END_FOOTER))
 
                 elif seg_type == "split":
                     # Check if any step in [prev_st, st] was an anchor step
