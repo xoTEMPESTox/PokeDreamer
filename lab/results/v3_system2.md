@@ -61,9 +61,45 @@ Definitions:
 - **qwen3.6:35b-a3b relied on the fallback the most.** 18 of its 97 decisions (19%) were malformed. Its thinking used ~14.8k of the 16,384-token context, leaving no room for the JSON answer. Under this equal protocol it is reported as "79 of 97 decisions its own". A 32k-context rerun is planned only if it becomes the chosen planner.
 - **The LLMs black out more than the rules.** Only qwen3.5:9b (2) is close to the rules' 1. Except gpt-oss (median level 12 at the gym), the LLMs are as levelled as the rules (13-15 vs 14). The hypothesis is that the extra blackouts come from when they choose to heal: the rule planner heals at an explicit HP threshold, and an LLM only learns that threshold from the prompt.
 
-## Full harness demo: LLM System 2 + dream-trained System 1 (one run, not a measurement)
+## Full harness: LLM System 2 + dream-trained System 1 (10 runs, measured 2026-11-07)
 
-One pre-declared run (seed 100, the video's seed, recorded 2026-11-07) swaps both halves in: `gemma4:31b` as System 2 and the ten world-model navigation legs as System 1 (`--nav learned --leg-policies` from `work/best_s0_legs.txt`, the set behind the 30/30 headline in [v3_gym](v3_gym.md)).
+Both halves are swapped in:
+- System 2: `gemma4:31b`.
+- System 1: the ten world-model navigation legs (`--nav learned --leg-policies` from `work/best_s0_legs.txt`, the set behind the 30/30 headline in [v3_gym](v3_gym.md)).
+
+Everything else matches the rule-planner quests with the same legs: seeds 100-109, the same save state, target level 14 (`lab/experiments/quests.sh`, `work/gym_learned_best_s0`). The third column is the bake-off row above: the same LLM with map-reading (BFS) navigation.
+
+| | **LLM planner + dream-trained legs** | rule planner + same legs | LLM planner + BFS navigation |
+|---|---|---|---|
+| badges | **10/10** | 10/10 | 10/10 |
+| median presses [min, max] | **7,144.5** [6,800, 7,868] | 8,779.5 [8,074, 10,572] | 7,239 [6,087, 8,265] |
+| blackouts (total) | 5 | 10 | 3 |
+| median level at gym | 13 | 14 | 13 |
+| runs with every leg driven by its world-model policy | **9/10** | 8/10 | – |
+| leg runs reached by policy | 224/225 | 229/231 | – |
+| navigation presses by the BFS fallback | **0** | 22 | all |
+| planner decisions (rejected) | 99 (0) | 112 (–) | 89 (0) |
+| mean decision time | 14.5 s | – | 13.0 s |
+
+- **The full system wins every run, and with fewer presses than the rules on the same legs.**
+  - The slowest LLM run (7,868) used fewer presses than the fastest rule run (8,074): no overlap in 10 vs 10.
+  - The saving is mostly grinding: median 4,083.5 vs 5,495 presses. The LLM usually judges level 13 enough for Brock, while the rules grind to 14.
+  - It also blacked out half as often (5 vs 10).
+  - This is a planning difference on top of the same System 1, not better navigation: travel presses are similar (median 1,046 vs 999.5).
+- **No navigation fallback in any LLM run**, and every decision passed validation (99/99).
+  - The one leg not reached by policy (seed 102's `to_viridian_pc`) was cut short by a blackout, with 0 fallback presses.
+  - That leg is why the run counts as 9/10 under v3_gym's "no fallback anywhere" definition (`work/agg_moves.py`).
+- **The LLM's plans vary between runs of the same seed.** Seed 100 took 7,658 presses here and 7,045 in the video recording (below), with the same seed and legs. Single runs are anecdotes, which is why this was measured over 10.
+- Same caveat as the bake-off: 10 runs per setup, no confidence intervals.
+
+Raw data:
+- runs: `work/harness_llm_s0/run_seed_10X.json`;
+- chain log: `work/chain_harness_llm.log`;
+- the table: `python -m lab.agent.quest_summary work/harness_llm_s0 work/gym_learned_best_s0 work/sys2_bakeoff/gemma4_31b` (saved in `work/harness_llm_s0/compare.txt`);
+- per-phase medians from the same JSONs (`phase_presses`).
+
+### The video's run (seed 100, one recording)
+The video shows a separate recording of seed 100 (recorded with `--save-traj --save-color` for the video).
 
 | | LLM planner (gemma4:31b) | rule planner, same legs and seed |
 |---|---|---|
@@ -77,7 +113,7 @@ One pre-declared run (seed 100, the video's seed, recorded 2026-11-07) swaps bot
 - The LLM left Route 1 for Pewter at 18/36 HP and healed in Pewter; the rules heal in Viridian first.
 - Of the LLM run's 20 leg runs, 19 reached their goal by policy; the 20th (`to_viridian_pc`) was cut short by the blackout.
 - Mean decision time: 13.7 s.
-- One run per planner, so this shows that the harness works end to end, not which planner is better.
+- One run per planner. The comparison between planners is the 10-run table above.
 
 A first attempt the same night omitted `--leg-policies`. With that flag missing, `gym_quest --nav learned` loads older default legs: to_route2 without the move gate, the 900-iteration to_pewter_pc, and leave_pewter_pc without merged centres. That run still won the badge (11,042 presses), but 4 legs fell back to BFS. It is kept in `work/video/quest_s100_llm_defaultlegs/` and not used.
 

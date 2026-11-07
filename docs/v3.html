@@ -278,7 +278,7 @@
       </ul>
 
       <p>
-        Full harness demo (one run, not a measurement): with both halves swapped in, gemma4:31b as the planner and the ten dream-trained navigation skills, the agent won the badge in 7,045 presses (the rule planner with the same skills and seed: 8,718). All 8 decisions were the LLM's own (none rejected, 13.7 s each on average), and every navigation press came from a world-model policy. See <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_system2.md#full-harness-demo-llm-system-2--dream-trained-system-1-one-run-not-a-measurement" target="_blank" rel="noopener">v3_system2.md (§ Full harness demo) →</a>
+        Full harness (10 runs, measured): with both halves swapped in, gemma4:31b as the planner and the ten dream-trained navigation skills, the agent won the badge in 10 of 10 runs, median 7,144.5 presses. The rule planner with the same skills and seeds needed 8,779.5, and every LLM run used fewer presses than the fastest rule run. No navigation press fell back to map-reading, and all 99 decisions were the LLM's own (14.5 s each on average). The saving is in planning, not walking: the LLM usually judged level 13 enough for Brock, so it ground less. See <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/v3_system2.md#full-harness-llm-system-2--dream-trained-system-1-10-runs-measured-2026-11-07" target="_blank" rel="noopener">v3_system2.md (§ Full harness) →</a>
       </p>
 
       <!-- Battles fidelity -->
