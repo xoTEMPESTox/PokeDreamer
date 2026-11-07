@@ -24,6 +24,10 @@ CANVAS_HEIGHT = 1080
 DEFAULT_FPS = 30
 BG_COLOR = (15, 20, 25)  # #0f1419 very dark blue-grey in RGB
 BG_COLOR_BGR = (25, 20, 15)
+# Light palette for the website's light theme (info screens only; the video uses the dark one)
+LIGHT_INFO = {"bg": (248, 250, 252), "panel": (255, 255, 255), "border": (203, 213, 225), "title": (15, 23, 42),
+              "body": (51, 65, 85), "muted": (71, 85, 105), "faint": (100, 116, 139), "cyan": (8, 145, 178),
+              "sky": (2, 132, 199), "gold": (217, 119, 6)}
 
 # Play and Montage segment layout (6x Game Boy frame)
 PLAY_SCALE = 6
@@ -980,7 +984,7 @@ def draw_diagram_arrow(
         draw.polygon([tip, p1, p2], fill=color)
 
 
-def render_diagram_frame(seg: Dict[str, Any], t_s: float, fonts: FontManager) -> np.ndarray:
+def render_diagram_frame(seg: Dict[str, Any], t_s: float, fonts: FontManager, theme: str = "dark") -> np.ndarray:
     """Generic diagram renderer driven entirely by JSON elements in a 'diagram' segment."""
     W, H = CANVAS_WIDTH, CANVAS_HEIGHT
     seconds = float(seg.get("seconds", 8.0))
@@ -994,6 +998,12 @@ def render_diagram_frame(seg: Dict[str, Any], t_s: float, fonts: FontManager) ->
         (100, 116, 139),
     )
     BORDER_GREY = (45, 58, 75)
+    bg = BG_COLOR
+    if theme == "light":
+        L = LIGHT_INFO
+        CYAN, GOLD = L["cyan"], L["gold"]
+        PANEL, BORDER, TITLE, BODY, MUTED, FAINT = L["panel"], L["border"], L["title"], L["body"], L["muted"], L["faint"]
+        BORDER_GREY, bg = BORDER, L["bg"]
 
     COLOR_LOOKUP = {
         "cyan": CYAN,
@@ -1023,7 +1033,7 @@ def render_diagram_frame(seg: Dict[str, Any], t_s: float, fonts: FontManager) ->
 
     out = 1.0 - ease(seconds - 0.5, seconds)
 
-    img = Image.new("RGBA", (W, H), BG_COLOR + (255,))
+    img = Image.new("RGBA", (W, H), bg + (255,))
     ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(ov)
 
@@ -1352,7 +1362,7 @@ def render_diagram_frame(seg: Dict[str, Any], t_s: float, fonts: FontManager) ->
     return np.asarray(img.convert("RGB"))
 
 
-def render_value_frame(seg: Dict[str, Any], t_s: float, fonts: FontManager) -> np.ndarray:
+def render_value_frame(seg: Dict[str, Any], t_s: float, fonts: FontManager, theme: str = "dark") -> np.ndarray:
     """Renders a two-column info screen ('value' segment) showing research and engineering value."""
     W, H = CANVAS_WIDTH, CANVAS_HEIGHT
     seconds = float(seg.get("seconds", 10.0))
@@ -1366,6 +1376,12 @@ def render_value_frame(seg: Dict[str, Any], t_s: float, fonts: FontManager) -> n
         (100, 116, 139),
     )
     DARK_TEXT = (15, 20, 25)
+    bg = BG_COLOR
+    if theme == "light":  # GOLD stays: the header highlighter reads on both backgrounds
+        L = LIGHT_INFO
+        CYAN = L["sky"]
+        PANEL, BORDER, TITLE, BODY, MUTED, FAINT = L["panel"], L["border"], L["title"], L["body"], L["muted"], L["faint"]
+        bg = L["bg"]
 
     def ease(a: float, b: float) -> float:
         if b <= a:
@@ -1381,7 +1397,7 @@ def render_value_frame(seg: Dict[str, Any], t_s: float, fonts: FontManager) -> n
     def spaced(s: str) -> str:
         return " ".join(s.upper())
 
-    img = Image.new("RGBA", (W, H), BG_COLOR + (255,))
+    img = Image.new("RGBA", (W, H), bg + (255,))
     ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(ov)
 

@@ -1535,3 +1535,13 @@ figure.glass-card figcaption {
     padding: 0 8px;
   }
 }
+
+/* Info screens from the video: a dark and a light render, shown by theme (!important beats the inline display:block) */
+.theme-img-light { display: none !important; }
+[data-theme="light"] .theme-img-light { display: block !important; }
+[data-theme="light"] .theme-img-dark { display: none !important; }
+
+/* Home hero is title + subtitle + buttons only (no media/stats): no leftover gap before the showcase */
+#hero .hero-content { padding-bottom: 0; }
+#hero .hero-actions { margin-bottom: 0; }
+#hero + #showcase { padding-top: 48px; }

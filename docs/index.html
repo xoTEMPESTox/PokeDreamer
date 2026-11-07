@@ -62,12 +62,6 @@
       <div class="hero-grid"></div>
     </div>
     <div class="container hero-content">
-      <div class="hero-badges">
-        <a href="https://priyanshusah.com/projects/pokedreamer-rl" target="_blank" class="badge badge-research">🔬 Case Study</a>
-        <a href="https://huggingface.co/xxxTEMPESTxxx/PokeDreamer" target="_blank" class="badge badge-hf">🤗 HuggingFace Models</a>
-        <a href="https://huggingface.co/datasets/xxxTEMPESTxxx/PokeDreamer" target="_blank" class="badge badge-dataset">📦 Dataset</a>
-        <a href="https://github.com/xoTEMPESTox/PokeDreamer" target="_blank" class="badge badge-gh">⭐ GitHub</a>
-      </div>
       <h1 class="hero-title">
         <span class="gradient-text">PokéDreamer</span>
       </h1>
@@ -87,12 +81,6 @@
           View on GitHub
         </a>
       </div>
-      <figure class="glass-card hero-media">
-        <video id="heroVideo" class="hero-video" src="assets/v3/hook_3d.mp4" poster="assets/v3/hook_3d.jpg" autoplay muted loop playsinline></video>
-        <figcaption>
-          The showcase's 3D opening: the first town rebuilt from the game's map data; the neural upscaler and colorizer restore the real 72×80 screen; then a System 1 policy, trained only in the world model's imagination, walks the first leg. The System 2 planner and the game agent harness follow in the showcase video below.
-        </figcaption>
-      </figure>
       <script>
         (function() {
           const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -126,34 +114,6 @@
           }
         }
       </script>
-      <!-- Stats bar -->
-      <div class="hero-stats">
-        <div class="stat-item">
-          <span class="stat-value">30/30</span>
-          <span class="stat-label">runs won the first gym badge (real game)</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <span class="stat-value">10</span>
-          <span class="stat-label">walking skills learned only inside the dream</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <span class="stat-value">16.7M</span>
-          <span class="stat-label">world-model parameters</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <span class="stat-value">50 GPU-h</span>
-          <span class="stat-label">of training in total, one desktop GPU</span>
-        </div>
-      </div>
-      <p class="hero-stats-note">
-        Compute counts every logged v3 training run, ablations and failed recipes included; the shipped world model took 3.6 GPU-hours and each navigation skill 15-48 minutes. <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/compute.md" target="_blank" rel="noopener">compute details →</a>
-      </p>
-    </div>
-    <div class="hero-scroll-indicator">
-      <div class="scroll-arrow"></div>
     </div>
   </section>
 
@@ -162,13 +122,13 @@
     <div class="container">
       <div class="section-header">
         <span class="section-tag">Showcase</span>
-        <h2 class="section-title">Final v3 Showcase (2:11)</h2>
+        <h2 class="section-title">v3 Showcase </h2>
         <p class="section-desc">A complete walkthrough: the 3D map reconstruction, the diffusion world model's imagination, the System 1 / System 2 game harness with its LLM planner, and the Boulder Badge won in the real game.</p>
       </div>
       <figure class="glass-card" style="padding: 16px; margin-bottom: 20px;">
         <video id="showcaseVideo" controls preload="none" poster="assets/v3/showcase_poster.jpg" src="assets/v3/pokedreamer_v3_showcase.mp4" style="width: 100%; border-radius: 8px; display: block;"></video>
         <figcaption style="margin-top: 14px; text-align: center;">
-          Full 1080p showcase: the diffusion world model, the game agent harness, the System 2 LLM planner with tool calls and RAM-validated decisions, and the System 1 dream-trained agent winning the badge in the real game.
+          Full showcase: the diffusion world model, the game agent harness, the System 2 LLM planner with tool calls and RAM-validated decisions, and the System 1 dream-trained agent winning the badge in the real game.
         </figcaption>
       </figure>
       <div class="glass-card showcase-chapters" style="padding: 16px 20px;">
@@ -226,7 +186,8 @@
         </p>
       </div>
       <figure class="glass-card" style="padding: 12px; margin: 24px 0 0;">
-        <img src="assets/v3/screen_value.png" alt="What PokeDreamer v3 contributes: research value and engineering value, each with a measured number" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
+        <img class="theme-img-dark" src="assets/v3/screen_value.png" alt="What PokeDreamer v3 contributes: research value and engineering value, each with a measured number" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
+        <img class="theme-img-light" src="assets/v3/screen_value_light.png" alt="What PokeDreamer v3 contributes: research value and engineering value, each with a measured number" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
         <figcaption style="text-align: center; margin-top: 10px;">
           What v3 contributes: research value (the DIAMOND recipe (Alonso et al., 2024) reproduced, Dreamer-style imagination RL (Hafner et al.), RAM-grounded evaluation that caught map hallucinations and a reward hack) and engineering value (System 1/2 harness, emulator + probe measurement stack, display models). Every number is from <a href="https://github.com/xoTEMPESTox/PokeDreamer/blob/main/lab/results/README.md" target="_blank" rel="noopener">lab/results/</a>.
         </figcaption>
@@ -323,7 +284,8 @@
 
       <!-- v3 EDM world model architecture -->
       <figure class="glass-card" style="padding: 12px; margin: 24px 0;">
-        <img src="assets/v3/screen_world_model.png" alt="PokéDreamer v3 EDM diffusion world model architecture" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
+        <img class="theme-img-dark" src="assets/v3/screen_world_model.png" alt="PokéDreamer v3 EDM diffusion world model architecture" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
+        <img class="theme-img-light" src="assets/v3/screen_world_model_light.png" alt="PokéDreamer v3 EDM diffusion world model architecture" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
         <figcaption style="text-align: center; margin-top: 10px;">
           Architecture of the EDM diffusion world model: 4-frame context denoiser predicting next-frame pixels conditioned on past actions.
         </figcaption>
@@ -365,7 +327,8 @@
         </p>
 
         <figure class="glass-card" style="padding: 12px; margin: 24px 0;">
-          <img src="assets/v3/screen_numbers.png" alt="PokéDreamer v3 specs and compute by the numbers" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
+          <img class="theme-img-dark" src="assets/v3/screen_numbers.png" alt="PokéDreamer v3 specs and compute by the numbers" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
+          <img class="theme-img-light" src="assets/v3/screen_numbers_light.png" alt="PokéDreamer v3 specs and compute by the numbers" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
           <figcaption style="text-align: center; margin-top: 10px;">
             By the numbers: 50.0 GPU-hours across 76 runs, quest press efficiency across agent configurations, and display models.
           </figcaption>
@@ -425,7 +388,8 @@
             <figcaption>LLM System 2 planner live in the real game: sub-goals chosen from RAM state, every decision validated, System 1 policies executing each leg.</figcaption>
           </figure>
           <figure class="glass-card">
-            <img src="assets/v3/screen_harness.png" alt="Game harness architecture diagram" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
+            <img class="theme-img-dark" src="assets/v3/screen_harness.png" alt="Game harness architecture diagram" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
+            <img class="theme-img-light" src="assets/v3/screen_harness_light.png" alt="Game harness architecture diagram" style="width: 100%; border-radius: 8px; display: block;" loading="lazy" />
             <figcaption>Game harness architecture: System 2 planner, validation against RAM, and System 1 imagination-trained navigation policies.</figcaption>
           </figure>
         </div>

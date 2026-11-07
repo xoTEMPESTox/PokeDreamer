@@ -727,3 +727,19 @@ def test_value_screen_rendering():
     f_long = render_value_frame(seg_long, 5.0, fonts)
     assert f_long.shape == (CANVAS_HEIGHT, CANVAS_WIDTH, 3)
     assert f_long.dtype == np.uint8
+
+
+def test_info_screens_light_theme_for_website():
+    """The website's light theme gets light renders; the video's default stays dark."""
+    from lab.video.compose import BG_COLOR, LIGHT_INFO, FontManager, load_storyboard, render_diagram_frame, render_value_frame
+
+    sb = load_storyboard("lab/video/storyboard.json")
+    fonts = FontManager()
+    diagram = next(s for s in sb if s["type"] == "diagram")
+    value = next(s for s in sb if s["type"] == "value")
+    for fn, seg in ((render_diagram_frame, diagram), (render_value_frame, value)):
+        dark = fn(seg, 6.0, fonts)
+        light = fn(seg, 6.0, fonts, theme="light")
+        assert tuple(dark[5, 5]) == BG_COLOR
+        assert tuple(light[5, 5]) == LIGHT_INFO["bg"]
+        assert light.mean() > dark.mean() + 100  # mostly light, not just the corner
