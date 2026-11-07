@@ -528,3 +528,31 @@ def test_load_storyboard_keeps_utf8_text_on_a_cp1252_locale(tmp_path):
     loaded = load_storyboard(path)
     assert loaded[0]["caption"] == "Levelling up: Charmander 8 → 14"
     assert loaded[0]["subcaption"] == "a · b · Pokémon"
+
+
+def test_battle_flash_mask_covers_the_battle_start_transition_and_flat_frames():
+    """A battle start (recoloured overworld, dark frame, white frames) is masked up to its last flat frame."""
+    from lab.video.compose import battle_flash_mask
+
+    rng = np.random.default_rng(0)
+    colors = rng.integers(60, 200, size=(20, 144, 160, 3), dtype=np.uint8)  # textured frames
+    colors[8] = 40    # dark transition frame (flat)
+    colors[9] = 241   # white flash frames (flat)
+    colors[10] = 241
+    colors[15] = 0    # an unrelated flat frame elsewhere
+    in_battles = np.zeros(20, dtype=bool)
+    in_battles[5:14] = True  # onset at step 5
+    mask = battle_flash_mask(colors, in_battles)
+    assert mask[5:11].all()            # onset .. last white frame
+    assert not mask[11:14].any()       # the battle screen itself stays
+    assert not mask[:5].any() and mask[15]
+
+
+def test_deflash_steps_holds_the_last_clean_step_and_keeps_length():
+    from lab.video.compose import deflash_steps
+
+    flash = np.zeros(12, dtype=bool)
+    flash[5:8] = True
+    out = deflash_steps(np.arange(12), flash)
+    assert len(out) == 12
+    assert out[5:8].tolist() == [4, 4, 4] and out[8] == 8 and out[4] == 4

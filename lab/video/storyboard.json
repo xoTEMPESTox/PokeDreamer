@@ -10,18 +10,54 @@
   },
   {
     "type": "montage",
-    "seconds": 6.0,
-    "start": 1283,
-    "end": 6607,
+    "seconds": 2.0,
+    "start": 1285,
+    "end": 1404,
     "ranges": [
-      [1283, 2866],
-      [3106, 4393],
-      [4552, 6607]
+      [
+        1285,
+        1404
+      ]
     ],
     "speed": "fit",
     "goal_text": "grind (level 8 to 14)",
     "caption": "Levelling up: Charmander 8 → 14",
-    "subcaption": "the plan (grind, heal, travel, gym) is a rule-based planner; it chooses, the walker walks"
+    "subcaption": "the plan (grind, heal, travel, gym) is a rule-based planner; it chooses, the walker walks",
+    "progress": "Level 9 → 11"
+  },
+  {
+    "type": "montage",
+    "seconds": 2.0,
+    "start": 3311,
+    "end": 3420,
+    "ranges": [
+      [
+        3311,
+        3420
+      ]
+    ],
+    "speed": "fit",
+    "goal_text": "grind (level 8 to 14)",
+    "caption": "Levelling up: Charmander 8 → 14",
+    "subcaption": "the plan (grind, heal, travel, gym) is a rule-based planner; it chooses, the walker walks",
+    "progress": "Level 11 → 12"
+  },
+  {
+    "type": "montage",
+    "seconds": 2.0,
+    "start": 6497,
+    "end": 6606,
+    "ranges": [
+      [
+        6497,
+        6606
+      ]
+    ],
+    "speed": "fit",
+    "goal_text": "grind (level 8 to 14)",
+    "caption": "Levelling up: Charmander 8 → 14",
+    "subcaption": "the plan (grind, heal, travel, gym) is a rule-based planner; it chooses, the walker walks",
+    "progress": "Level 12 → 14"
   },
   {
     "type": "play",
@@ -33,45 +69,23 @@
     "subcaption": "to the Center, out of the Center, back to the grass: three navigation legs, no fallback in this run"
   },
   {
-    "type": "split",
-    "seconds": 15.0,
-    "start": 6833,
-    "end": 7723,
-    "speed": "fit",
-    "caption": "Right: what the AI dreams will happen next, 10 steps ahead",
-    "subcaption": "from 4 real frames and the same buttons; 10 steps is the horizon the walkers trained on; the dream drifts, and we measure where"
-  },
-  {
-    "type": "play",
-    "seconds": 3.0,
-    "start": 7724,
-    "end": 7760,
-    "speed": "fit",
-    "caption": "Pewter Center, in and out",
-    "subcaption": "two learned legs; these doors are where the policies fail most often in other runs"
-  },
-  {
-    "type": "play",
-    "seconds": 14.0,
-    "start": 7761,
-    "end": 8717,
-    "ranges": [
-      [7761, 8086],
-      [8184, 8717]
-    ],
-    "speed": "fit",
-    "caption": "Into the gym. The walk is learned; the fights are rules.",
-    "subcaption": "the AI never trained on a battle; the badge is the whole system's, not the policy's"
-  },
-  {
     "type": "harness",
     "seconds": 9.0,
     "traj": "work/video/traj_llm/run_seed_100_color.npz",
     "run_json": "work/video/quest_s100_llm/run_seed_100.json",
     "ranges": [
-      [4650, 4900],
-      [6020, 6260],
-      [6940, 7044]
+      [
+        4650,
+        4900
+      ],
+      [
+        6020,
+        6260
+      ],
+      [
+        6940,
+        7044
+      ]
     ],
     "speed": "fit",
     "caption": "Same agent, new brain: a local LLM plans the quest",
@@ -134,6 +148,43 @@
         "key": "qwen"
       }
     ]
+  },
+  {
+    "type": "split",
+    "seconds": 15.0,
+    "start": 6833,
+    "end": 7723,
+    "speed": "fit",
+    "caption": "Back to the first run. Right: what the AI dreams will happen next, 10 steps ahead",
+    "subcaption": "from 4 real frames and the same buttons; 10 steps is the horizon the walkers trained on; the dream drifts, and we measure where"
+  },
+  {
+    "type": "play",
+    "seconds": 3.0,
+    "start": 7724,
+    "end": 7760,
+    "speed": "fit",
+    "caption": "Pewter Center, in and out",
+    "subcaption": "two learned legs; these doors are where the policies fail most often in other runs"
+  },
+  {
+    "type": "play",
+    "seconds": 14.0,
+    "start": 7761,
+    "end": 8717,
+    "ranges": [
+      [
+        7761,
+        8086
+      ],
+      [
+        8184,
+        8717
+      ]
+    ],
+    "speed": "fit",
+    "caption": "Into the gym. The walk is learned; the fights are rules.",
+    "subcaption": "the AI never trained on a battle; the badge is the whole system's, not the policy's"
   },
   {
     "type": "end",

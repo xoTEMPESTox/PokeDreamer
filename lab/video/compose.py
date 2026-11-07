@@ -198,6 +198,39 @@ def compute_step_indices(
         return steps[np.clip(raw_idx, 0, len(steps) - 1)]
 
 
+def battle_flash_mask(colors: np.ndarray, in_battles: np.ndarray) -> np.ndarray:
+    """True for the steps that flash when sped up (owner: "flashbang").
+
+    Every wild/trainer battle starts with the same transition, one frame per press: ~3 recoloured overworld
+    frames, a dark frame, then 2-3 pure white frames before the battle screen. Masked: each onset through the
+    end of its first run of flat frames within 12 steps (luminance std < 20: white/dark screens measure 0-10,
+    battle and overworld screens >= 40), plus any other flat frame.
+    """
+    lum = colors[:, ::4, ::4].astype(np.float32).mean(axis=3)
+    flat = lum.reshape(len(lum), -1).std(axis=1) < 20.0
+    mask = flat.copy()
+    onsets = np.where(np.diff(in_battles.astype(np.int8)) == 1)[0] + 1
+    for o in onsets:
+        f = np.where(flat[o : o + 12])[0]
+        end = o + 4
+        if len(f):
+            end = o + f[0]
+            while end + 1 < len(flat) and flat[end + 1]:
+                end += 1
+        mask[o : end + 1] = True
+    return mask
+
+
+def deflash_steps(steps: np.ndarray, flash: np.ndarray) -> np.ndarray:
+    """Shows the last non-flash step instead of each flash step (a short hold), so the timing is unchanged."""
+    out = steps.copy()
+    for i, s in enumerate(steps):
+        while s > 0 and flash[s]:
+            s -= 1
+        out[i] = s
+    return out
+
+
 def get_hud_badge(
     in_battle: bool, by: str
 ) -> Tuple[str, Tuple[int, int, int], Tuple[int, int, int], Tuple[int, int, int]]:
@@ -983,6 +1016,7 @@ def compose_video(
     legs = color_npz["leg"]
     bys = color_npz["by"]
     total_traj_steps = len(colors)
+    flash_main = battle_flash_mask(colors, in_battles)
 
     # Load map name resolver
     try:
@@ -1058,6 +1092,8 @@ def compose_video(
         text_lines = seg.get("text", [])
 
         steps = compute_step_indices(start_step, end_step, n_frames, speed=speed, ranges=ranges)
+        if seg_type in ("play", "montage", "split"):  # split: real and dream use these same steps, so both hold together
+            steps = deflash_steps(steps, flash_main)
         seg_out: List[np.ndarray] = []
 
         # Colorize dream chunk if split segment
@@ -1093,6 +1129,7 @@ def compose_video(
             harness_in_battles = h_npz["in_battles"]
             harness_legs = h_npz["leg"]
             harness_bys = h_npz["by"]
+            steps = deflash_steps(steps, battle_flash_mask(harness_colors, harness_in_battles))
             if os.path.exists(harness_json_path):
                 with open(harness_json_path, "r", encoding="utf-8") as f:
                     harness_timeline = json.load(f).get("timeline", [])
@@ -1220,7 +1257,7 @@ def compose_video(
                         anchor_flash_countdown -= 1
 
                 elif seg_type == "montage":
-                    prog_str = f"Level {start_level} → 14"
+                    prog_str = seg.get("progress", f"Level {start_level} → 14")  # per-excerpt level span from the run timeline
                     frame = render_play_frame(
                         color_frame=cf,
                         map_name=m_name,
