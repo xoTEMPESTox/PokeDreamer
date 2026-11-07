@@ -941,6 +941,12 @@ def render_split_frame(
     return np.asarray(img)
 
 
+def load_storyboard(path: str | Path) -> list:
+    """The storyboard is UTF-8 (arrows, middle dots, é); Windows' default cp1252 would garble them on screen."""
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
 def compose_video(
     storyboard_path: str | Path,
     out_path: str | Path,
@@ -954,8 +960,7 @@ def compose_video(
     device: str = "cpu",
 ) -> Dict[str, Any]:
     """Renders the complete 60s video according to the storyboard specification."""
-    with open(storyboard_path, "r") as f:
-        storyboard = json.load(f)
+    storyboard = load_storyboard(storyboard_path)
 
     # Load trajectory color data
     print(f"Loading color trajectory: {traj_color_path}")
@@ -979,7 +984,7 @@ def compose_video(
     # the montage shows the grind's span instead (start level from the run JSON -> target 14).
     start_level = 8
     if os.path.exists(quest_json_path):
-        with open(quest_json_path, "r") as f:
+        with open(quest_json_path, "r", encoding="utf-8") as f:
             start_level = json.load(f).get("level_start", 8)
 
     # Check dream frames
@@ -1078,7 +1083,7 @@ def compose_video(
             harness_legs = h_npz["leg"]
             harness_bys = h_npz["by"]
             if os.path.exists(harness_json_path):
-                with open(harness_json_path, "r") as f:
+                with open(harness_json_path, "r", encoding="utf-8") as f:
                     harness_timeline = json.load(f).get("timeline", [])
 
         anchor_flash_countdown = 0

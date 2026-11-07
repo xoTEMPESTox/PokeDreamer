@@ -16,6 +16,7 @@ from lab.video.compose import (
     render_bakeoff_frame,
     truncate_reason,
     get_latest_decision,
+    load_storyboard,
     wrap_text,
     draw_heading,
     get_pokeball_icon,
@@ -514,3 +515,13 @@ def test_render_bakeoff_frame_dimensions():
     )
     assert frame.shape == (CANVAS_HEIGHT, CANVAS_WIDTH, 3)
     assert frame.dtype == np.uint8
+
+
+def test_load_storyboard_keeps_utf8_text_on_a_cp1252_locale(tmp_path):
+    # Windows' default codepage turned the caption's "→" into "âť’" on screen (draft_v7)
+    sb = [{"type": "montage", "caption": "Levelling up: Charmander 8 → 14", "subcaption": "a · b · Pokémon"}]
+    path = tmp_path / "storyboard.json"
+    path.write_text(json.dumps(sb, ensure_ascii=False), encoding="utf-8")
+    loaded = load_storyboard(path)
+    assert loaded[0]["caption"] == "Levelling up: Charmander 8 → 14"
+    assert loaded[0]["subcaption"] == "a · b · Pokémon"
