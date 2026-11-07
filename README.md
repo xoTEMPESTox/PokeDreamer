@@ -6,7 +6,7 @@
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 · [Website](https://pokedreamer.priyanshusah.com) · [Model weights](https://huggingface.co/xxxTEMPESTxxx/PokeDreamer) · [Dataset](https://huggingface.co/datasets/xxxTEMPESTxxx/PokeDreamer) · [Results](lab/results/README.md)
 
-<p align="center"><img src="docs/assets/v3/opener_3d.gif" width="80%" alt="A procedural 3D render of Viridian City built from the game's map data, following the agent's recorded path"></p>
+<p align="center"><img src="docs/assets/v3/opener_3d.gif" width="80%" alt="The PokeDreamer title rising over the pond in a 3D render of Viridian City built from the game's map data"></p>
 
 ## In 30 seconds
 - **A world model of a real game.** A diffusion model learned to predict Pokémon Red frame by frame from recorded play: you press a button, it imagines the next screen.
