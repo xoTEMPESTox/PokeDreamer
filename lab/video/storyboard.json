@@ -1,219 +1,5 @@
 [
   {
-    "type": "card",
-    "seconds": 4.0,
-    "tag": "The game agent",
-    "headline": "System 1 walks, System 2 plans",
-    "line": "Walking: System 1 policies trained only in the world model's imagination.",
-    "line2": "A System 2 planner sets the goals: grind, heal, travel, gym.",
-    "bg_start": 111,
-    "bg_end": 180
-  },
-  {
-    "type": "play",
-    "seconds": 6.0,
-    "start": 111,
-    "end": 400,
-    "speed": "fit",
-    "caption": "The game agent in the real game: System 1 walks"
-  },
-  {
-    "type": "montage",
-    "seconds": 2.0,
-    "start": 1285,
-    "end": 1404,
-    "ranges": [
-      [
-        1285,
-        1404
-      ]
-    ],
-    "speed": "fit",
-    "goal_text": "grind (level 8 to 14)",
-    "caption": "System 2 sets a grind goal · wild battles",
-    "progress": "Level 9 → 11"
-  },
-  {
-    "type": "montage",
-    "seconds": 2.0,
-    "start": 3311,
-    "end": 3420,
-    "ranges": [
-      [
-        3311,
-        3420
-      ]
-    ],
-    "speed": "fit",
-    "goal_text": "grind (level 8 to 14)",
-    "caption": "System 2 sets a grind goal · wild battles",
-    "progress": "Level 11 → 12"
-  },
-  {
-    "type": "montage",
-    "seconds": 2.0,
-    "start": 6497,
-    "end": 6606,
-    "ranges": [
-      [
-        6497,
-        6606
-      ]
-    ],
-    "speed": "fit",
-    "goal_text": "grind (level 8 to 14)",
-    "caption": "System 2 sets a grind goal · wild battles",
-    "progress": "Level 12 → 14"
-  },
-  {
-    "type": "play",
-    "seconds": 4.0,
-    "start": 6608,
-    "end": 6832,
-    "speed": "fit",
-    "caption": "One heal: three System 1 policies in a row",
-    "subcaption": "0 backup path-finder presses in this run"
-  },
-  {
-    "type": "card",
-    "seconds": 4.0,
-    "tag": "The game harness",
-    "headline": "System 2 planner: a local LLM",
-    "line": "Same harness, same System 1 policies; gemma4:31b writes the plan.",
-    "bg_traj": "work/video/traj_llm/run_seed_100_color.npz",
-    "bg_start": 4650,
-    "bg_end": 4700,
-    "line2": "Every decision is validated against game RAM before it runs."
-  },
-  {
-    "type": "harness",
-    "seconds": 8.0,
-    "traj": "work/video/traj_llm/run_seed_100_color.npz",
-    "run_json": "work/video/quest_s100_llm/run_seed_100.json",
-    "ranges": [
-      [
-        4650,
-        4900
-      ],
-      [
-        6020,
-        6260
-      ],
-      [
-        6940,
-        7044
-      ]
-    ],
-    "speed": "fit",
-    "caption": "LLM planner: 10 of 10 badges, 19% fewer presses than the default System 2",
-    "subcaption": "10 runs each, same System 1 legs · 99/99 decisions valid"
-  },
-  {
-    "type": "bakeoff",
-    "seconds": 5.0,
-    "title": "Six local LLMs as the System 2 planner",
-    "footer": "10 quests each, median over all 10 · same harness, map-reading navigation · one RTX 4090",
-    "rows": [
-      {
-        "planner": "default planner (reference)",
-        "badges": "10/10",
-        "presses": "8,508.5",
-        "vram": "—",
-        "key": "rules"
-      },
-      {
-        "planner": "gemma4:26b (MoE)",
-        "badges": "8/10",
-        "presses": "11,624",
-        "vram": "20.9 GB",
-        "key": "gemma"
-      },
-      {
-        "planner": "qwen3.6:35b-a3b (MoE)",
-        "badges": "10/10",
-        "presses": "8,355",
-        "vram": "22.4 GB",
-        "key": "qwen"
-      },
-      {
-        "planner": "gpt-oss:20b",
-        "badges": "10/10",
-        "presses": "6,233",
-        "vram": "14.4 GB",
-        "key": "gpt-oss"
-      },
-      {
-        "planner": "gemma4:31b",
-        "badges": "10/10",
-        "presses": "7,239",
-        "vram": "22.4 GB",
-        "highlight": true,
-        "key": "gemma"
-      },
-      {
-        "planner": "gemma4:12b",
-        "badges": "10/10",
-        "presses": "8,145",
-        "vram": "10.2 GB",
-        "key": "gemma"
-      },
-      {
-        "planner": "qwen3.5:9b",
-        "badges": "10/10",
-        "presses": "10,246.5",
-        "vram": "7.8 GB",
-        "key": "qwen"
-      }
-    ]
-  },
-  {
-    "type": "card",
-    "seconds": 4.0,
-    "tag": "The world model",
-    "headline": "Inside the imagination",
-    "line": "Left: real game. Right: the diffusion world model, 10 steps ahead.",
-    "bg_start": 6834,
-    "bg_end": 6914,
-    "line2": "Playable by keyboard, frame by frame"
-  },
-  {
-    "type": "split",
-    "seconds": 12.0,
-    "start": 6834,
-    "end": 6914,
-    "speed": "fit",
-    "caption": "Imagination rollout vs the real game, same actions",
-    "subcaption": "re-anchored on 4 real frames every 10 steps (H = 10)"
-  },
-  {
-    "type": "card",
-    "seconds": 4.0,
-    "tag": "The real game",
-    "headline": "The whole agent, one quest",
-    "line": "Every walk: a System 1 policy. Two fights, then the badge.",
-    "bg_start": 7761,
-    "bg_end": 7800,
-    "line2": "Gym badge in 30 of 30 runs; LLM planner 10 of 10."
-  },
-  {
-    "type": "play",
-    "seconds": 11.0,
-    "start": 7761,
-    "end": 8717,
-    "ranges": [
-      [
-        7761,
-        8086
-      ],
-      [
-        8184,
-        8717
-      ]
-    ],
-    "speed": "fit",
-    "caption": "System 1 walks in, two battles, the badge"
-  },
-  {
     "type": "diagram",
     "seconds": 8.0,
     "title": "PokeDreamer v3",
@@ -1299,5 +1085,219 @@
         "t0": 1.4
       }
     ]
+  },
+  {
+    "type": "card",
+    "seconds": 4.0,
+    "tag": "The game agent",
+    "headline": "System 1 walks, System 2 plans",
+    "line": "Walking: System 1 policies trained only in the world model's imagination.",
+    "line2": "A System 2 planner sets the goals: grind, heal, travel, gym.",
+    "bg_start": 111,
+    "bg_end": 180
+  },
+  {
+    "type": "play",
+    "seconds": 6.0,
+    "start": 111,
+    "end": 400,
+    "speed": "fit",
+    "caption": "The game agent in the real game: System 1 walks"
+  },
+  {
+    "type": "montage",
+    "seconds": 2.0,
+    "start": 1285,
+    "end": 1404,
+    "ranges": [
+      [
+        1285,
+        1404
+      ]
+    ],
+    "speed": "fit",
+    "goal_text": "grind (level 8 to 14)",
+    "caption": "System 2 sets a grind goal · wild battles",
+    "progress": "Level 9 → 11"
+  },
+  {
+    "type": "montage",
+    "seconds": 2.0,
+    "start": 3311,
+    "end": 3420,
+    "ranges": [
+      [
+        3311,
+        3420
+      ]
+    ],
+    "speed": "fit",
+    "goal_text": "grind (level 8 to 14)",
+    "caption": "System 2 sets a grind goal · wild battles",
+    "progress": "Level 11 → 12"
+  },
+  {
+    "type": "montage",
+    "seconds": 2.0,
+    "start": 6497,
+    "end": 6606,
+    "ranges": [
+      [
+        6497,
+        6606
+      ]
+    ],
+    "speed": "fit",
+    "goal_text": "grind (level 8 to 14)",
+    "caption": "System 2 sets a grind goal · wild battles",
+    "progress": "Level 12 → 14"
+  },
+  {
+    "type": "play",
+    "seconds": 4.0,
+    "start": 6608,
+    "end": 6832,
+    "speed": "fit",
+    "caption": "One heal: three System 1 policies in a row",
+    "subcaption": "0 backup path-finder presses in this run"
+  },
+  {
+    "type": "card",
+    "seconds": 4.0,
+    "tag": "The game harness",
+    "headline": "System 2 planner: a local LLM",
+    "line": "Same harness, same System 1 policies; gemma4:31b writes the plan.",
+    "bg_traj": "work/video/traj_llm/run_seed_100_color.npz",
+    "bg_start": 4650,
+    "bg_end": 4700,
+    "line2": "Every decision is validated against game RAM before it runs."
+  },
+  {
+    "type": "harness",
+    "seconds": 8.0,
+    "traj": "work/video/traj_llm/run_seed_100_color.npz",
+    "run_json": "work/video/quest_s100_llm/run_seed_100.json",
+    "ranges": [
+      [
+        4650,
+        4900
+      ],
+      [
+        6020,
+        6260
+      ],
+      [
+        6940,
+        7044
+      ]
+    ],
+    "speed": "fit",
+    "caption": "LLM planner: 10 of 10 badges, 19% fewer presses than the default System 2",
+    "subcaption": "10 runs each, same System 1 legs · 99/99 decisions valid"
+  },
+  {
+    "type": "bakeoff",
+    "seconds": 5.0,
+    "title": "Six local LLMs as the System 2 planner",
+    "footer": "10 quests each, median over all 10 · same harness, map-reading navigation · one RTX 4090",
+    "rows": [
+      {
+        "planner": "default planner (reference)",
+        "badges": "10/10",
+        "presses": "8,508.5",
+        "vram": "—",
+        "key": "rules"
+      },
+      {
+        "planner": "gemma4:26b (MoE)",
+        "badges": "8/10",
+        "presses": "11,624",
+        "vram": "20.9 GB",
+        "key": "gemma"
+      },
+      {
+        "planner": "qwen3.6:35b-a3b (MoE)",
+        "badges": "10/10",
+        "presses": "8,355",
+        "vram": "22.4 GB",
+        "key": "qwen"
+      },
+      {
+        "planner": "gpt-oss:20b",
+        "badges": "10/10",
+        "presses": "6,233",
+        "vram": "14.4 GB",
+        "key": "gpt-oss"
+      },
+      {
+        "planner": "gemma4:31b",
+        "badges": "10/10",
+        "presses": "7,239",
+        "vram": "22.4 GB",
+        "highlight": true,
+        "key": "gemma"
+      },
+      {
+        "planner": "gemma4:12b",
+        "badges": "10/10",
+        "presses": "8,145",
+        "vram": "10.2 GB",
+        "key": "gemma"
+      },
+      {
+        "planner": "qwen3.5:9b",
+        "badges": "10/10",
+        "presses": "10,246.5",
+        "vram": "7.8 GB",
+        "key": "qwen"
+      }
+    ]
+  },
+  {
+    "type": "card",
+    "seconds": 4.0,
+    "tag": "The world model",
+    "headline": "Inside the imagination",
+    "line": "Left: real game. Right: the diffusion world model, 10 steps ahead.",
+    "bg_start": 6834,
+    "bg_end": 6914,
+    "line2": "Playable by keyboard, frame by frame"
+  },
+  {
+    "type": "split",
+    "seconds": 12.0,
+    "start": 6834,
+    "end": 6914,
+    "speed": "fit",
+    "caption": "Imagination rollout vs the real game, same actions",
+    "subcaption": "re-anchored on 4 real frames every 10 steps (H = 10)"
+  },
+  {
+    "type": "card",
+    "seconds": 4.0,
+    "tag": "The real game",
+    "headline": "The whole agent, one quest",
+    "line": "Every walk: a System 1 policy. Two fights, then the badge.",
+    "bg_start": 7761,
+    "bg_end": 7800,
+    "line2": "Gym badge in 30 of 30 runs; LLM planner 10 of 10."
+  },
+  {
+    "type": "play",
+    "seconds": 11.0,
+    "start": 7761,
+    "end": 8717,
+    "ranges": [
+      [
+        7761,
+        8086
+      ],
+      [
+        8184,
+        8717
+      ]
+    ],
+    "speed": "fit",
+    "caption": "System 1 walks in, two battles, the badge"
   }
 ]

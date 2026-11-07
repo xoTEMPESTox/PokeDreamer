@@ -76,11 +76,12 @@ def test_actual_storyboard_json_frame_counts():
 
 
 def test_storyboard_end_card_exact_numbers():
-    """The end section consists of three screens (8 s + 9 s + 8 s) detailing architecture, harness, and final specs.
-    Verifies chart numbers (8779.5 / 7144.5, 50.0 GPU-hours), tiles, and honesty phrases in strip/table."""
+    """The three info screens (8 s + 9 s + 8 s: world model, harness, numbers) open the main video, right after the
+    3D hook (owner: info before the gameplay). Verifies chart numbers (8779.5 / 7144.5, 50.0 GPU-hours), tiles, and
+    honesty phrases in strip/table."""
     with open(Path("lab/video/storyboard.json"), "r", encoding="utf-8") as f:
         storyboard = json.load(f)
-    end_segs = storyboard[-3:]
+    end_segs = storyboard[:3]
     assert len(end_segs) == 3
     assert [s.get("type") for s in end_segs] == ["diagram", "diagram", "diagram"]
     assert [s["seconds"] for s in end_segs] == [8.0, 9.0, 8.0]
