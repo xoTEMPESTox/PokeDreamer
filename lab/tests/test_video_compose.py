@@ -347,7 +347,8 @@ def test_mapping_dicts_cover_all_trajectory_legs_and_goals():
 
 def test_storyboard_subcaptions_present_and_match_spec():
     """Every play/montage/split segment has a caption; subcaptions are optional since the intro cards (owner
-    review 3) carry the context, but never empty when present. Every card has a tag, headline and line."""
+    review 3) carry the context, but never empty when present. Every card has a headline and a subtitle line, and no
+    leftover tag or line2 (owner, 2026-11-08: the section name is the heading)."""
     sb_path = Path("lab/video/storyboard.json")
     with open(sb_path, "r", encoding="utf-8") as f:
         storyboard = json.load(f)
@@ -357,7 +358,8 @@ def test_storyboard_subcaptions_present_and_match_spec():
             assert seg.get("caption"), f"Segment {i} ({seg['type']}) has no caption"
             assert seg.get("subcaption", "x") != "", f"Segment {i} subcaption is empty"
         if seg.get("type") == "card":
-            assert seg.get("tag") and seg.get("headline") and seg.get("line"), f"Card {i} is missing text"
+            assert seg.get("headline") and seg.get("line"), f"Card {i} is missing text"
+            assert "tag" not in seg and "line2" not in seg, f"Card {i} still has a tag or line2"
 
 
 def test_no_do_not_say_phrases():

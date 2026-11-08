@@ -66,10 +66,8 @@
   {
     "type": "card",
     "seconds": 4.0,
-    "tag": "Upscale + colourise",
-    "headline": "Two neural nets restore the screen",
-    "line": "The agent sees 72×80 greyscale; an upscaler and a colorizer restore full colour for display.",
-    "line2": "Upscaler: 91% of held-out frames pixel-exact · colorizer: 99.27% of pixels",
+    "headline": "Upscaler + colorizer",
+    "line": "Two neural nets restore the 72×80 greyscale screen to full colour",
     "bg_start": 111,
     "bg_end": 180
   },
@@ -84,12 +82,10 @@
   {
     "type": "card",
     "seconds": 4.0,
-    "tag": "The world model",
-    "headline": "A diffusion model that dreams the game",
-    "line": "Press a button and it imagines the next frame, from the last 4 frames.",
+    "headline": "The world model",
+    "line": "A diffusion model that dreams the game, playable by keyboard",
     "bg_start": 6834,
-    "bg_end": 6914,
-    "line2": "Playable by keyboard, frame by frame"
+    "bg_end": 6914
   },
   {
     "type": "diagram",
@@ -508,10 +504,8 @@
   {
     "type": "card",
     "seconds": 4.0,
-    "tag": "The game harness",
-    "headline": "System 1 walks, System 2 plans",
-    "line": "Walking: System 1 policies trained only in the world model's imagination.",
-    "line2": "A System 2 planner sets the goals: grind, heal, travel, gym.",
+    "headline": "The game harness",
+    "line": "System 2 plans, System 1 walks with policies trained only in the dream",
     "bg_start": 111,
     "bg_end": 180
   },
@@ -976,13 +970,11 @@
   {
     "type": "card",
     "seconds": 4.0,
-    "tag": "System 2: the LLM planner",
-    "headline": "A local LLM plans the quest",
-    "line": "Same harness, same System 1 policies; gemma4:31b writes the plan.",
+    "headline": "System 2: the LLM planner",
+    "line": "A local LLM plans the quest; every decision is validated against RAM",
     "bg_traj": "work/video/traj_llm/run_seed_100_color.npz",
     "bg_start": 4650,
-    "bg_end": 4700,
-    "line2": "Calls tools (Pokédex, guide search) to plan; every decision is validated against RAM."
+    "bg_end": 4700
   },
   {
     "type": "harness",
@@ -1068,12 +1060,10 @@
   {
     "type": "card",
     "seconds": 4.0,
-    "tag": "System 1: the dream-trained agent",
-    "headline": "Trained in the dream, tested in the real game",
-    "line": "Every walk: a System 1 policy. Two fights, then the badge.",
+    "headline": "System 1: the dream-trained agent",
+    "line": "Trained in the dream, tested in the real game: gym badge in 30 of 30 runs",
     "bg_start": 7761,
-    "bg_end": 7800,
-    "line2": "Gym badge in 30 of 30 runs; LLM planner 10 of 10."
+    "bg_end": 7800
   },
   {
     "type": "clip",

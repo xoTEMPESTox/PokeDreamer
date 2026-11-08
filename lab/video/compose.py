@@ -1548,18 +1548,17 @@ def render_value_frame(seg: Dict[str, Any], t_s: float, fonts: FontManager, them
 def render_card_frame(
     bg_frame: np.ndarray,
     t: float,
-    tag: str,
     headline: str,
     line: str,
     fonts: FontManager,
-    line2: str = "",
     seconds: float = 2.0,
 ) -> np.ndarray:
     """Section intro card (owner review 3, Fable's design) at progress t in [0, 1].
 
     So 2-2.5 s of text is not a blank screen, the next section's own gameplay plays behind it (slowed, blurred,
-    muted towards the UI background, slow push-in). Over it, staggered: a small tag naming the part of the system,
-    the headline sliding up, a rule drawing in left to right, then one line; everything fades out at the end.
+    muted towards the UI background, slow push-in). Over it, staggered: the section name as the headline sliding up,
+    a rule drawing in left to right, then a one-line grey subtitle; everything fades out at the end (owner, 2026-11-08:
+    the section name is the heading, not a small tag over a description).
     """
     W, H = CANVAS_WIDTH, CANVAS_HEIGHT
 
@@ -1580,20 +1579,16 @@ def render_card_frame(
     d = ImageDraw.Draw(ov)
     cx, cy = W // 2, H // 2
     out = 1.0 - ease(seconds - 0.5, seconds)
-    a_tag, a_head, a_line = ease(0.0, 0.4) * out, ease(0.2, 0.8) * out, ease(0.5, 1.2) * out
-    f_tag, f_head, f_line = fonts.get(20, bold=True), fonts.get(60, bold=True), fonts.get(28)
+    a_head, a_line = ease(0.0, 0.6) * out, ease(0.4, 1.1) * out
+    f_head, f_line = fonts.get(60, bold=True), fonts.get(28)
 
-    d.text((cx, cy - 92), " ".join(tag.upper()), font=f_tag, fill=(56, 189, 248, int(255 * a_tag)), anchor="mm")
-    hy = cy - 30 + int((1.0 - ease(0.2, 0.8)) * 24)
+    hy = cy - 40 + int((1.0 - ease(0.0, 0.6)) * 24)
     d.text((cx, hy), headline, font=f_head, fill=(248, 250, 252, int(255 * a_head)), anchor="mm")
     hw = int(d.textlength(headline, font=f_head))
     rw = int(hw * ease(0.4, 1.0))
     if rw > 0:
-        d.rectangle([cx - hw // 2, cy + 22, cx - hw // 2 + rw, cy + 24], fill=(147, 197, 253, int(255 * out)))
-    d.text((cx, cy + 66), line, font=f_line, fill=(190, 200, 214, int(255 * a_line)), anchor="mm")
-    if line2:
-        a_line2 = ease(0.7, 1.4) * out
-        d.text((cx, cy + 108), line2, font=f_line, fill=(190, 200, 214, int(255 * a_line2)), anchor="mm")
+        d.rectangle([cx - hw // 2, cy + 12, cx - hw // 2 + rw, cy + 14], fill=(147, 197, 253, int(255 * out)))
+    d.text((cx, cy + 56), line, font=f_line, fill=(190, 200, 214, int(255 * a_line)), anchor="mm")
     img.alpha_composite(ov)
     return np.asarray(img.convert("RGB"))
 
@@ -2125,11 +2120,9 @@ def compose_video(
                 frame = render_card_frame(
                     bg_colors[bg_steps[f_idx]],
                     f_idx / max(1, n_frames - 1),
-                    tag=seg.get("tag", ""),
                     headline=seg.get("headline", ""),
                     line=seg.get("line", ""),
                     fonts=fonts,
-                    line2=seg.get("line2", ""),
                     seconds=float(seg["seconds"]),
                 )
                 if f_idx == int(n_frames * 0.6):
